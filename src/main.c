@@ -6,6 +6,7 @@
  * Experimental program
  */
 
+#include <simply-thread.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
