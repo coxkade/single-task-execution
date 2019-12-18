@@ -92,7 +92,7 @@ struct simply_thread_lib_data_s
     struct simply_thread_sleep_data_s sleep; //!< Data for the sleep logic
     struct simply_thread_scheduler_task_data_s sched; //!< Data used by the scheduler task
     bool signals_initialized; //!< Tells if the signals have been initialized
-    pthread_mutex_t print_mutex;
+    pthread_mutex_t print_mutex; //!< Mutex used by the log printer
 };
 
 #endif /* SIMPLY_THREAD_OBJECTS_H_ */
