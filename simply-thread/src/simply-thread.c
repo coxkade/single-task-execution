@@ -59,7 +59,7 @@ PRINT_MSG("---- %s released master mutex\r\n", __FUNCTION__);\
 
 /**
  * @brief Function that sleeps for the specified number of milliseconds
- * @param ms
+ * @param ms The number of milliseconds to sleep
  */
 void m_simply_thread_sleep_ms(unsigned long ms);
 
@@ -173,6 +173,9 @@ static void *m_task_wrapper(void *data)
     return NULL;
 }
 
+/**
+ * @brief Internal cleanup function
+ */
 static void m_intern_cleanup(void)
 {
     static bool first_time = true;
@@ -201,7 +204,7 @@ static void m_intern_cleanup(void)
 
 /**
  * @brief function that handles the sleeper data
- * @param
+ * @param UNUSED
  */
 void *m_sleeper_task(void *data)
 {
@@ -361,7 +364,7 @@ simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_ta
 
 /**
  * @brief Function that sleeps for the specified number of nanoseconds
- * @param ns
+ * @param ns number of nanoseconds to sleep
  */
 void simply_thread_sleep_ns(unsigned long ns)
 {
@@ -378,7 +381,7 @@ void simply_thread_sleep_ns(unsigned long ns)
 
 /**
  * @brief Function that sleeps for the specified number of milliseconds
- * @param ms
+ * @param ms The number of milliseconds to sleep
  */
 void m_simply_thread_sleep_ms(unsigned long ms)
 {
@@ -394,7 +397,7 @@ void m_simply_thread_sleep_ms(unsigned long ms)
 
 /**
  * @brief Function that sleeps for the specified number of milliseconds
- * @param ms
+ * @param ms The number of milliseconds to sleep
  */
 void simply_thread_sleep_ms(unsigned long ms)
 {
@@ -425,8 +428,8 @@ void simply_thread_sleep_ms(unsigned long ms)
 
 /**
  * @brief Update a tasks state
- * @param task
- * @param state
+ * @param task the task to update
+ * @param state the state to update the task to
  */
 void simply_thread_set_task_state(struct simply_thread_task_s *task, enum simply_thread_thread_state_e state)
 {

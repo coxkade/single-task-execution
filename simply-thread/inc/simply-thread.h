@@ -40,7 +40,7 @@ simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_ta
 
 /**
  * @brief Function that sleeps for the specified number of milliseconds
- * @param ms
+ * @param ms The number of milliseconds to sleep
  */
 void simply_thread_sleep_ms(unsigned long ms);
 

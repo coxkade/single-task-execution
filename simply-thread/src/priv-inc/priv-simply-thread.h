@@ -20,7 +20,7 @@ void simply_thread_set_task_state(struct simply_thread_task_s *task, enum simply
 
 /**
  * @brief Function that sleeps for the specified number of nanoseconds
- * @param ns
+ * @param ns number of nanoseconds to sleep
  */
 void simply_thread_sleep_ns(unsigned long ns);
 
