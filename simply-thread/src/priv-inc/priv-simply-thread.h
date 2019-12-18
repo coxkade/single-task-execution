@@ -18,4 +18,36 @@
  */
 void simply_thread_set_task_state(struct simply_thread_task_s *task, enum simply_thread_thread_state_e state);
 
+/**
+ * @brief Function that sleeps for the specified number of nanoseconds
+ * @param ns
+ */
+void simply_thread_sleep_ns(unsigned long ns);
+
+/**
+ * @brief initialize a condition
+ * @param cond
+ */
+void simply_thread_init_condition(struct simply_thread_condition_s *cond);
+
+/**
+ * @brief Destroy a condition
+ * @param cond
+ */
+void simply_thread_dest_condition(struct simply_thread_condition_s *cond);
+
+/**
+ * @brief send a condition
+ * @param cond
+ */
+void simply_thread_send_condition(struct simply_thread_condition_s *cond);
+
+/**
+ * @brief wait on a condition
+ * @param cond
+ */
+void simply_thread_wait_condition(struct simply_thread_condition_s *cond);
+
+
+
 #endif /* PRIV_SIMPLY_THREAD_H_ */

@@ -9,6 +9,8 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <simply-thread.h>
+#include <simply-thread-linked-list.h>
+#include <pthread.h>
 
 #ifndef SIMPLY_THREAD_OBJECTS_H_
 #define SIMPLY_THREAD_OBJECTS_H_
@@ -38,5 +40,17 @@ struct simply_thread_task_s
         unsigned int data_size; //!< The Size of the task data
     } task_data; //!< Data to use with the task
 }; //!< Structure that holds the data for a single task.
+
+struct simply_thread_task_list_s
+{
+	pthread_mutex_t mutex; //!< Mutex to protect the list
+	simply_thread_linked_list_t handle; //!< The handle to the list
+}; //!< Structure for holding the task list
+
+struct simply_thread_condition_s
+{
+	pthread_mutex_t gate_mutex; //!< mutex for race condition
+	bool waiting;//!< Value that says if we are waiting
+};
 
 #endif /* SIMPLY_THREAD_OBJECTS_H_ */

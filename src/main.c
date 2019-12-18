@@ -119,27 +119,36 @@
 
 static simply_thread_task_t task_one = NULL;
 static simply_thread_task_t task_two = NULL;
+static bool done = false;
 
-static void thread_one_worker(void * data, uint16_t data_size)
-{
-	printf("%s Started\r\n", __FUNCTION__);
-	simply_thread_sleep_ms(250);
-	while(1)
-	{
-		simply_thread_sleep_ms(250);
-		printf("%s running\r\n", __FUNCTION__);
-		assert(true == simply_thread_task_resume(task_two));
-	}
-}
 
 static void thread_two_worker(void * data, uint16_t data_size)
 {
 	printf("%s Started\r\n", __FUNCTION__);
-	simply_thread_sleep_ms(250);
+	simply_thread_sleep_ms(100);
+	int count = 0;
+	static const int max_count = 500;
 	while(1)
 	{
 		printf("%s running\r\n", __FUNCTION__);
 		assert(true == simply_thread_task_suspend(NULL));
+		count++;
+		if(max_count <= count)
+		{
+			done=true;
+		}
+	}
+}
+
+static void thread_one_worker(void * data, uint16_t data_size)
+{
+	printf("%s Started\r\n", __FUNCTION__);
+	simply_thread_sleep_ms(100);
+	while(1)
+	{
+		printf("%s running\r\n", __FUNCTION__);
+		assert(true == simply_thread_task_resume(task_two));
+		simply_thread_sleep_ms(10);
 	}
 }
 
@@ -149,23 +158,15 @@ static void thread_two_worker(void * data, uint16_t data_size)
  */
 int main(void)
 {
-    int result;
     printf("Starting the main function\r\n");
-//    signal(SIGUSR1, user_1_catch);
-//    signal(SIGUSR2, user_2_catch);
-//    printf("Launching the threads\r\n");
-//    pthread_assert(pthread_create(&one, NULL, thread_one_worker, NULL));
-//    m_sleep_ms(1000);
-//    printf("Telling the threads to stop\r\n");
-//    pthread_assert(pthread_kill(one, SIGUSR1));
-//    m_sleep_ms(5000);
-//    printf("Telling the threads to resume");
-//    pthread_assert(pthread_kill(one, SIGUSR2));
-//    m_sleep_ms(1000);
     simply_thread_reset();
     task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
     task_two = simply_thread_new_thread("TASK2", thread_two_worker, 3, NULL, 0);
-    simply_thread_sleep_ms(2000);
+
+    while(false == done){
+
+    };
+    simply_thread_cleanup();
     printf("main exiting\r\n");
     return 0;
 }

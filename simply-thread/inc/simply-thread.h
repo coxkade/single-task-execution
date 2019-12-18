@@ -37,11 +37,6 @@ void simply_thread_cleanup(void);
  */
 simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_task_fnct cb, unsigned int priority, void *data, uint16_t data_size);
 
-/**
- * @brief Function that sleeps for the specified number of nanoseconds
- * @param ns
- */
-void simply_thread_sleep_ns(unsigned long ns);
 
 /**
  * @brief Function that sleeps for the specified number of milliseconds

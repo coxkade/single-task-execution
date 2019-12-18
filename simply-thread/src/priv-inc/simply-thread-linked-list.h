@@ -75,5 +75,9 @@ unsigned int simply_thread_ll_count(simply_thread_linked_list_t handle);
  */
 void simply_thread_ll_destroy(simply_thread_linked_list_t handle);
 
+/**
+ * @brief Small test for the linked lists.
+ */
+void simply_thread_ll_test(void);
 
 #endif /* SIMPLY_THREAD_LINKED_LIST_H_ */
