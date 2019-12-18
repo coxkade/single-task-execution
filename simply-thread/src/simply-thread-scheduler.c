@@ -3,7 +3,7 @@
  * @author Kade Cox
  * @date Created: Dec 17, 2019
  * @details
- * 
+ *
  */
 
 #include <simply-thread-scheduler.h>
@@ -26,28 +26,24 @@
 #define PRINT_MSG(...)
 #endif //DEBUG_SIMPLY_THREAD
 
+#define MODULE_DATA simply_thread_lib_data()->sched
+
+#define TASK_LIST simply_thread_lib_data()->thread_list
+
+#define MUTEX_GET() do{\
+PRINT_MSG("**** %s waiting on Master Mutex\r\n", __FUNCTION__);\
+assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->master_mutex));\
+PRINT_MSG("++++ %s Has Master Mutex\r\n", __FUNCTION__);\
+}while(0)
+#define MUTEX_RELEASE() do{\
+pthread_mutex_unlock(&simply_thread_lib_data()->master_mutex);\
+PRINT_MSG("---- %s released master mutex\r\n", __FUNCTION__);\
+}while(0)
+
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
 /***********************************************************************************/
 
-
-
-
-struct module_data_s
-{
-	struct simply_thread_condition_s condition; //!< Structure with elements to trigger the scheduler
-	struct simply_thread_condition_s sleepcondition; //!< Structure for the sleep condition
-	struct
-	{
-		pthread_mutex_t mutex; //!< mutex to protect the data
-		struct simply_thread_scheduler_data_s work_data; //!< The data to work off of
-		bool staged; //!< tells if the data is staged and waiting for action
-		bool kill; //!< Tells the scheduler thread to close
-	}sched_data;//!< Structure that holds the data the scheduler works off of
-	struct simply_thread_task_list_s * threadlist; //!< Pointer to the system thread list
-	bool threadlaunched; //!< Variable that tells if the thread has been launcged
-	pthread_t thread; //!< The thread ID of the scheduler thread
-};
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
@@ -58,9 +54,6 @@ struct module_data_s
 /***************************** Static Variables ************************************/
 /***********************************************************************************/
 
-static struct module_data_s m_module_data={
-	.threadlaunched = false
-}; //!< The module data
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
@@ -74,9 +67,10 @@ static inline unsigned int m_running_tasks(void)
 {
     struct simply_thread_task_s *c;
     unsigned int rv = 0;
-    for(unsigned int i = 0; i < simply_thread_ll_count(m_module_data.threadlist->handle); i++)
+
+    for(unsigned int i = 0; i < simply_thread_ll_count(TASK_LIST); i++)
     {
-        c = (struct simply_thread_task_s *)simply_thread_ll_get(m_module_data.threadlist->handle, i);
+        c = (struct simply_thread_task_s *)simply_thread_ll_get(TASK_LIST, i);
         if(SIMPLY_THREAD_TASK_RUNNING == c->state)
         {
             rv++;
@@ -84,6 +78,18 @@ static inline unsigned int m_running_tasks(void)
     }
     assert(2 > rv);
     return rv;
+}
+
+/**
+ * @brief Function that exits the scheduler thread if needed
+ */
+static inline void m_sched_exit_if_kill(void)
+{
+    if(true == MODULE_DATA.sched_data.kill)
+    {
+        MUTEX_RELEASE();
+        pthread_exit(NULL);
+    }
 }
 
 /**
@@ -95,16 +101,20 @@ static inline void m_sleep_all_tasks(void)
 
     while(0 != m_running_tasks())
     {
-        for(unsigned int i = 0; i < simply_thread_ll_count(m_module_data.threadlist->handle); i++)
+        for(unsigned int i = 0; i < simply_thread_ll_count(TASK_LIST); i++)
         {
-            c = (struct simply_thread_task_s *)simply_thread_ll_get(m_module_data.threadlist->handle, i);
+            c = (struct simply_thread_task_s *)simply_thread_ll_get(TASK_LIST, i);
             assert(NULL != c);
             if(SIMPLY_THREAD_TASK_RUNNING == c->state)
             {
+                assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->print_mutex));
                 assert(0 == pthread_kill(c->thread, SIGUSR1));
-                pthread_mutex_unlock(&m_module_data.threadlist->mutex);
-                simply_thread_wait_condition(&m_module_data.sleepcondition);
-                assert(0 == pthread_mutex_lock(&m_module_data.threadlist->mutex));
+                pthread_mutex_unlock(&simply_thread_lib_data()->print_mutex);
+                m_sched_exit_if_kill();
+                MUTEX_RELEASE();
+                simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
+                m_sched_exit_if_kill();
+                MUTEX_GET();
             }
         }
     }
@@ -119,9 +129,9 @@ static inline void m_sched_run_best_task(void)
     struct simply_thread_task_s *c;
     struct simply_thread_task_s *best_task;
     best_task = NULL;
-    for(unsigned int i = 0; i < simply_thread_ll_count(m_module_data.threadlist->handle); i++)
+    for(unsigned int i = 0; i < simply_thread_ll_count(TASK_LIST); i++)
     {
-        c = (struct simply_thread_task_s *)simply_thread_ll_get(m_module_data.threadlist->handle, i);
+        c = (struct simply_thread_task_s *)simply_thread_ll_get(TASK_LIST, i);
         assert(NULL != c);
         if(SIMPLY_THREAD_TASK_READY == c->state)
         {
@@ -137,85 +147,77 @@ static inline void m_sched_run_best_task(void)
     }
     if(NULL != best_task)
     {
-    	PRINT_MSG("\tTask %s resume\r\n", best_task->name);
+        PRINT_MSG("\tTask %s resume\r\n", best_task->name);
         best_task->state = SIMPLY_THREAD_TASK_RUNNING;
     }
 }
 
 static void *m_run_sched(void *data)
 {
-	PRINT_MSG("%s Launched\r\n", __FUNCTION__);
+    PRINT_MSG("%s Launched\r\n", __FUNCTION__);
     assert(NULL == data);
     while(1)
     {
         PRINT_MSG("\tWaiting on condition\r\n");
-    	simply_thread_wait_condition(&m_module_data.condition);
+        simply_thread_wait_condition(&MODULE_DATA.condition);
         PRINT_MSG("\tCondition met\r\n");
-    	assert(0 == pthread_mutex_lock(&m_module_data.sched_data.mutex));
-    	assert(true == m_module_data.sched_data.staged);
-    	if(true == m_module_data.sched_data.kill)
-    	{
-    		pthread_mutex_unlock(&m_module_data.sched_data.mutex);
-    		return NULL;
-    	}
-    	assert(0 == pthread_mutex_lock(&m_module_data.threadlist->mutex));
-    	if(true == m_module_data.sched_data.work_data.sleeprequired)
-    	{
-    		PRINT_MSG("\tScheduler sleeping all tasks\r\n");
-    		m_sleep_all_tasks();
-    	}
-    	else
-    	{
-            while(0 != m_running_tasks()){};
+        MUTEX_GET();
+        assert(true == MODULE_DATA.sched_data.staged);
+        m_sched_exit_if_kill();
+
+        if(true == MODULE_DATA.sched_data.work_data.sleeprequired)
+        {
+            PRINT_MSG("\tScheduler sleeping all tasks\r\n");
+            m_sleep_all_tasks();
+        }
+        else
+        {
+            bool wait = true;
+            do
+            {
+                if(0 == m_running_tasks())
+                {
+                    wait = false;
+                }
+                else
+                {
+                    MUTEX_RELEASE();
+                    m_sched_exit_if_kill();
+                    MUTEX_GET();
+                }
+            }
+            while(true == wait);
             assert(0 == m_running_tasks());
-    	}
-    	if(NULL != m_module_data.sched_data.work_data.task_adjust)
+        }
+        if(NULL != MODULE_DATA.sched_data.work_data.task_adjust)
         {
             //All tasks are asleep set the new state
-        	PRINT_MSG("\tScheduler updating task state\r\n");
-        	m_module_data.sched_data.work_data.task_adjust->state =m_module_data.sched_data.work_data.new_state;
+            PRINT_MSG("\tScheduler updating task state\r\n");
+            MODULE_DATA.sched_data.work_data.task_adjust->state = MODULE_DATA.sched_data.work_data.new_state;
         }
-    	PRINT_MSG("\tScheduler Launching Next Task\r\n");
-    	m_sched_run_best_task();
+        PRINT_MSG("\tScheduler Launching Next Task\r\n");
+        m_sched_run_best_task();
 
-    	pthread_mutex_unlock(&m_module_data.threadlist->mutex);
-    	m_module_data.sched_data.staged = false;
-    	pthread_mutex_unlock(&m_module_data.sched_data.mutex);
+        MUTEX_RELEASE();
+        MODULE_DATA.sched_data.staged = false;
     }
     return NULL;
 }
 
-/**
- * @brief initialize a mutex
- * @param mutex pointer to the mutex to initialize
- */
-static void m_mutex_init(pthread_mutex_t * mutex)
-{
-	pthread_mutexattr_t attr;
-	assert(0 == pthread_mutexattr_init(&attr));
-	assert(0 == pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK));
-	assert(0 == pthread_mutex_init(mutex, &attr));
-}
 
 /**
  * @brief initialize the module
- * @param thread_list pointer to the thread list
  */
-void simply_thread_scheduler_init(struct simply_thread_task_list_s * thread_list)
+void simply_thread_scheduler_init(void)
 {
-	PRINT_MSG("%s\r\n", __FUNCTION__);
-	assert(NULL != thread_list);
-	m_mutex_init(&m_module_data.sched_data.mutex);
-	simply_thread_init_condition(&m_module_data.condition);
-	simply_thread_init_condition(&m_module_data.sleepcondition);
-	assert(0 == pthread_mutex_lock(&m_module_data.sched_data.mutex));
-	m_module_data.sched_data.staged = false;
-	m_module_data.sched_data.kill = false;
-	m_module_data.threadlist = thread_list;
-	//Launch the scheduler thread
-	assert(0 == pthread_create(&m_module_data.thread, NULL, m_run_sched, NULL));
-	m_module_data.threadlaunched = true;
-	pthread_mutex_unlock(&m_module_data.sched_data.mutex);
+    PRINT_MSG("%s\r\n", __FUNCTION__);
+    simply_thread_init_condition(&MODULE_DATA.condition);
+    simply_thread_init_condition(&MODULE_DATA.sleepcondition);
+    MODULE_DATA.sched_data.staged = false;
+    MODULE_DATA.sched_data.kill = false;
+    //Launch the scheduler thread
+    assert(0 == pthread_create(&MODULE_DATA.thread, NULL, m_run_sched, NULL));
+    MODULE_DATA.threadlaunched = true;
 }
 
 /**
@@ -223,62 +225,75 @@ void simply_thread_scheduler_init(struct simply_thread_task_list_s * thread_list
  */
 void simply_thread_scheduler_kill(void)
 {
-	PRINT_MSG("%s\r\n", __FUNCTION__);
-	bool sched_running = true;
-	if(true == m_module_data.threadlaunched)
-	{
-		assert(0 == pthread_mutex_lock(&m_module_data.sched_data.mutex));
-		do
-		{
-			sched_running = m_module_data.sched_data.staged;
-			if(true == sched_running)
-			{
-				pthread_mutex_unlock(&m_module_data.sched_data.mutex);
-				simply_thread_sleep_ns(500);
-				assert(0 == pthread_mutex_lock(&m_module_data.sched_data.mutex));
-			}
-		}while(true == sched_running);
-		m_module_data.sched_data.work_data.new_state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
-		m_module_data.sched_data.work_data.task_adjust = NULL;
-		m_module_data.sched_data.staged = true;
-		m_module_data.sched_data.kill = true;
-		simply_thread_send_condition(&m_module_data.condition);
-		pthread_mutex_unlock(&m_module_data.sched_data.mutex);
-		pthread_join(m_module_data.thread, NULL);
-		assert(0 == pthread_mutex_destroy(&m_module_data.sched_data.mutex));
-		simply_thread_dest_condition(&m_module_data.condition);
-		simply_thread_dest_condition(&m_module_data.sleepcondition);
-		m_module_data.threadlaunched = false;
-	}
+    PRINT_MSG("%s\r\n", __FUNCTION__);
+    bool sched_running = true;
+    MUTEX_GET();
+    if(true == MODULE_DATA.threadlaunched)
+    {
+        do
+        {
+            sched_running = MODULE_DATA.sched_data.staged;
+            if(true == sched_running)
+            {
+                MUTEX_RELEASE();
+                simply_thread_sleep_ns(500);
+                MUTEX_GET();
+            }
+        }
+        while(true == sched_running);
+        MODULE_DATA.sched_data.work_data.new_state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
+        MODULE_DATA.sched_data.work_data.task_adjust = NULL;
+        MODULE_DATA.sched_data.staged = true;
+        MODULE_DATA.sched_data.kill = true;
+        simply_thread_send_condition(&MODULE_DATA.condition);
+        MUTEX_RELEASE();
+        pthread_join(MODULE_DATA.thread, NULL);
+        MUTEX_GET();
+        simply_thread_dest_condition(&MODULE_DATA.condition);
+        simply_thread_dest_condition(&MODULE_DATA.sleepcondition);
+        MODULE_DATA.threadlaunched = false;
+    }
+    MUTEX_RELEASE();
 }
 
 /**
  * @brief tell the scheduler to run
  * @param thread_data Data for the scheduler to use
  */
-void simply_thread_run(struct simply_thread_scheduler_data_s * thread_data)
+void simply_thread_run(struct simply_thread_scheduler_data_s *thread_data)
 {
-	PRINT_MSG("%s\r\n", __FUNCTION__);
-	bool sched_running = true;
-	assert(0 == pthread_mutex_lock(&m_module_data.sched_data.mutex));
-	do
-	{
-		sched_running = m_module_data.sched_data.staged;
-		if(true == sched_running)
-		{
-			pthread_mutex_unlock(&m_module_data.sched_data.mutex);
-			simply_thread_sleep_ns(500);
-			assert(0 == pthread_mutex_lock(&m_module_data.sched_data.mutex));
-		}
-	}while(true == sched_running);
+    PRINT_MSG("%s\r\n", __FUNCTION__);
+    MUTEX_GET();
+    if(false == MODULE_DATA.threadlaunched)
+    {
+        MUTEX_RELEASE();
+        return;
+    }
+    bool sched_running = true;
+    do
+    {
+        sched_running = MODULE_DATA.sched_data.staged;
+        if(true == sched_running)
+        {
+            MUTEX_RELEASE();
+            simply_thread_sleep_ns(500);
+            MUTEX_GET();
+            if(false == MODULE_DATA.threadlaunched)
+            {
+                MUTEX_RELEASE();
+                return;
+            }
+        }
+    }
+    while(true == sched_running);
 
-	//Ok stage the data to go out
-	m_module_data.sched_data.work_data.new_state = thread_data->new_state;
-	m_module_data.sched_data.work_data.task_adjust = thread_data->task_adjust;
-	m_module_data.sched_data.work_data.sleeprequired = thread_data->sleeprequired;
-	m_module_data.sched_data.staged = true;
-	simply_thread_send_condition(&m_module_data.condition);
-	pthread_mutex_unlock(&m_module_data.sched_data.mutex);
+    //Ok stage the data to go out
+    MODULE_DATA.sched_data.work_data.new_state = thread_data->new_state;
+    MODULE_DATA.sched_data.work_data.task_adjust = thread_data->task_adjust;
+    MODULE_DATA.sched_data.work_data.sleeprequired = thread_data->sleeprequired;
+    MODULE_DATA.sched_data.staged = true;
+    simply_thread_send_condition(&MODULE_DATA.condition);
+    MUTEX_RELEASE();
 }
 
 /**
@@ -287,6 +302,6 @@ void simply_thread_run(struct simply_thread_scheduler_data_s * thread_data)
  */
 void simply_thread_tell_sched_task_sleeping(struct simply_thread_task_s *ptr_task)
 {
-	PRINT_MSG("%s\r\n", __FUNCTION__);
-	simply_thread_send_condition(&m_module_data.sleepcondition);
+    PRINT_MSG("%s\r\n", __FUNCTION__);
+    simply_thread_send_condition(&MODULE_DATA.sleepcondition);
 }

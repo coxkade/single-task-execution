@@ -48,6 +48,10 @@ void simply_thread_send_condition(struct simply_thread_condition_s *cond);
  */
 void simply_thread_wait_condition(struct simply_thread_condition_s *cond);
 
-
+/**
+ * @brief Function that fetches the simply thread library data
+ * @return pointer to the library data
+ */
+struct simply_thread_lib_data_s *simply_thread_lib_data(void);
 
 #endif /* PRIV_SIMPLY_THREAD_H_ */

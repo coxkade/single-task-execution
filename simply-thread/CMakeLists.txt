@@ -9,6 +9,6 @@ add_library(simply-thread STATIC
     src/simply-thread-linked-list.c
     src/simply-thread-scheduler.c)
     
-SET_TARGET_PROPERTIES(simply-thread PROPERTIES COMPILE_FLAGS "-O0")
+SET_TARGET_PROPERTIES(simply-thread PROPERTIES COMPILE_FLAGS "-O0 -Wall -Werror")
 target_include_directories(simply-thread PUBLIC inc)
 target_include_directories(simply-thread PRIVATE src/priv-inc)

@@ -25,4 +25,5 @@
  */
 void simply_thread_log(const char *color, const char *fmt, ...);
 
+
 #endif /* SIMPLY_THREAD_LOG_H_ */
