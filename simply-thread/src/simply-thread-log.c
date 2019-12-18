@@ -3,14 +3,16 @@
  * @author Kade Cox
  * @date Created: Dec 13, 2019
  * @details
- * 
+ *
  */
 
 #include <simply-thread-log.h>
+#include <priv-simply-thread.h>
 #include <time.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <pthread.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -18,6 +20,8 @@
 
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
+
+
 
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
@@ -48,6 +52,8 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     va_list args;
 
     //Setup the time message string
+    assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->print_mutex));
+
     t = time(NULL);
     tm = *localtime(&t);
     snprintf(time_buffer, ARRAY_MAX_COUNT(time_buffer), "%d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec);
@@ -57,4 +63,5 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     assert(0 < rc);
     va_end(args);
     printf("%s%s%s%s", color, time_buffer, final_buffer, COLOR_RESET);
+    pthread_mutex_unlock(&simply_thread_lib_data()->print_mutex);
 }
