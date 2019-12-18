@@ -152,6 +152,10 @@ static inline void m_sched_run_best_task(void)
     }
 }
 
+/**
+ * @brief the worker task for the scheduler
+ * @param data
+ */
 static void *m_run_sched(void *data)
 {
     PRINT_MSG("%s Launched\r\n", __FUNCTION__);
