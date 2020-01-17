@@ -187,17 +187,25 @@ static void m_intern_cleanup(void)
         MUTEX_GET();
         m_module_data.sleep.kill_thread = true;
         pthread_join(m_module_data.sleep.thread, NULL);
-        simply_thread_ll_destroy(m_module_data.sleep.sleep_list);
-        for(unsigned int i = 0; i < simply_thread_ll_count(m_module_data.thread_list); i++)
+        if(NULL != m_module_data.sleep.sleep_list)
         {
-            c = (struct simply_thread_task_s *)simply_thread_ll_get(m_module_data.thread_list, i);
-            assert(c != NULL);
-            assert(0 == pthread_kill(c->thread, SIGUSR2));
-            MUTEX_RELEASE();
-            pthread_join(c->thread, NULL);
-            MUTEX_GET();
+            simply_thread_ll_destroy(m_module_data.sleep.sleep_list);
+            m_module_data.sleep.sleep_list = NULL;
         }
-        simply_thread_ll_destroy(m_module_data.thread_list);
+        if(NULL != m_module_data.thread_list)
+        {
+            for(unsigned int i = 0; i < simply_thread_ll_count(m_module_data.thread_list); i++)
+            {
+                c = (struct simply_thread_task_s *)simply_thread_ll_get(m_module_data.thread_list, i);
+                assert(c != NULL);
+                assert(0 == pthread_kill(c->thread, SIGUSR2));
+                MUTEX_RELEASE();
+                pthread_join(c->thread, NULL);
+                MUTEX_GET();
+            }
+            simply_thread_ll_destroy(m_module_data.thread_list);
+            m_module_data.thread_list = NULL;
+        }
     }
     first_time = false;
 }
