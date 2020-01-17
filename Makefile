@@ -1,6 +1,6 @@
 build_dir?=build
 
-.PHONY: mac_config config rm_build all clean
+.PHONY: mac_config config rm_build all clean coverage reconfig
 
 all: $(build_dir)
 	make -C $(build_dir) $@
@@ -8,6 +8,9 @@ all: $(build_dir)
 clean: 
 	make -C $(build_dir) $@
 	
+coverage:
+	make -C $(build_dir) $@
+
 mac_config: $(build_dir)
 	cmake -GXcode -S . -B $(build_dir)
 
@@ -16,6 +19,10 @@ config: $(build_dir)
 
 rm_build: $(build_dir)
 	$(RM) -rf $(build_dir)
-	
+
+reconfig:
+	make rm_build
+	make config	
+
 $(build_dir):
 	mkdir $@
