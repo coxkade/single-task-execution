@@ -34,6 +34,7 @@
     }while(0)
 
 
+
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
 /***********************************************************************************/
@@ -49,7 +50,6 @@
 
 static simply_thread_task_t task_one = NULL;  //The First tasks task handle
 static simply_thread_task_t task_two = NULL; //The Second tasks task handle
-static bool done = false; // Value that tells us when to run the cleanup
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
@@ -64,19 +64,11 @@ static bool done = false; // Value that tells us when to run the cleanup
  */
 static void thread_two_worker(void *data, uint16_t data_size)
 {
-    printf("%s Started\r\n", __FUNCTION__);
     simply_thread_sleep_ms(100);
-    int count = 0;
-    static const int max_count = 500;
     while(1)
     {
-        printf("%s running\r\n", __FUNCTION__);
+        // printf("%s running\r\n", __FUNCTION__);
         assert(true == simply_thread_task_suspend(NULL));
-        count++;
-        if(max_count <= count)
-        {
-            done = true;
-        }
     }
 }
 
@@ -87,11 +79,10 @@ static void thread_two_worker(void *data, uint16_t data_size)
  */
 static void thread_one_worker(void *data, uint16_t data_size)
 {
-    printf("%s Started\r\n", __FUNCTION__);
     simply_thread_sleep_ms(100);
     while(1)
     {
-        printf("%s running\r\n", __FUNCTION__);
+        // printf("%s running\r\n", __FUNCTION__);
         assert(true == simply_thread_task_resume(task_two));
         simply_thread_sleep_ms(10);
     }
@@ -103,16 +94,11 @@ static void thread_one_worker(void *data, uint16_t data_size)
  */
 int main(void)
 {
-    printf("Starting the main function\r\n");
     simply_thread_reset();
     task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
     task_two = simply_thread_new_thread("TASK2", thread_two_worker, 3, NULL, 0);
 
-    while(false == done)
-    {
-
-    };
+    sleep(60 * 3);
     simply_thread_cleanup();
-    printf("main exiting\r\n");
     return 0;
 }
