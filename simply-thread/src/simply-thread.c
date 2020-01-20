@@ -30,6 +30,10 @@
 #define ROOT_PRINT(...)
 #endif //DEBUG_SIMPLY_THREAD
 
+#ifndef ST_NS_PER_MS
+#define ST_NS_PER_MS 1E6
+#endif //ST_NS_PER_MS
+
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
@@ -76,8 +80,9 @@ static struct simply_thread_lib_data_s m_module_data =
         .mutex = PTHREAD_MUTEX_INITIALIZER
     },
     .signals_initialized = false,
-    .print_mutex = PTHREAD_MUTEX_INITIALIZER
-};
+    .print_mutex = PTHREAD_MUTEX_INITIALIZER,
+    .cleaning_up = false
+}; //!< Local Data for the module
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
@@ -91,9 +96,10 @@ static void m_task_wait_running(struct simply_thread_task_s *task)
 {
     assert(NULL != task);
     PRINT_MSG("%s Paused\r\n", task->name);
+    static const unsigned int wait_time = ST_NS_PER_MS / 1000 + 1;
     while(SIMPLY_THREAD_TASK_RUNNING != task->state)
     {
-        simply_thread_sleep_ns(1000);
+        simply_thread_sleep_ns(wait_time);
     }
     PRINT_MSG("%s Resumed\r\n", task->name);
 }
@@ -180,6 +186,7 @@ static void m_intern_cleanup(void)
 {
     static bool first_time = true;
     struct simply_thread_task_s *c;
+    m_module_data.cleaning_up = true;
     if(false == first_time)
     {
         MUTEX_RELEASE();
@@ -187,6 +194,7 @@ static void m_intern_cleanup(void)
         MUTEX_GET();
         m_module_data.sleep.kill_thread = true;
         pthread_join(m_module_data.sleep.thread, NULL);
+        m_module_data.sleep.kill_thread = false;
         if(NULL != m_module_data.sleep.sleep_list)
         {
             simply_thread_ll_destroy(m_module_data.sleep.sleep_list);
@@ -207,6 +215,7 @@ static void m_intern_cleanup(void)
             m_module_data.thread_list = NULL;
         }
     }
+    m_module_data.cleaning_up = false;
     first_time = false;
 }
 
@@ -381,8 +390,14 @@ void simply_thread_sleep_ns(unsigned long ns)
         .tv_sec = 0,
         .tv_nsec = ns
     };
+
     while(0 != nanosleep(&time_data, &time_data))
     {
+        if(true == m_module_data.cleaning_up)
+        {
+            PRINT_MSG("Cleaning up.  Bail on sleep\r\n");
+            return;
+        }
     }
 }
 
@@ -393,7 +408,7 @@ void simply_thread_sleep_ns(unsigned long ns)
  */
 void m_simply_thread_sleep_ms(unsigned long ms)
 {
-    static const unsigned long ns_in_ms = 1E6;
+    static const unsigned long ns_in_ms = ST_NS_PER_MS;
     //Sleep 1 ms at a time
     for(unsigned long i = 0; i < ms; i++)
     {
@@ -416,12 +431,14 @@ void simply_thread_sleep_ms(unsigned long ms)
     ptr_task = m_get_ex_task();
     if(NULL == ptr_task)
     {
+        ROOT_PRINT("\tptr_task is NULL\r\n");
         MUTEX_RELEASE();
         m_simply_thread_sleep_ms(ms);
     }
     else
     {
         //Trigger a sleep wait
+        ROOT_PRINT("\tTrigger sleep wait is not NULL\r\n");
         assert(0 == pthread_mutex_lock(&m_module_data.sleep.mutex));
         sleep_data.current_ms = 0;
         sleep_data.ms = ms;
@@ -550,7 +567,7 @@ void simply_thread_dest_condition(struct simply_thread_condition_s *cond)
  */
 void simply_thread_send_condition(struct simply_thread_condition_s *cond)
 {
-    PRINT_MSG("%s\r\n", __FUNCTION__);
+    PRINT_MSG("%s: %p\r\n", __FUNCTION__, cond);
     bool ready = false;
     do
     {

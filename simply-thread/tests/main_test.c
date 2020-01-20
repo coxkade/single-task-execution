@@ -118,19 +118,29 @@ static void thread_three_worker(void *data, uint16_t data_size)
     }
 }
 
+/**
+ * @brief Test for non NULL data
+ * @param state
+ */
 static void task_non_null_data_test(void **state)
 {
+    printf("Starting test %s\r\n", __FUNCTION__);
     simply_thread_task_t test_task;
     int test_val = 5;
     task_non_null_data_test_continue = false;
     simply_thread_reset();
     test_task = simply_thread_new_thread("DataTask", thread_three_worker, 1, &test_val, sizeof(test_val));
     assert_true(NULL != test_task);
-    sleep(1);
+    simply_thread_sleep_ms(1000);
+    printf("Sleep Finished\r\n");
     assert_true(task_non_null_data_test_continue);
     simply_thread_cleanup();
 }
 
+/**
+ * @brief the main function
+ * @return
+ */
 int main(void)
 {
     const struct CMUnitTest tests[] =
