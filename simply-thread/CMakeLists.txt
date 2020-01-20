@@ -3,9 +3,9 @@ cmake_minimum_required(VERSION 3.13)
 #Macro that configures the cmake flags for the unit tests
 macro(set_test_cmake_flags TARG)
 if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
-	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11)
+	target_compile_options(${TARG} PUBLIC -DDEBUG_SIMPLY_THREAD -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11)
 elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
-	target_compile_options(${TARG} PUBLIC -pthread -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11)
+	target_compile_options(${TARG} PUBLIC -DDEBUG_SIMPLY_THREAD -pthread -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11)
 else()
     message( FATAL_ERROR "Cannot Configure for ${CMAKE_HOST_SYSTEM_NAME}")
 endif()
@@ -44,7 +44,6 @@ macro(create_gcov_rule src)
 	add_custom_command(
         OUTPUT ${cov_name}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/gcov.py --gcov ${GCOV} --source ${src} --verbose
-#        COMMAND gcov -o=CMakeFiles/simply-thread-test-ex.dir ${src} 
         DEPENDS run-simply-thread-test
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
@@ -73,6 +72,7 @@ project(simply-thread)
 
 #project for the simply thread tests
 project(simply-thread-tests)
+	set(ENV{CMOCKA_TEST_ABORT} 1)
 	add_executable(simply-thread-test-ex tests/main_test.c ${simply-thread-sources})
 	simply_thred_test_prep()
 	set_test_cmake_flags(simply-thread-test-ex)

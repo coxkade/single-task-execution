@@ -93,6 +93,7 @@ struct simply_thread_lib_data_s
     struct simply_thread_scheduler_task_data_s sched; //!< Data used by the scheduler task
     bool signals_initialized; //!< Tells if the signals have been initialized
     pthread_mutex_t print_mutex; //!< Mutex used by the log printer
+    bool cleaning_up; //!< Boolean value that indicates if the system is currently in the progress of cleaning up.
 };
 
 #endif /* SIMPLY_THREAD_OBJECTS_H_ */
