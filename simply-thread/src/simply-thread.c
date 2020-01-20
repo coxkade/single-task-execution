@@ -12,6 +12,7 @@
 #include <simply-thread-log.h>
 #include <simply-thread-linked-list.h>
 #include <simply-thread-scheduler.h>
+#include <simply-thread-timers.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
@@ -189,11 +190,14 @@ static void m_intern_cleanup(void)
     m_module_data.cleaning_up = true;
     if(false == first_time)
     {
+        simply_thread_timers_destroy();
         MUTEX_RELEASE();
         simply_thread_scheduler_kill();
         MUTEX_GET();
         m_module_data.sleep.kill_thread = true;
+        MUTEX_RELEASE();
         pthread_join(m_module_data.sleep.thread, NULL);
+        MUTEX_GET();
         m_module_data.sleep.kill_thread = false;
         if(NULL != m_module_data.sleep.sleep_list)
         {
@@ -309,6 +313,8 @@ void simply_thread_reset(void)
         m_module_data.signals_initialized = true;
     }
     m_intern_cleanup();
+    //Re initialize the timers module
+    simply_thread_timers_init();
     //recreate sleep list
     m_module_data.sleep.sleep_list = simply_thread_new_ll(sizeof(struct simply_thread_sleeper_data_s));
     assert(NULL != m_module_data.sleep.sleep_list);
