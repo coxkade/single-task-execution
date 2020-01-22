@@ -15,6 +15,10 @@
 #ifndef SIMPLY_THREAD_OBJECTS_H_
 #define SIMPLY_THREAD_OBJECTS_H_
 
+#ifndef SIMPLY_THREAD_MAX_TASKS
+#define SIMPLY_THREAD_MAX_TASKS 250
+#endif //SIMPLY_THREAD_MAX_TASKS
+
 enum simply_thread_thread_state_e
 {
     SIMPLY_THREAD_TASK_RUNNING = 0,
@@ -64,10 +68,11 @@ struct simply_thread_sleeper_data_s
 
 struct simply_thread_sleep_data_s
 {
-    simply_thread_linked_list_t sleep_list; //!< List that holds sleep data
-    pthread_t thread; //!< Pthread handle for the sleep task
-    bool kill_thread; //!< Tells us to kill the sleep thread
-    pthread_mutex_t mutex; //!< Mutex to protect my list
+    struct
+    {
+        bool in_use; //!< Tells if the entry is in use
+        struct simply_thread_sleeper_data_s sleep_data; //!The sleep data to use
+    } sleep_list[SIMPLY_THREAD_MAX_TASKS];
 }; //!< Structure for holding all libraries sleep data
 
 

@@ -189,6 +189,80 @@ static void second_timer_tests(void **state)
     timer_test(state);
 }
 
+
+static void mutex_worker_1_task(void *data, uint16_t data_size)
+{
+    simply_thread_mutex_t *m_handle = data;
+    assert_true(NULL != m_handle);
+    assert_true(sizeof(simply_thread_mutex_t) == data_size);
+    printf("%s started\r\n", __FUNCTION__);
+    while(1)
+    {
+        printf("%s locking mutex\r\n", __FUNCTION__);
+        assert_true(simply_thread_mutex_lock(m_handle[0], 0xFFFFFFFF));
+        printf("%s has the mutex\r\n", __FUNCTION__);
+        thread_one_ran = true;
+        simply_thread_sleep_ms(25);
+        printf("%s unlocking mutex\r\n", __FUNCTION__);
+        assert_true(simply_thread_mutex_unlock(m_handle[0]));
+        printf("%s unlocked mutex\r\n", __FUNCTION__);
+        simply_thread_sleep_ms(100);
+    }
+}
+
+static void mutex_worker_2_task(void *data, uint16_t data_size)
+{
+    simply_thread_mutex_t *m_handle = data;
+    assert_true(NULL != m_handle);
+    assert_true(sizeof(simply_thread_mutex_t) == data_size);
+    printf("%s started\r\n", __FUNCTION__);
+    simply_thread_sleep_ms(50);
+    while(1)
+    {
+        printf("%s locking mutex\r\n", __FUNCTION__);
+        assert_true(simply_thread_mutex_lock(m_handle[0], 0xFFFFFFFF));
+        printf("%s has the mutex\r\n", __FUNCTION__);
+        assert_false(simply_thread_mutex_lock(m_handle[0], 10));
+        thread_two_ran = true;
+        simply_thread_sleep_ms(25);
+        printf("%s unlocking mutex\r\n", __FUNCTION__);
+        assert_true(simply_thread_mutex_unlock(m_handle[0]));
+        printf("%s unlocked mutex\r\n", __FUNCTION__);
+        simply_thread_sleep_ms(100);
+    }
+}
+
+static void mutex_test(void **state)
+{
+    simply_thread_mutex_t mutex_handle;
+    thread_one_ran = false;
+    thread_two_ran = false;
+    simply_thread_reset();
+    mutex_handle = simply_thread_mutex_create("test_mutex");
+    assert_true(NULL != mutex_handle);
+    assert_true(simply_thread_mutex_lock(mutex_handle, 0));
+    task_one = simply_thread_new_thread("TASK1", mutex_worker_1_task, 1, &mutex_handle, sizeof(mutex_handle));
+    task_two = simply_thread_new_thread("TASK2", mutex_worker_2_task, 3, &mutex_handle, sizeof(mutex_handle));
+    assert_false(simply_thread_mutex_lock(mutex_handle, 0xFFFFFFFF));
+    assert_true(simply_thread_mutex_unlock(mutex_handle));
+    assert_true(NULL != task_one);
+    assert_true(NULL != task_two);
+    simply_thread_sleep_ms(500);
+    assert(true == thread_one_ran);
+    assert(true == thread_two_ran);
+    simply_thread_cleanup();
+}
+
+static void first_mutex_test_tests(void **state)
+{
+    mutex_test(state);
+}
+
+static void second_mutex_test_tests(void **state)
+{
+    mutex_test(state);
+}
+
 /**
  * @brief the main function
  * @return
@@ -200,7 +274,9 @@ int main(void)
         cmocka_unit_test(task_test_success),
         cmocka_unit_test(task_non_null_data_test),
         cmocka_unit_test(main_timer_tests),
-        cmocka_unit_test(second_timer_tests)
+        cmocka_unit_test(second_timer_tests),
+        cmocka_unit_test(first_mutex_test_tests),
+        cmocka_unit_test(second_mutex_test_tests)
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

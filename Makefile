@@ -1,4 +1,5 @@
 build_dir?=build
+mac_build_dir?=macbuild
 
 .PHONY: mac_config config rm_build all clean coverage reconfig test
 
@@ -18,8 +19,8 @@ test:
 	make all
 	make -C $(build_dir) $@
 	
-mac_config: $(build_dir)
-	cmake -GXcode -S . -B $(build_dir)
+mac_config: $(mac_build_dir)
+	cmake -GXcode -S . -B $(mac_build_dir)
 
 config: $(build_dir)
 	cmake -S . -B $(build_dir)
@@ -32,4 +33,7 @@ reconfig:
 	make config	
 
 $(build_dir):
+	mkdir $@
+
+$(mac_build_dir):
 	mkdir $@
