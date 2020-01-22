@@ -195,17 +195,12 @@ static void mutex_worker_1_task(void *data, uint16_t data_size)
     simply_thread_mutex_t *m_handle = data;
     assert_true(NULL != m_handle);
     assert_true(sizeof(simply_thread_mutex_t) == data_size);
-    printf("%s started\r\n", __FUNCTION__);
     while(1)
     {
-        printf("%s locking mutex\r\n", __FUNCTION__);
         assert_true(simply_thread_mutex_lock(m_handle[0], 0xFFFFFFFF));
-        printf("%s has the mutex\r\n", __FUNCTION__);
         thread_one_ran = true;
         simply_thread_sleep_ms(25);
-        printf("%s unlocking mutex\r\n", __FUNCTION__);
         assert_true(simply_thread_mutex_unlock(m_handle[0]));
-        printf("%s unlocked mutex\r\n", __FUNCTION__);
         simply_thread_sleep_ms(100);
     }
 }
@@ -215,19 +210,14 @@ static void mutex_worker_2_task(void *data, uint16_t data_size)
     simply_thread_mutex_t *m_handle = data;
     assert_true(NULL != m_handle);
     assert_true(sizeof(simply_thread_mutex_t) == data_size);
-    printf("%s started\r\n", __FUNCTION__);
     simply_thread_sleep_ms(50);
     while(1)
     {
-        printf("%s locking mutex\r\n", __FUNCTION__);
         assert_true(simply_thread_mutex_lock(m_handle[0], 0xFFFFFFFF));
-        printf("%s has the mutex\r\n", __FUNCTION__);
         assert_false(simply_thread_mutex_lock(m_handle[0], 10));
         thread_two_ran = true;
         simply_thread_sleep_ms(25);
-        printf("%s unlocking mutex\r\n", __FUNCTION__);
         assert_true(simply_thread_mutex_unlock(m_handle[0]));
-        printf("%s unlocked mutex\r\n", __FUNCTION__);
         simply_thread_sleep_ms(100);
     }
 }
@@ -238,6 +228,10 @@ static void mutex_test(void **state)
     thread_one_ran = false;
     thread_two_ran = false;
     simply_thread_reset();
+    mutex_handle = simply_thread_mutex_create(NULL);
+    assert_true(NULL == mutex_handle);
+    assert_false(simply_thread_mutex_unlock(NULL));
+    assert_false(simply_thread_mutex_lock(NULL, 0));
     mutex_handle = simply_thread_mutex_create("test_mutex");
     assert_true(NULL != mutex_handle);
     assert_true(simply_thread_mutex_lock(mutex_handle, 0));
