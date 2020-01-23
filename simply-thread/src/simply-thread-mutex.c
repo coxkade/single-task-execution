@@ -88,7 +88,7 @@ struct mutex_block_list_service_element_s
         unsigned int max_count; //!< The max count
         unsigned int current_count; //!< The current count
         bool result; //!< The result of the mutex wait
-    } task_data;
+    } task_data; //!< Structure containing the information that the timeout handler needs
     bool in_use; //!< Tells if the element is in use
 };
 
@@ -119,7 +119,7 @@ static void simply_thread_mutex_list_cleanup(struct mutex_data_s *mux);
 
 /**
  * @brief get the number of tasks currently waiting on the mutex
- * @param mux
+ * @param mux pointer to the mutex data
  * @return
  */
 static unsigned int mutex_get_wait_task_count(struct mutex_data_s *mux);
@@ -332,8 +332,8 @@ static void simply_thread_check_mutex_block_list(struct mutex_data_s *mux)
 
 /**
  * @brief Swap two list values
- * @param one
- * @param two
+ * @param one pointer to the first swap element.
+ * @param two pointer to the second swap element.
  */
 static void simply_thread_element_swap(struct mutex_local_block_data_element_s *one, struct mutex_local_block_data_element_s *two)
 {

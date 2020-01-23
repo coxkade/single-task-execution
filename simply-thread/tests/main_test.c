@@ -43,6 +43,7 @@ static simply_thread_timer_t timer_1; //The handle for timer one
 static simply_thread_timer_t timer_2; //The handle for timer two
 static bool timer_1_ran = false; //Tells if timer 1 executed
 static unsigned int timer_2_count = 0; //The count of timer 2
+static simply_thread_mutex_t mutex_handles[10]; // Array of mutex handles I can use in the tests
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
@@ -195,6 +196,9 @@ static void mutex_worker_1_task(void *data, uint16_t data_size)
     simply_thread_mutex_t *m_handle = data;
     assert_true(NULL != m_handle);
     assert_true(sizeof(simply_thread_mutex_t) == data_size);
+    simply_thread_sleep_ms(25);
+    assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+    assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
     while(1)
     {
         assert_true(simply_thread_mutex_lock(m_handle[0], 0xFFFFFFFF));
@@ -210,6 +214,11 @@ static void mutex_worker_2_task(void *data, uint16_t data_size)
     simply_thread_mutex_t *m_handle = data;
     assert_true(NULL != m_handle);
     assert_true(sizeof(simply_thread_mutex_t) == data_size);
+    simply_thread_sleep_ms(40);
+    assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+    assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
+    assert_true(simply_thread_mutex_lock(mutex_handles[1], 0xFFFFFFFF));
+    assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
     simply_thread_sleep_ms(50);
     while(1)
     {
@@ -218,6 +227,20 @@ static void mutex_worker_2_task(void *data, uint16_t data_size)
         thread_two_ran = true;
         simply_thread_sleep_ms(25);
         assert_true(simply_thread_mutex_unlock(m_handle[0]));
+        simply_thread_sleep_ms(100);
+    }
+}
+
+static void mutex_worker_3_task(void *data, uint16_t data_size)
+{
+    assert_true(NULL == data);
+    assert_true(0 == data_size);
+    assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+    assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
+    assert_true(simply_thread_mutex_lock(mutex_handles[1], 0xFFFFFFFF));
+    assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
+    while(1)
+    {
         simply_thread_sleep_ms(100);
     }
 }
@@ -234,14 +257,24 @@ static void mutex_test(void **state)
     assert_false(simply_thread_mutex_lock(NULL, 0));
     mutex_handle = simply_thread_mutex_create("test_mutex");
     assert_true(NULL != mutex_handle);
+    mutex_handles[0] = simply_thread_mutex_create("second_mutex");
+    mutex_handles[1] = simply_thread_mutex_create("third_mutex");
+    assert_true(NULL != mutex_handles[0]);
+    assert_true(NULL != mutex_handles[1]);
+    assert_true(simply_thread_mutex_lock(mutex_handles[0], 0));
+    assert_true(simply_thread_mutex_lock(mutex_handles[1], 0));
     assert_true(simply_thread_mutex_lock(mutex_handle, 0));
     task_one = simply_thread_new_thread("TASK1", mutex_worker_1_task, 1, &mutex_handle, sizeof(mutex_handle));
     task_two = simply_thread_new_thread("TASK2", mutex_worker_2_task, 3, &mutex_handle, sizeof(mutex_handle));
+    assert(NULL != simply_thread_new_thread("TASK3", mutex_worker_3_task, 4, NULL, 0));
     assert_false(simply_thread_mutex_lock(mutex_handle, 0xFFFFFFFF));
+    simply_thread_sleep_ms(100);
     assert_true(simply_thread_mutex_unlock(mutex_handle));
+    assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
+    assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
     assert_true(NULL != task_one);
     assert_true(NULL != task_two);
-    simply_thread_sleep_ms(500);
+    simply_thread_sleep_ms(300);
     assert(true == thread_one_ran);
     assert(true == thread_two_ran);
     simply_thread_cleanup();
