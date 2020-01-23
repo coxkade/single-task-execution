@@ -22,10 +22,13 @@ typedef void *simply_thread_timer_t;  //!< Typedef for a handle for a timer crea
 
 typedef void (*simply_thread_timer_cb)(simply_thread_timer_t timer_handle); //!< Typedef for the timer callback functions
 
+//Typedefs for mutexes
+typedef void *simply_thread_mutex_t;   //!< Typedef for mutex handle
+
 typedef enum
 {
-    SIMPLY_THREAD_TIMER_ONE_SHOT,
-    SIMPLY_THREAD_TIMER_REPEAT
+    SIMPLY_THREAD_TIMER_ONE_SHOT,//!< SIMPLY_THREAD_TIMER_ONE_SHOT
+    SIMPLY_THREAD_TIMER_REPEAT   //!< SIMPLY_THREAD_TIMER_REPEAT
 } simply_thread_timer_type_e; //!< Enum that details the timer type
 
 
@@ -96,5 +99,27 @@ bool simply_thread_timer_start(simply_thread_timer_t timer);
  * @return true on success
  */
 bool simply_thread_timer_stop(simply_thread_timer_t timer);
+
+/**
+ * @brief Function that creates a mutex
+ * @param name The name of the mutex
+ * @return NULL on error.  Otherwise the mutex handle
+ */
+simply_thread_mutex_t simply_thread_mutex_create(const char *name);
+
+/**
+ * @brief Function that unlocks a mutex
+ * @param mux the mutex handle in question
+ * @return true on success
+ */
+bool simply_thread_mutex_unlock(simply_thread_mutex_t mux);
+
+/**
+ * @brief Function that locks a mutex
+ * @param mux handle of the mutex to lock
+ * @param wait_time How long to wait to obtain a lock
+ * @return true on success
+ */
+bool simply_thread_mutex_lock(simply_thread_mutex_t mux, unsigned int wait_time);
 
 #endif /* SIMPLY_THREAD_H_ */

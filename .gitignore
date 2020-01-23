@@ -3,5 +3,6 @@
 .project
 .settings
 build
+macbuild
 xcode
 *.orig

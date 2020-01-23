@@ -13,6 +13,7 @@
 #include <simply-thread-linked-list.h>
 #include <simply-thread-scheduler.h>
 #include <simply-thread-timers.h>
+#include <simply-thread-mutex.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
@@ -68,6 +69,11 @@ PRINT_MSG("---- %s released master mutex\r\n", __FUNCTION__);\
  */
 void m_simply_thread_sleep_ms(unsigned long ms);
 
+/**
+ * @brief sleep maintenance function
+ */
+static void m_sleep_maint(void);
+
 /***********************************************************************************/
 /***************************** Static Variables ************************************/
 /***********************************************************************************/
@@ -76,10 +82,6 @@ static struct simply_thread_lib_data_s m_module_data =
 {
     .master_mutex = PTHREAD_MUTEX_INITIALIZER,
     .thread_list = NULL,
-    .sleep = {
-        .kill_thread = false,
-        .mutex = PTHREAD_MUTEX_INITIALIZER
-    },
     .signals_initialized = false,
     .print_mutex = PTHREAD_MUTEX_INITIALIZER,
     .cleaning_up = false
@@ -90,6 +92,21 @@ static struct simply_thread_lib_data_s m_module_data =
 /***********************************************************************************/
 
 /**
+ * @brief system maintenance timer
+ * @param timer_handle
+ */
+static void m_maint_timer(simply_thread_timer_t timer_handle)
+{
+    assert(0 == pthread_mutex_lock(&m_module_data.master_mutex));
+    //Run the sleep maintinence
+    m_sleep_maint();
+    //trigger the mutex maintenance
+    simply_thread_mutex_maint();
+    simply_ex_sched_from_locked();
+    pthread_mutex_unlock(&m_module_data.master_mutex);
+}
+
+/**
  * @brief Function that spins until a task is set to the running state
  * @param task
  */
@@ -97,7 +114,7 @@ static void m_task_wait_running(struct simply_thread_task_s *task)
 {
     assert(NULL != task);
     PRINT_MSG("%s Paused\r\n", task->name);
-    static const unsigned int wait_time = ST_NS_PER_MS / 1000 + 1;
+    static const unsigned int wait_time = 1;
     while(SIMPLY_THREAD_TASK_RUNNING != task->state)
     {
         simply_thread_sleep_ns(wait_time);
@@ -109,7 +126,7 @@ static void m_task_wait_running(struct simply_thread_task_s *task)
  * @brief get a pointer to the task calling this function
  * @return NULL on error otherwise a task pointer
  */
-static struct simply_thread_task_s *m_get_ex_task(void)
+struct simply_thread_task_s *simply_thread_get_ex_task(void)
 {
     pthread_t pthread;
     pthread = pthread_self();
@@ -138,7 +155,7 @@ static void m_usr1_catch(int signo)
     struct simply_thread_task_s *ptr_task;
     assert(SIGUSR1 == signo);
     MUTEX_GET();
-    ptr_task = m_get_ex_task();
+    ptr_task = simply_thread_get_ex_task();
     if(NULL != ptr_task)
     {
         ptr_task->state = SIMPLY_THREAD_TASK_READY;
@@ -157,7 +174,7 @@ static void m_usr2_catch(int signo)
     struct simply_thread_task_s *ptr_task;
     assert(SIGUSR2 == signo);
     MUTEX_GET();
-    ptr_task = m_get_ex_task();
+    ptr_task = simply_thread_get_ex_task();
     MUTEX_RELEASE();
     assert(NULL != ptr_task);
     PRINT_MSG("\tForce Closing %s\r\n", ptr_task->name);
@@ -190,19 +207,13 @@ static void m_intern_cleanup(void)
     m_module_data.cleaning_up = true;
     if(false == first_time)
     {
-        simply_thread_timers_destroy();
         MUTEX_RELEASE();
         simply_thread_scheduler_kill();
+        simply_thread_timers_destroy();
         MUTEX_GET();
-        m_module_data.sleep.kill_thread = true;
-        MUTEX_RELEASE();
-        pthread_join(m_module_data.sleep.thread, NULL);
-        MUTEX_GET();
-        m_module_data.sleep.kill_thread = false;
-        if(NULL != m_module_data.sleep.sleep_list)
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
         {
-            simply_thread_ll_destroy(m_module_data.sleep.sleep_list);
-            m_module_data.sleep.sleep_list = NULL;
+            m_module_data.sleep.sleep_list[i].in_use = false;
         }
         if(NULL != m_module_data.thread_list)
         {
@@ -218,85 +229,57 @@ static void m_intern_cleanup(void)
             simply_thread_ll_destroy(m_module_data.thread_list);
             m_module_data.thread_list = NULL;
         }
+        simply_thread_mutex_cleanup();
     }
     m_module_data.cleaning_up = false;
     first_time = false;
 }
 
 /**
- * @brief function that handles the sleeper data
- * @param UNUSED
+ * @brief sleep maintenance function
  */
-void *m_sleeper_task(void *data)
+static void m_sleep_maint(void)
 {
-    struct simply_thread_sleeper_data_s *c_data;
-    struct simply_thread_scheduler_data_s sched_data;
     bool timeout;
-    bool schedrequired;
     bool task_ready = false;
-    sched_data.sleeprequired = true;
-    sched_data.task_adjust = NULL;
-    PRINT_MSG("Sleeper Manager Started\r\n");
-    while(1)
+    task_ready = false;
+    assert(EBUSY == pthread_mutex_trylock(&simply_thread_lib_data()->master_mutex)); //We must be locked
+    //Increment all of the sleeping task counts
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
     {
-        schedrequired = false;
-        task_ready = false;
-        assert(0 == pthread_mutex_lock(&m_module_data.sleep.mutex));
-        if(true == m_module_data.sleep.kill_thread)
+        if(true == m_module_data.sleep.sleep_list[i].in_use)
         {
-            pthread_mutex_unlock(&m_module_data.sleep.mutex);
-            PRINT_MSG("Sleeper Manager Exiting\r\n");
-            return NULL;
-        }
-        //Increment all of the sleeping task counts
-        for(unsigned int i = 0; i < simply_thread_ll_count(m_module_data.sleep.sleep_list); i++)
-        {
-            c_data = simply_thread_ll_get(m_module_data.sleep.sleep_list, i);
-            assert(NULL != c_data);
-            c_data->current_ms++;
-            if(c_data->current_ms >= c_data->ms)
+            m_module_data.sleep.sleep_list[i].sleep_data.current_ms++;
+            if(m_module_data.sleep.sleep_list[i].sleep_data.current_ms >= m_module_data.sleep.sleep_list[i].sleep_data.ms)
             {
                 task_ready = true;
             }
         }
-        if(true == task_ready)
+    }
+    if(true == task_ready)
+    {
+        do
         {
-            MUTEX_GET();
-            do
+            timeout = false;
+            for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
             {
-                timeout = false;
-                for(unsigned int i = 0; i < simply_thread_ll_count(m_module_data.sleep.sleep_list) && false == timeout; i++)
+                if(true == m_module_data.sleep.sleep_list[i].in_use)
                 {
-                    c_data = simply_thread_ll_get(m_module_data.sleep.sleep_list, i);
-                    assert(NULL != c_data);
-                    if(c_data->current_ms >= c_data->ms)
+                    if(m_module_data.sleep.sleep_list[i].sleep_data.current_ms >= m_module_data.sleep.sleep_list[i].sleep_data.ms)
                     {
-                        assert(NULL != c_data->task_adjust);
-                        PRINT_MSG("\tTask %s Ready From Timer\r\n", c_data->task_adjust->name);
-                        if(c_data->task_adjust->state == SIMPLY_THREAD_TASK_SUSPENDED)
+                        if(SIMPLY_THREAD_TASK_SUSPENDED == m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state)
                         {
-                            c_data->task_adjust->state = SIMPLY_THREAD_TASK_READY;
+                            PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust);
+                            m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state = SIMPLY_THREAD_TASK_READY;
                         }
-                        timeout = true;
-                        schedrequired = true;
-                        simply_thread_ll_remove(m_module_data.sleep.sleep_list, i);
-                        PRINT_MSG("\tIndex %d removed\r\n", i);
                     }
                 }
             }
-            while(true == timeout);
-            MUTEX_RELEASE();
         }
-        pthread_mutex_unlock(&m_module_data.sleep.mutex);
-        if(true == schedrequired)
-        {
-            PRINT_MSG("\tTimer Requires the scheduler to run\r\n");
-            simply_thread_run(&sched_data);
-        }
-
-        m_simply_thread_sleep_ms(1);
+        while(true == timeout);
     }
 }
+
 
 /**
  * Function that resets the simply thread library.  Closes all existing created threads
@@ -313,16 +296,20 @@ void simply_thread_reset(void)
         m_module_data.signals_initialized = true;
     }
     m_intern_cleanup();
-    //Re initialize the timers module
+    //Reinitialize the timers module
     simply_thread_timers_init();
+    // Reinitialize the mutex module
+    simply_thread_mutex_init();
     //recreate sleep list
-    m_module_data.sleep.sleep_list = simply_thread_new_ll(sizeof(struct simply_thread_sleeper_data_s));
-    assert(NULL != m_module_data.sleep.sleep_list);
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
+    {
+        m_module_data.sleep.sleep_list[i].in_use = false;
+    }
     //Recreate thread list
     m_module_data.thread_list = simply_thread_new_ll(sizeof(struct simply_thread_task_s));
     assert(NULL != m_module_data.thread_list);
     simply_thread_scheduler_init();
-    assert(0 == pthread_create(&m_module_data.sleep.thread, NULL, m_sleeper_task, NULL));
+    assert(NULL != simply_thread_create_timer(m_maint_timer, "SYSTEM Timer", 1, SIMPLY_THREAD_TIMER_REPEAT, true));
     MUTEX_RELEASE();
 }
 
@@ -432,9 +419,10 @@ void simply_thread_sleep_ms(unsigned long ms)
 {
     ROOT_PRINT("%s\r\n", __FUNCTION__);
     struct simply_thread_task_s *ptr_task;
-    struct simply_thread_sleeper_data_s sleep_data;
+    bool index_found;
+    unsigned int index = 500;
     MUTEX_GET();
-    ptr_task = m_get_ex_task();
+    ptr_task = simply_thread_get_ex_task();
     if(NULL == ptr_task)
     {
         ROOT_PRINT("\tptr_task is NULL\r\n");
@@ -445,14 +433,24 @@ void simply_thread_sleep_ms(unsigned long ms)
     {
         //Trigger a sleep wait
         ROOT_PRINT("\tTrigger sleep wait is not NULL\r\n");
-        assert(0 == pthread_mutex_lock(&m_module_data.sleep.mutex));
-        sleep_data.current_ms = 0;
-        sleep_data.ms = ms;
-        sleep_data.task_adjust = ptr_task;
-        assert(true == simply_thread_ll_append(m_module_data.sleep.sleep_list, &sleep_data));
-        pthread_mutex_unlock(&m_module_data.sleep.mutex);
+        index_found = false;
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list) && false == index_found; i++)
+        {
+            if(false == m_module_data.sleep.sleep_list[i].in_use)
+            {
+                index_found = true;
+                m_module_data.sleep.sleep_list[i].sleep_data.current_ms = 0;
+                m_module_data.sleep.sleep_list[i].sleep_data.ms = ms;
+                m_module_data.sleep.sleep_list[i].sleep_data.task_adjust = ptr_task;
+                m_module_data.sleep.sleep_list[i].in_use = true;
+                index = i;
+            }
+        }
+        assert(index < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list));
+        simply_thread_set_task_state_from_locked(ptr_task, SIMPLY_THREAD_TASK_SUSPENDED);
+        assert(true == m_module_data.sleep.sleep_list[index].in_use);
+        m_module_data.sleep.sleep_list[index].in_use = false;
         MUTEX_RELEASE();
-        simply_thread_set_task_state(ptr_task, SIMPLY_THREAD_TASK_SUSPENDED);
     }
 }
 
@@ -469,7 +467,7 @@ void simply_thread_set_task_state(struct simply_thread_task_s *task, enum simply
 
     sched_data.sleeprequired = false;
     MUTEX_GET();
-    c_task =  m_get_ex_task();
+    c_task =  simply_thread_get_ex_task();
     if(NULL == c_task)
     {
         sched_data.sleeprequired = true;
@@ -500,6 +498,78 @@ void simply_thread_set_task_state(struct simply_thread_task_s *task, enum simply
 }
 
 /**
+ * @brief Update a tasks state
+ * @param task
+ * @param state
+ */
+void simply_thread_set_task_state_from_locked(struct simply_thread_task_s *task, enum simply_thread_thread_state_e state)
+{
+    struct simply_thread_scheduler_data_s sched_data;
+    struct simply_thread_task_s *c_task;
+
+    sched_data.sleeprequired = false;
+    assert(EBUSY == pthread_mutex_trylock(&simply_thread_lib_data()->master_mutex)); //We must be locked
+    c_task =  simply_thread_get_ex_task();
+    if(NULL == c_task)
+    {
+        sched_data.sleeprequired = true;
+    }
+    else
+    {
+        assert(SIMPLY_THREAD_TASK_RUNNING == c_task->state);
+        c_task->state = SIMPLY_THREAD_TASK_READY;
+    }
+    if(task != c_task)
+    {
+        sched_data.new_state = state;
+        sched_data.task_adjust = task;
+    }
+    else
+    {
+        //We are setting our own state, As such we are responsible for suspending ourself
+        assert(SIMPLY_THREAD_TASK_RUNNING != state && SIMPLY_THREAD_TASK_READY != state);
+        task->state = state;
+        sched_data.task_adjust = NULL;
+    }
+    MUTEX_RELEASE();
+    simply_thread_run(&sched_data);
+    if(NULL != c_task)
+    {
+        m_task_wait_running(c_task);
+    }
+    MUTEX_GET();
+}
+
+/**
+ * @brief execute the scheduler from a locked context
+ */
+void simply_ex_sched_from_locked(void)
+{
+    struct simply_thread_task_s *c_task;
+    struct simply_thread_scheduler_data_s sched_data;
+    assert(EBUSY == pthread_mutex_trylock(&simply_thread_lib_data()->master_mutex)); //We must be locked
+    sched_data.sleeprequired = false;
+    c_task =  simply_thread_get_ex_task();
+    if(NULL == c_task)
+    {
+        sched_data.sleeprequired = true;
+    }
+    else
+    {
+        assert(SIMPLY_THREAD_TASK_RUNNING == c_task->state);
+        c_task->state = SIMPLY_THREAD_TASK_READY;
+    }
+    sched_data.task_adjust = NULL;
+    MUTEX_RELEASE();
+    simply_thread_run(&sched_data);
+    if(NULL != c_task)
+    {
+        m_task_wait_running(c_task);
+    }
+    MUTEX_GET();
+}
+
+/**
  * @brief Function that suspends a task
  * @param handle
  * @return true on success
@@ -511,7 +581,7 @@ bool simply_thread_task_suspend(simply_thread_task_t handle)
     MUTEX_GET();
     if(NULL == ptr_task)
     {
-        ptr_task = m_get_ex_task();
+        ptr_task = simply_thread_get_ex_task();
     }
     MUTEX_RELEASE();
     if(NULL == ptr_task)
