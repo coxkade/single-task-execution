@@ -241,9 +241,7 @@ static void m_intern_cleanup(void)
 static void m_sleep_maint(void)
 {
     bool timeout;
-    bool schedrequired;
     bool task_ready = false;
-    schedrequired = false;
     task_ready = false;
     assert(EBUSY == pthread_mutex_trylock(&simply_thread_lib_data()->master_mutex)); //We must be locked
     //Increment all of the sleeping task counts
@@ -273,7 +271,6 @@ static void m_sleep_maint(void)
                         {
                             PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust);
                             m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state = SIMPLY_THREAD_TASK_READY;
-                            schedrequired = true;
                         }
                     }
                 }
@@ -281,11 +278,6 @@ static void m_sleep_maint(void)
         }
         while(true == timeout);
     }
-//  if(true == schedrequired)
-//  {
-//      PRINT_MSG("\tTimer Requires the scheduler to run\r\n");
-//      simply_ex_sched_from_locked();
-//  }
 }
 
 
@@ -317,7 +309,6 @@ void simply_thread_reset(void)
     m_module_data.thread_list = simply_thread_new_ll(sizeof(struct simply_thread_task_s));
     assert(NULL != m_module_data.thread_list);
     simply_thread_scheduler_init();
-//    assert(0 == pthread_create(&m_module_data.sleep.thread, NULL, m_sleeper_task, NULL));
     assert(NULL != simply_thread_create_timer(m_maint_timer, "SYSTEM Timer", 1, SIMPLY_THREAD_TIMER_REPEAT, true));
     MUTEX_RELEASE();
 }
@@ -442,8 +433,6 @@ void simply_thread_sleep_ms(unsigned long ms)
     {
         //Trigger a sleep wait
         ROOT_PRINT("\tTrigger sleep wait is not NULL\r\n");
-//        assert(0 == pthread_mutex_lock(&m_module_data.sleep.mutex));
-//        MUTEX_GET();
         index_found = false;
         for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list) && false == index_found; i++)
         {
