@@ -9,8 +9,7 @@ all: $(build_dir)
 clean: 
 	make -C $(build_dir) $@
 	
-coverage:
-	make clean
+coverage: reconfig
 	make all
 	make -C $(build_dir) $@
 	
@@ -28,7 +27,7 @@ config: $(build_dir)
 rm_build: $(build_dir)
 	$(RM) -rf $(build_dir)
 
-reconfig:
+reconfig: $(build_dir)
 	make rm_build
 	make config	
 
