@@ -22,14 +22,17 @@ typedef void *simply_thread_timer_t;  //!< Typedef for a handle for a timer crea
 
 typedef void (*simply_thread_timer_cb)(simply_thread_timer_t timer_handle); //!< Typedef for the timer callback functions
 
-//Typedefs for mutexes
-typedef void *simply_thread_mutex_t;   //!< Typedef for mutex handle
-
 typedef enum
 {
     SIMPLY_THREAD_TIMER_ONE_SHOT,//!< SIMPLY_THREAD_TIMER_ONE_SHOT
     SIMPLY_THREAD_TIMER_REPEAT   //!< SIMPLY_THREAD_TIMER_REPEAT
 } simply_thread_timer_type_e; //!< Enum that details the timer type
+
+//Typedefs for mutexes
+typedef void *simply_thread_mutex_t;   //!< Typedef for mutex handle
+
+//Typedets for queues
+typedef void *simply_thread_queue_t;  //!< Typedef for Queue Handle
 
 
 /**
@@ -121,5 +124,41 @@ bool simply_thread_mutex_unlock(simply_thread_mutex_t mux);
  * @return true on success
  */
 bool simply_thread_mutex_lock(simply_thread_mutex_t mux, unsigned int wait_time);
+
+/**
+ * @brief Function that creates a queue
+ * @param name String containing the name of the queue
+ * @param queue_size The number of elements allowed in the queue
+ * @param element_size The size of each element in the queue
+ * @return NULL on error.  Otherwise the created Queue Handle
+ */
+simply_thread_queue_t simply_thread_queue_create(const char *name, unsigned int queue_size, unsigned int element_size);
+
+/**
+ * @brief Function that gets the current number of elements on the queue
+ * @param queue handle of the queue in question
+ * @return 0xFFFFFFFF on error. Otherwise the queue count
+ */
+unsigned int simply_thread_queue_get_count(simply_thread_queue_t queue);
+
+/**
+ * @brief Function that places data on the queue
+ * @param queue handle of the queue in question
+ * @param data ptr to the data to place on the queue
+ * @param block_time how long to wait on the queue
+ * @return true on success, false otherwise
+ */
+bool simply_thread_queue_send(simply_thread_queue_t queue, void *data, unsigned int block_time);
+
+
+/**
+ * @brief Function that retrieves data from the queue
+ * @param queue handle of the queue in question
+ * @param data ptr to the object to place the data in
+ * @param block_time how long to wait on the queue
+ * @return true on success, false otherwise
+ */
+bool simply_thread_queue_rcv(simply_thread_queue_t queue, void *data, unsigned int block_time);
+
 
 #endif /* SIMPLY_THREAD_H_ */

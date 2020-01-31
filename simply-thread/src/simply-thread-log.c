@@ -23,7 +23,6 @@
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
 
-
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
 /***********************************************************************************/
@@ -40,15 +39,15 @@
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
-static void * simply_thread_log_task(void * data)
+static void *simply_thread_log_task(void *data)
 {
-	char * message;
-	message = (char *) data;
-	assert(NULL != message);
-	assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->print_mutex));
-	printf("%s", message);
-	pthread_mutex_unlock(&simply_thread_lib_data()->print_mutex);
-	return NULL;
+    char *message;
+    message = (char *) data;
+    assert(NULL != message);
+    assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->print_mutex));
+    printf("%s", message);
+    pthread_mutex_unlock(&simply_thread_lib_data()->print_mutex);
+    return NULL;
 }
 
 
@@ -63,7 +62,7 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     time_t t;
     struct tm tm;
     va_list args;
-    char * print_buffer = NULL;
+    char *print_buffer = NULL;
     unsigned int buffer_size;
     pthread_t thread;
 
@@ -81,5 +80,5 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     print_buffer = malloc(buffer_size);
     assert(NULL != print_buffer);
     snprintf(print_buffer, buffer_size, "%s%s%s%s", color, time_buffer, final_buffer, COLOR_RESET);
-    assert(0 == pthread_create( &thread, NULL, simply_thread_log_task, (void*) print_buffer));
+    assert(0 == pthread_create(&thread, NULL, simply_thread_log_task, (void *) print_buffer));
 }
