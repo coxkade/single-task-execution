@@ -170,7 +170,7 @@ static void timer_test(void **state)
     assert_false(simply_thread_timer_start(NULL));
     assert_false(simply_thread_timer_stop(NULL));
     assert_true(simply_thread_timer_start(timer_1));
-    simply_thread_sleep_ms(510);
+    simply_thread_sleep_ms(540);
     simply_thread_cleanup();
     assert_true(thread_one_ran);
     assert_true(thread_two_ran);
