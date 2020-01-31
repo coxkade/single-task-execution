@@ -102,7 +102,6 @@ static void m_maint_timer(simply_thread_timer_t timer_handle)
     m_sleep_maint();
     //trigger the mutex maintenance
     simply_thread_mutex_maint();
-    simply_ex_sched_from_locked();
     pthread_mutex_unlock(&m_module_data.master_mutex);
 }
 
@@ -114,10 +113,10 @@ static void m_task_wait_running(struct simply_thread_task_s *task)
 {
     assert(NULL != task);
     PRINT_MSG("%s Paused\r\n", task->name);
-    static const unsigned int wait_time = 1;
     while(SIMPLY_THREAD_TASK_RUNNING != task->state)
     {
-        simply_thread_sleep_ns(wait_time);
+//        simply_thread_sleep_ns(wait_time);
+        simply_thread_sem_wait(&task->sem);
     }
     PRINT_MSG("%s Resumed\r\n", task->name);
 }
@@ -153,16 +152,47 @@ struct simply_thread_task_s *simply_thread_get_ex_task(void)
 static void m_usr1_catch(int signo)
 {
     struct simply_thread_task_s *ptr_task;
+    bool wait_required;
+    bool keep_going = true;
+    int rv;
+    int error_val;
     assert(SIGUSR1 == signo);
     MUTEX_GET();
+    wait_required = false;
     ptr_task = simply_thread_get_ex_task();
     if(NULL != ptr_task)
     {
-        ptr_task->state = SIMPLY_THREAD_TASK_READY;
-        simply_thread_tell_sched_task_sleeping(ptr_task);
+        if(SIMPLY_THREAD_TASK_READY != ptr_task->state)
+        {
+            ptr_task->state = SIMPLY_THREAD_TASK_READY;
+            do
+            {
+                rv = simply_thread_sem_trywait(&ptr_task->sem);
+                error_val = errno;
+                if(0 == rv)
+                {
+                    keep_going = false;
+                }
+                else if(EAGAIN == error_val)
+                {
+                    keep_going = false;
+                }
+                else
+                {
+                    assert(false);
+                }
+
+            }
+            while(true == keep_going);
+            simply_thread_tell_sched_task_sleeping(ptr_task);
+            wait_required = true;
+        }
     }
     MUTEX_RELEASE();
-    m_task_wait_running(ptr_task);
+    if(true == wait_required)
+    {
+        m_task_wait_running(ptr_task);
+    }
 }
 
 /**
@@ -178,6 +208,7 @@ static void m_usr2_catch(int signo)
     MUTEX_RELEASE();
     assert(NULL != ptr_task);
     PRINT_MSG("\tForce Closing %s\r\n", ptr_task->name);
+    simply_thread_sem_destroy(&ptr_task->sem);
     pthread_exit(NULL);
 }
 
@@ -270,7 +301,7 @@ static void m_sleep_maint(void)
                         if(SIMPLY_THREAD_TASK_SUSPENDED == m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state)
                         {
                             PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust);
-                            m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state = SIMPLY_THREAD_TASK_READY;
+                            simply_thread_set_task_state_from_locked(m_module_data.sleep.sleep_list[i].sleep_data.task_adjust, SIMPLY_THREAD_TASK_READY);
                         }
                     }
                 }
@@ -346,6 +377,7 @@ simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_ta
     task.fnct = cb;
     task.name = name;
     task.started = false;
+    simply_thread_sem_init(&task.sem);
     assert(NULL != name && NULL != cb);
     if(data_size != 0)
     {
@@ -367,8 +399,8 @@ simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_ta
     {
         simply_thread_sleep_ns(10);
     }
+    simply_thread_set_task_state_from_locked(ptr_task, SIMPLY_THREAD_TASK_READY);
     MUTEX_RELEASE();
-    simply_thread_set_task_state(ptr_task, SIMPLY_THREAD_TASK_READY);
     return (simply_thread_task_t)ptr_task;
 }
 
@@ -583,12 +615,15 @@ bool simply_thread_task_suspend(simply_thread_task_t handle)
     {
         ptr_task = simply_thread_get_ex_task();
     }
+    if(NULL != ptr_task)
+    {
+        simply_thread_set_task_state_from_locked(ptr_task, SIMPLY_THREAD_TASK_SUSPENDED);
+    }
     MUTEX_RELEASE();
     if(NULL == ptr_task)
     {
         return false;
     }
-    simply_thread_set_task_state(ptr_task, SIMPLY_THREAD_TASK_SUSPENDED);
     return true;
 }
 

@@ -32,6 +32,7 @@ enum simply_thread_thread_state_e
 
 struct simply_thread_task_s
 {
+    simply_thread_sem_t sem; //!< The Tasks signal semaphore
     pthread_t thread; //!< The handle to the pthread
     enum simply_thread_thread_state_e state; //!< the current state of the thread
     unsigned int priority; //!< The Priority of the thread
