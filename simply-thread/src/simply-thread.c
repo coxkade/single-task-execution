@@ -616,12 +616,10 @@ bool simply_thread_task_resume(simply_thread_task_t handle)
  */
 void simply_thread_init_condition(struct simply_thread_condition_s *cond)
 {
+    assert(NULL != cond);
     PRINT_MSG("%s\r\n", __FUNCTION__);
-    pthread_mutexattr_t attr;
-    assert(0 == pthread_mutexattr_init(&attr));
-    assert(0 == pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK));
-    assert(0 == pthread_mutex_init(&cond->gate_mutex, &attr));
-    cond->waiting = false;
+    simply_thread_sem_init(&cond->sig_sem);
+    assert(0 == simply_thread_sem_trywait(&cond->sig_sem));
     PRINT_MSG("\tCondition %p initialized\r\n", cond);
 }
 
@@ -631,9 +629,9 @@ void simply_thread_init_condition(struct simply_thread_condition_s *cond)
  */
 void simply_thread_dest_condition(struct simply_thread_condition_s *cond)
 {
+    assert(NULL != cond);
     PRINT_MSG("%s\r\n", __FUNCTION__);
-    pthread_mutex_unlock(&cond->gate_mutex);
-    assert(0 == pthread_mutex_destroy(&cond->gate_mutex));
+    simply_thread_sem_destroy(&cond->sig_sem);
     PRINT_MSG("\tCondition %p destroyed\r\n", cond);
 }
 
@@ -643,21 +641,9 @@ void simply_thread_dest_condition(struct simply_thread_condition_s *cond)
  */
 void simply_thread_send_condition(struct simply_thread_condition_s *cond)
 {
+    assert(NULL != cond);
     PRINT_MSG("%s: %p\r\n", __FUNCTION__, cond);
-    bool ready = false;
-    do
-    {
-        assert(0 == pthread_mutex_lock(&cond->gate_mutex));
-        ready = cond->waiting;
-        if(false == ready)
-        {
-            pthread_mutex_unlock(&cond->gate_mutex);
-        }
-    }
-    while(false == ready);
-    assert(true == cond->waiting);
-    cond->waiting = false;
-    pthread_mutex_unlock(&cond->gate_mutex);
+    assert(0 == simply_thread_sem_post(&cond->sig_sem));
 }
 
 /**
@@ -666,22 +652,9 @@ void simply_thread_send_condition(struct simply_thread_condition_s *cond)
  */
 void simply_thread_wait_condition(struct simply_thread_condition_s *cond)
 {
-    bool ready = false;
-    PRINT_MSG("%s\r\n", __FUNCTION__);
+    assert(NULL != cond);
     PRINT_MSG("\tCondition %p waiting\r\n", cond);
-    assert(0 == pthread_mutex_lock(&cond->gate_mutex));
-    cond->waiting = true;
-    pthread_mutex_unlock(&cond->gate_mutex);
-    do
-    {
-        assert(0 == pthread_mutex_lock(&cond->gate_mutex));
-        if(false == cond->waiting)
-        {
-            ready = true;
-        }
-        pthread_mutex_unlock(&cond->gate_mutex);
-    }
-    while(false == ready);
+    assert(0 == simply_thread_sem_wait(&cond->sig_sem));
     PRINT_MSG("\tCondition Wait complete %p\r\n", cond);
 }
 
