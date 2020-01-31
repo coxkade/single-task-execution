@@ -1,0 +1,3 @@
+[submodule "lldbscripts"]
+	path = lldbscripts
+	url = git@github.com:coxkade/lldbscripts.git
