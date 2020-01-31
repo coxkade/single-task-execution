@@ -98,11 +98,12 @@ static struct simply_thread_lib_data_s m_module_data =
 static void m_maint_timer(simply_thread_timer_t timer_handle)
 {
     assert(0 == pthread_mutex_lock(&m_module_data.master_mutex));
-    //Run the sleep maintinence
+    //Run the sleep maintenance
     m_sleep_maint();
     //trigger the mutex maintenance
     simply_thread_mutex_maint();
-    simply_ex_sched_from_locked();
+    //trigger the queue maintenance
+    simply_thread_queue_maint();
     pthread_mutex_unlock(&m_module_data.master_mutex);
 }
 
@@ -270,7 +271,8 @@ static void m_sleep_maint(void)
                         if(SIMPLY_THREAD_TASK_SUSPENDED == m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state)
                         {
                             PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust);
-                            m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state = SIMPLY_THREAD_TASK_READY;
+                            simply_thread_set_task_state_from_locked(m_module_data.sleep.sleep_list[i].sleep_data.task_adjust, SIMPLY_THREAD_TASK_READY);
+							assert(EBUSY == pthread_mutex_trylock(&simply_thread_lib_data()->master_mutex)); //We must be locked
                         }
                     }
                 }
