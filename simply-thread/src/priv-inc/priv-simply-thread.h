@@ -7,6 +7,7 @@
  */
 
 #include <simply-thread-objects.h>
+#include <simply-thread-queue.h>
 
 #ifndef PRIV_SIMPLY_THREAD_H_
 #define PRIV_SIMPLY_THREAD_H_

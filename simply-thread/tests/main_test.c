@@ -23,6 +23,12 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
+#ifdef DEBUG_TESTS
+#define PRINT_MSG(...) printf(__VA_ARGS__)
+#else
+#define PRINT_MSG(...)
+#endif //DEBUG_TESTS
+
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
 /***********************************************************************************/
@@ -44,6 +50,7 @@ static simply_thread_timer_t timer_2; //The handle for timer two
 static bool timer_1_ran = false; //Tells if timer 1 executed
 static unsigned int timer_2_count = 0; //The count of timer 2
 static simply_thread_mutex_t mutex_handles[10]; // Array of mutex handles I can use in the tests
+static simply_thread_queue_t queue_handles[10]; // array of queue handles
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
@@ -139,6 +146,10 @@ static void task_non_null_data_test(void **state)
     simply_thread_cleanup();
 }
 
+/*********************************************************************
+ *********************** Timer Test Items ****************************
+ ********************************************************************/
+
 static void first_timer_worker(simply_thread_timer_t timer)
 {
     assert_true(timer_1 == timer);
@@ -190,6 +201,10 @@ static void second_timer_tests(void **state)
     timer_test(state);
 }
 
+
+/*********************************************************************
+ *********************** Mutex Test Items ****************************
+ ********************************************************************/
 
 static void mutex_worker_1_task(void *data, uint16_t data_size)
 {
@@ -274,7 +289,7 @@ static void mutex_test(void **state)
     assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
     assert_true(NULL != task_one);
     assert_true(NULL != task_two);
-    simply_thread_sleep_ms(300);
+    simply_thread_sleep_ms(600);
     assert(true == thread_one_ran);
     assert(true == thread_two_ran);
     simply_thread_cleanup();
@@ -290,6 +305,105 @@ static void second_mutex_test_tests(void **state)
     mutex_test(state);
 }
 
+/*********************************************************************
+ *********************** Queue Test Items ****************************
+ ********************************************************************/
+
+static void first_queue_task(void *data, uint16_t data_size)
+{
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+
+    unsigned int val = 1;
+    //Test the timeout condition
+    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 0);
+    assert(false == simply_thread_queue_send(queue_handles[0], &val, 15));
+    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 1);
+    assert(true == simply_thread_queue_rcv(queue_handles[1], &val, 1000));
+    PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
+    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 0);
+    assert_true(simply_thread_queue_rcv(queue_handles[0], &val, 500));
+    PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
+    assert(7 == val);
+    while(1)
+    {
+        thread_one_ran = true;
+        val = 1;
+        PRINT_MSG("%s sending 1\r\n", __FUNCTION__);
+        PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
+        assert_true(simply_thread_queue_send(queue_handles[1], &val, 500));
+    }
+}
+
+static void second_queue_task(void *data, uint16_t data_size)
+{
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+    simply_thread_sleep_ms(300);
+    unsigned int val;
+    while(1)
+    {
+        thread_two_ran = true;
+        PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 1);
+        assert_true(simply_thread_queue_rcv(queue_handles[1], &val, 0xFFFFFFFF));
+        PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
+        assert_int_equal(1, val);
+    }
+}
+
+static void queue_test(void **state)
+{
+    unsigned int val = 7;
+    thread_one_ran = false;
+    thread_two_ran = false;
+    simply_thread_reset();
+
+    assert_true(NULL == simply_thread_queue_create(NULL, 1, sizeof(unsigned int)));
+    assert_true(NULL == simply_thread_queue_create("test", 0, sizeof(unsigned int)));
+    assert_true(NULL == simply_thread_queue_create("test", 5, 0));
+
+    queue_handles[0] = simply_thread_queue_create("Queue1", 3, sizeof(unsigned int));
+    queue_handles[1] = simply_thread_queue_create("Queue2", 1, sizeof(unsigned int));
+    assert_true(NULL != queue_handles[0]);
+    assert_true(NULL != queue_handles[1]);
+
+    assert_false(simply_thread_queue_rcv(queue_handles[0], &val, 5));
+    assert_false(simply_thread_queue_rcv(NULL, &val, 5));
+    assert_false(simply_thread_queue_send(NULL, &val, 0));
+
+    assert_true(simply_thread_queue_send(queue_handles[0], &val, 0));
+    val++;
+    assert_true(simply_thread_queue_send(queue_handles[0], &val, 0));
+    val++;
+    assert_true(simply_thread_queue_send(queue_handles[0], &val, 0));
+    assert_false(simply_thread_queue_send(queue_handles[0], &val, 0));
+    assert_int_equal(3, simply_thread_queue_get_count(queue_handles[0]));
+    assert_int_equal(0, simply_thread_queue_get_count(queue_handles[1]));
+
+    PRINT_MSG("Launching the Tasks\r\n");
+
+    assert_true(NULL != simply_thread_new_thread("TASK1", first_queue_task, 4, NULL, 0));
+    assert_true(NULL != simply_thread_new_thread("TASK2", second_queue_task, 3, NULL, 0));
+    val = 6;
+    simply_thread_sleep_ms(100);
+    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
+    assert(true == simply_thread_queue_send(queue_handles[1], &val, 0));
+    PRINT_MSG("Waiting for Cleanup\r\n");
+    simply_thread_sleep_ms(600);
+    PRINT_MSG("%s shutting down test\r\n", __FUNCTION__);
+    simply_thread_cleanup();
+    assert_true(thread_one_ran);
+    assert_true(thread_two_ran);
+}
+
+static void first_queue_test_tests(void **state)
+{
+    queue_test(state);
+}
+
+static void second_queue_test_tests(void **state)
+{
+    queue_test(state);
+}
+
 /**
  * @brief the main function
  * @return
@@ -303,7 +417,9 @@ int main(void)
         cmocka_unit_test(main_timer_tests),
         cmocka_unit_test(second_timer_tests),
         cmocka_unit_test(first_mutex_test_tests),
-        cmocka_unit_test(second_mutex_test_tests)
+        cmocka_unit_test(second_mutex_test_tests),
+        cmocka_unit_test(first_queue_test_tests),
+        cmocka_unit_test(second_queue_test_tests),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

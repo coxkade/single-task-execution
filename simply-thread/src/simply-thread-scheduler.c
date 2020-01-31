@@ -107,9 +107,7 @@ static inline void m_sleep_all_tasks(void)
             assert(NULL != c);
             if(SIMPLY_THREAD_TASK_RUNNING == c->state)
             {
-                assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->print_mutex));
                 assert(0 == pthread_kill(c->thread, SIGUSR1));
-                pthread_mutex_unlock(&simply_thread_lib_data()->print_mutex);
                 m_sched_exit_if_kill();
                 MUTEX_RELEASE();
                 simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
@@ -149,6 +147,7 @@ static inline void m_sched_run_best_task(void)
     {
         PRINT_MSG("\tTask %s resume\r\n", best_task->name);
         best_task->state = SIMPLY_THREAD_TASK_RUNNING;
+        assert(0 == simply_thread_sem_post(&best_task->sem));
     }
 }
 
