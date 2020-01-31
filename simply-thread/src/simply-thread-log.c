@@ -13,6 +13,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <pthread.h>
+#include <string.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -39,6 +40,18 @@
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
+static void * simply_thread_log_task(void * data)
+{
+	char * message;
+	message = (char *) data;
+	assert(NULL != message);
+	assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->print_mutex));
+	printf("%s", message);
+	pthread_mutex_unlock(&simply_thread_lib_data()->print_mutex);
+	return NULL;
+}
+
+
 /**
  * @brief Function that  prints a message in color
  * @param fmt Standard printf format
@@ -50,9 +63,11 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     time_t t;
     struct tm tm;
     va_list args;
+    char * print_buffer = NULL;
+    unsigned int buffer_size;
+    pthread_t thread;
 
     //Setup the time message string
-    assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->print_mutex));
 
     t = time(NULL);
     tm = *localtime(&t);
@@ -62,6 +77,9 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     int rc = vsnprintf(final_buffer, ARRAY_MAX_COUNT(final_buffer), fmt, args);
     assert(0 < rc);
     va_end(args);
-    printf("%s%s%s%s", color, time_buffer, final_buffer, COLOR_RESET);
-    pthread_mutex_unlock(&simply_thread_lib_data()->print_mutex);
+    buffer_size = strlen(time_buffer) + strlen(final_buffer) + strlen(color) + strlen(COLOR_RESET) + 10;
+    print_buffer = malloc(buffer_size);
+    assert(NULL != print_buffer);
+    snprintf(print_buffer, buffer_size, "%s%s%s%s", color, time_buffer, final_buffer, COLOR_RESET);
+    assert(0 == pthread_create( &thread, NULL, simply_thread_log_task, (void*) print_buffer));
 }
