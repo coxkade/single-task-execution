@@ -11,6 +11,7 @@
 #include <simply-thread.h>
 #include <simply-thread-linked-list.h>
 #include <pthread.h>
+#include <simply-thread-sem-helper.h>
 
 #ifndef SIMPLY_THREAD_OBJECTS_H_
 #define SIMPLY_THREAD_OBJECTS_H_
@@ -54,8 +55,7 @@ typedef struct simply_thread_scheduler_data_s
 
 struct simply_thread_condition_s
 {
-    pthread_mutex_t gate_mutex; //!< mutex for race condition
-    bool waiting;//!< Value that says if we are waiting
+    simply_thread_sem_t sig_sem; //!< The signaling semaphore
 };
 
 

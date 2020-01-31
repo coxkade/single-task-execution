@@ -18,6 +18,8 @@
 #define COLOR_CYAN "\x1b[36m"
 #define COLOR_WHITE "\x1b[37m"
 #define COLOR_LIGHT_GREEN "\x001b[38;5;154m"
+#define COLOR_PURPLE "\x001b[38;5;93m"
+#define COLOR_EARTH_GREEN "\x001b[38;5;64m"
 #define COLOR_RESET   "\x1b[0m"
 
 /**

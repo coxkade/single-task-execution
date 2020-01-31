@@ -55,6 +55,7 @@ find_package (Python3 3 REQUIRED)
 set( ENV{CTEST_OUTPUT_ON_FAILURE} TRUE)
 
 LIST(APPEND simply-thread-sources 
+	src/simply-thread-sem-helper.c
 	src/simply-thread.c 
     src/simply-thread-log.c 
     src/simply-thread-linked-list.c
