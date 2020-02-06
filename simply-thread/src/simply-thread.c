@@ -147,6 +147,19 @@ struct simply_thread_task_s *simply_thread_get_ex_task(void)
 }
 
 /**
+ * @brief Fetch the current task handle
+ * @return void*
+ */
+void *simply_thread_current_task_handle(void)
+{
+    struct simply_thread_task_s *rv;
+    MUTEX_GET();
+    rv = simply_thread_get_ex_task();
+    MUTEX_RELEASE();
+    return (void *) rv;
+}
+
+/**
  * Function that causes a task to spin until its state is set to running
  * @param signo
  */
@@ -645,6 +658,41 @@ bool simply_thread_task_resume(simply_thread_task_t handle)
     }
     simply_thread_set_task_state(ptr_task, SIMPLY_THREAD_TASK_READY);
     return true;
+}
+
+/**
+ * @brief Function that gets a tasks state
+ * @param handle Handle of the task to get the state
+ * @return The state of the task
+ */
+enum simply_thread_thread_state_e simply_thread_task_state(simply_thread_task_t handle)
+{
+    enum simply_thread_thread_state_e rv;
+    struct simply_thread_task_s *ptr_task = (struct simply_thread_task_s *)handle;
+    assert(NULL != ptr_task);
+    ROOT_PRINT("%s\r\n", __FUNCTION__);
+    MUTEX_GET();
+    rv = ptr_task->state;
+    MUTEX_RELEASE();
+    return rv;
+}
+
+/**
+ * @brief Function that checks if we are currently in an interrupt
+ * @return true currently in the interrupt context.
+ * @return false  Not Currently in the interrupt context.
+ */
+bool simply_thread_in_interrupt(void)
+{
+    struct simply_thread_task_s *ptr_task;
+    MUTEX_GET();
+    ptr_task = simply_thread_get_ex_task();
+    MUTEX_RELEASE();
+    if(NULL == ptr_task)
+    {
+        return true;
+    }
+    return false;
 }
 
 

@@ -34,6 +34,16 @@ typedef void *simply_thread_mutex_t;   //!< Typedef for mutex handle
 //Typedets for queues
 typedef void *simply_thread_queue_t;  //!< Typedef for Queue Handle
 
+enum simply_thread_thread_state_e
+{
+    SIMPLY_THREAD_TASK_RUNNING = 0,
+    SIMPLY_THREAD_TASK_READY,
+    SIMPLY_THREAD_TASK_BLOCKED,
+    SIMPLY_THREAD_TASK_SUSPENDED,
+    SIMPLY_THREAD_TASK_UNKNOWN_STATE,
+    SIMPLY_THREAD__TASK_STATE_COUNT
+}; //!< Enum for the different task states
+
 
 /**
  * Function that resets the simply thread library.  Closes all existing created threads
@@ -76,6 +86,26 @@ bool simply_thread_task_suspend(simply_thread_task_t handle);
  * @return true on success
  */
 bool simply_thread_task_resume(simply_thread_task_t handle);
+
+/**
+ * @brief Function that gets a tasks state
+ * @param handle Handle of the task to get the state
+ * @return The state of the task
+ */
+enum simply_thread_thread_state_e simply_thread_task_state(simply_thread_task_t handle);
+
+/**
+ * @brief Fetch the current task handle
+ * @return void*
+ */
+void *simply_thread_current_task_handle(void);
+
+/**
+ * @brief Function that checks if we are currently in an interrupt
+ * @return true currently in the interrupt context.
+ * @return false  Not Currently in the interrupt context.
+ */
+bool simply_thread_in_interrupt(void);
 
 /**
  * @brief Function that creates a new timer
