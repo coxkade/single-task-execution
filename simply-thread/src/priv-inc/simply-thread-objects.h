@@ -20,16 +20,6 @@
 #define SIMPLY_THREAD_MAX_TASKS 250
 #endif //SIMPLY_THREAD_MAX_TASKS
 
-enum simply_thread_thread_state_e
-{
-    SIMPLY_THREAD_TASK_RUNNING = 0,
-    SIMPLY_THREAD_TASK_READY,
-    SIMPLY_THREAD_TASK_BLOCKED,
-    SIMPLY_THREAD_TASK_SUSPENDED,
-    SIMPLY_THREAD_TASK_UNKNOWN_STATE,
-    SIMPLY_THREAD__TASK_STATE_COUNT
-}; //!< Enum for the different task states
-
 struct simply_thread_task_s
 {
     simply_thread_sem_t sem; //!< The Tasks signal semaphore

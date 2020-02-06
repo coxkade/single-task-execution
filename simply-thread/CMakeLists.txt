@@ -70,7 +70,7 @@ project(simply-thread)
 	#Source for the simply thread Library
 	add_library(simply-thread STATIC 
    	${simply-thread-sources})
-	SET_TARGET_PROPERTIES(simply-thread PROPERTIES COMPILE_FLAGS "-O0 -Wall -Werror")
+	SET_TARGET_PROPERTIES(simply-thread PROPERTIES COMPILE_FLAGS "-g -O0 -Wall -std=c11")
 	target_include_directories(simply-thread PUBLIC inc)
 	target_include_directories(simply-thread PRIVATE src/priv-inc)
 

@@ -13,4 +13,4 @@ add_executable(single-ex ${SRCS})
 # target_compile_definitions(simply-thread PRIVATE -DDEBUG_SIMPLY_THREAD)
 target_link_libraries(single-ex simply-thread)
 
-add_custom_target(coverage DEPENDS simply-thread-coverage)
+add_custom_target(single-task-lib-coverage DEPENDS simply-thread-coverage)

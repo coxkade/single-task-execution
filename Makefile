@@ -11,7 +11,7 @@ clean:
 	
 coverage: reconfig
 	make all
-	make -C $(build_dir) $@
+	make -C $(build_dir) single-task-lib-coverage
 	
 test:
 	make clean
