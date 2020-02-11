@@ -73,4 +73,15 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void);
  */
 struct simply_thread_task_s *simply_thread_get_ex_task(void);
 
+/**
+ * @brief Function that gets the master mutex
+ * @return true on success
+ */
+bool simply_thread_get_master_mutex(void);
+
+/**
+ * @brief Function that releases the master mutex
+ */
+void simply_thread_release_master_mutex(void);
+
 #endif /* PRIV_SIMPLY_THREAD_H_ */

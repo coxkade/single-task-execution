@@ -275,39 +275,39 @@ void simply_thread_ll_destroy(simply_thread_linked_list_t handle)
  */
 void simply_thread_ll_test(void)
 {
-	simply_thread_linked_list_t handle;
-	int i = 1;
-	int * p;
-	handle = simply_thread_new_ll(sizeof(int));
-	assert(true == simply_thread_ll_append(handle, &i));
-	i = 2;
-	assert(true == simply_thread_ll_append(handle, &i));
-	i = 3;
-	assert(true == simply_thread_ll_append(handle, &i));
-	assert(3 == simply_thread_ll_count(handle));
+    simply_thread_linked_list_t handle;
+    int i = 1;
+    int *p;
+    handle = simply_thread_new_ll(sizeof(int));
+    assert(true == simply_thread_ll_append(handle, &i));
+    i = 2;
+    assert(true == simply_thread_ll_append(handle, &i));
+    i = 3;
+    assert(true == simply_thread_ll_append(handle, &i));
+    assert(3 == simply_thread_ll_count(handle));
 
-	p = simply_thread_ll_get(handle, 0);
-	assert(1 == *p);
-	p = simply_thread_ll_get(handle, 1);
-	assert(2 == *p);
-	p = simply_thread_ll_get(handle, 2);
-	assert(3 == *p);
+    p = simply_thread_ll_get(handle, 0);
+    assert(1 == *p);
+    p = simply_thread_ll_get(handle, 1);
+    assert(2 == *p);
+    p = simply_thread_ll_get(handle, 2);
+    assert(3 == *p);
 
-	simply_thread_ll_remove(handle, 0);
-	assert(2 == simply_thread_ll_count(handle));
-	p = simply_thread_ll_get(handle, 0);
-	assert(2 == *p);
-	p = simply_thread_ll_get(handle, 1);
-	assert(3 == *p);
+    simply_thread_ll_remove(handle, 0);
+    assert(2 == simply_thread_ll_count(handle));
+    p = simply_thread_ll_get(handle, 0);
+    assert(2 == *p);
+    p = simply_thread_ll_get(handle, 1);
+    assert(3 == *p);
 
-	simply_thread_ll_remove(handle, 0);
-	assert(1 == simply_thread_ll_count(handle));
-	p = simply_thread_ll_get(handle, 0);
-	assert(3 == *p);
+    simply_thread_ll_remove(handle, 0);
+    assert(1 == simply_thread_ll_count(handle));
+    p = simply_thread_ll_get(handle, 0);
+    assert(3 == *p);
 
-	simply_thread_ll_remove(handle, 0);
-	assert(0 == simply_thread_ll_count(handle));
+    simply_thread_ll_remove(handle, 0);
+    assert(0 == simply_thread_ll_count(handle));
 
-	simply_thread_ll_destroy(handle);
-//	assert(true == false);
+    simply_thread_ll_destroy(handle);
+//  assert(true == false);
 }

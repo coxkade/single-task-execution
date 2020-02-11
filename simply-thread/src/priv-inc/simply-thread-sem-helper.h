@@ -57,4 +57,9 @@ int simply_thread_sem_trywait(simply_thread_sem_t *sem);
  */
 int simply_thread_sem_post(simply_thread_sem_t *sem);
 
+/**
+ * @brief Function that unlinks created semaphores so they can be freed when tests complete
+ */
+void sem_helper_cleanup(void);
+
 #endif /* SIMPLY_THREAD_SEM_HELPER_H_ */

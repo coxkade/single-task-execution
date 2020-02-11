@@ -32,11 +32,11 @@
 
 #define MUTEX_GET() do{\
 PRINT_MSG("**** %s waiting on Master Mutex\r\n", __FUNCTION__);\
-assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->master_mutex));\
+assert(true == simply_thread_get_master_mutex());\
 PRINT_MSG("++++ %s Has Master Mutex\r\n", __FUNCTION__);\
 }while(0)
 #define MUTEX_RELEASE() do{\
-pthread_mutex_unlock(&simply_thread_lib_data()->master_mutex);\
+simply_thread_release_master_mutex();\
 PRINT_MSG("---- %s released master mutex\r\n", __FUNCTION__);\
 }while(0)
 
@@ -87,6 +87,8 @@ static inline void m_sched_exit_if_kill(void)
 {
     if(true == MODULE_DATA.sched_data.kill)
     {
+        MODULE_DATA.sched_data.staged = false;
+        MODULE_DATA.threadlaunched = false;
         MUTEX_RELEASE();
         pthread_exit(NULL);
     }
@@ -111,8 +113,8 @@ static inline void m_sleep_all_tasks(void)
                 m_sched_exit_if_kill();
                 MUTEX_RELEASE();
                 simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
-                m_sched_exit_if_kill();
                 MUTEX_GET();
+                m_sched_exit_if_kill();
             }
         }
     }
@@ -184,8 +186,9 @@ static void *m_run_sched(void *data)
                 }
                 else
                 {
-                    MUTEX_RELEASE();
                     m_sched_exit_if_kill();
+                    MUTEX_RELEASE();
+                    simply_thread_sleep_ns(137);
                     MUTEX_GET();
                 }
             }
@@ -200,9 +203,8 @@ static void *m_run_sched(void *data)
         }
         PRINT_MSG("\tScheduler Launching Next Task\r\n");
         m_sched_run_best_task();
-
-        MUTEX_RELEASE();
         MODULE_DATA.sched_data.staged = false;
+        MUTEX_RELEASE();
     }
     return NULL;
 }
@@ -237,11 +239,12 @@ void simply_thread_scheduler_kill(void)
     {
         do
         {
+            MODULE_DATA.sched_data.kill = true;
             sched_running = MODULE_DATA.sched_data.staged;
             if(true == sched_running)
             {
                 MUTEX_RELEASE();
-                simply_thread_sleep_ns(500);
+                simply_thread_sleep_ns(127);
                 MUTEX_GET();
             }
         }
@@ -249,7 +252,6 @@ void simply_thread_scheduler_kill(void)
         MODULE_DATA.sched_data.work_data.new_state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
         MODULE_DATA.sched_data.work_data.task_adjust = NULL;
         MODULE_DATA.sched_data.staged = true;
-        MODULE_DATA.sched_data.kill = true;
         simply_thread_send_condition(&MODULE_DATA.condition);
         MUTEX_RELEASE();
         pthread_join(MODULE_DATA.thread, NULL);
@@ -281,7 +283,7 @@ void simply_thread_run(struct simply_thread_scheduler_data_s *thread_data)
         if(true == sched_running)
         {
             MUTEX_RELEASE();
-            simply_thread_sleep_ns(500);
+            simply_thread_sleep_ns(131);
             MUTEX_GET();
             if(false == MODULE_DATA.threadlaunched)
             {

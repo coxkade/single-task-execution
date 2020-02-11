@@ -83,7 +83,8 @@ struct simply_thread_scheduler_task_data_s
 
 struct simply_thread_lib_data_s
 {
-    pthread_mutex_t master_mutex; //!< The modules master mutex
+    pthread_mutex_t init_mutex; //!< The modules initialization mutex
+    simply_thread_sem_t master_semaphore; //!< The modules master semaphore
     simply_thread_linked_list_t thread_list; //!< The thread list handle
     struct simply_thread_sleep_data_s sleep; //!< Data for the sleep logic
     struct simply_thread_scheduler_task_data_s sched; //!< Data used by the scheduler task
