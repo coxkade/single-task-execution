@@ -88,6 +88,7 @@ static inline void m_sched_exit_if_kill(void)
     if(true == MODULE_DATA.sched_data.kill)
     {
         MODULE_DATA.sched_data.staged = false;
+        MODULE_DATA.threadlaunched = false;
         MUTEX_RELEASE();
         pthread_exit(NULL);
     }
