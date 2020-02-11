@@ -87,6 +87,7 @@ static inline void m_sched_exit_if_kill(void)
 {
     if(true == MODULE_DATA.sched_data.kill)
     {
+        MODULE_DATA.sched_data.staged = false;
         MUTEX_RELEASE();
         pthread_exit(NULL);
     }
@@ -201,9 +202,8 @@ static void *m_run_sched(void *data)
         }
         PRINT_MSG("\tScheduler Launching Next Task\r\n");
         m_sched_run_best_task();
-
-        MUTEX_RELEASE();
         MODULE_DATA.sched_data.staged = false;
+        MUTEX_RELEASE();
     }
     return NULL;
 }
@@ -238,6 +238,7 @@ void simply_thread_scheduler_kill(void)
     {
         do
         {
+            MODULE_DATA.sched_data.kill = true;
             sched_running = MODULE_DATA.sched_data.staged;
             if(true == sched_running)
             {
@@ -250,7 +251,6 @@ void simply_thread_scheduler_kill(void)
         MODULE_DATA.sched_data.work_data.new_state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
         MODULE_DATA.sched_data.work_data.task_adjust = NULL;
         MODULE_DATA.sched_data.staged = true;
-        MODULE_DATA.sched_data.kill = true;
         simply_thread_send_condition(&MODULE_DATA.condition);
         MUTEX_RELEASE();
         pthread_join(MODULE_DATA.thread, NULL);
