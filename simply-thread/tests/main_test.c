@@ -175,13 +175,14 @@ static void timer_test(void **state)
     assert_true(NULL == simply_thread_create_timer(NULL, "Hello", 5, SIMPLY_THREAD_TIMER_ONE_SHOT, true));
     timer_1 = simply_thread_create_timer(first_timer_worker, "Timer One", 100, SIMPLY_THREAD_TIMER_ONE_SHOT, true);
     assert_true(NULL != timer_1);
-    timer_2 = simply_thread_create_timer(second_timer_worker, "Timer two", 100, SIMPLY_THREAD_TIMER_REPEAT, true);
-    assert_true(NULL != timer_2);
     assert_true(simply_thread_timer_stop(timer_1));
     assert_false(simply_thread_timer_start(NULL));
     assert_false(simply_thread_timer_stop(NULL));
     assert_true(simply_thread_timer_start(timer_1));
+    timer_2 = simply_thread_create_timer(second_timer_worker, "Timer two", 100, SIMPLY_THREAD_TIMER_REPEAT, true);
+    assert_true(NULL != timer_2);
     simply_thread_sleep_ms(540);
+    assert_true(simply_thread_timer_stop(timer_2));
     simply_thread_cleanup();
     assert_true(thread_one_ran);
     assert_true(thread_two_ran);

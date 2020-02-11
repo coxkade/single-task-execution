@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/time.h>
 
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_MAGENTA, __VA_ARGS__)
@@ -348,6 +349,7 @@ void simply_thread_reset(void)
         signal(SIGUSR1, m_usr1_catch);
         signal(SIGUSR2, m_usr2_catch);
         m_module_data.signals_initialized = true;
+        atexit(sem_helper_cleanup);
     }
     m_intern_cleanup();
     //Reinitialize the timers module
@@ -767,8 +769,10 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void)
  */
 bool simply_thread_get_master_mutex(void)
 {
+    assert(NULL != m_module_data.master_semaphore.sem);
     while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore))
     {
+        simply_thread_sleep_ns(100);
     }
     return true;
 }
@@ -778,6 +782,7 @@ bool simply_thread_get_master_mutex(void)
  */
 void simply_thread_release_master_mutex(void)
 {
+    assert(NULL != m_module_data.master_semaphore.sem);
     assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
 }
 

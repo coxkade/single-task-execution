@@ -101,3 +101,4 @@ project(simply-thread-tests)
 	add_custom_target(simply-thread-coverage
 		DEPENDS ${ALL_GCOV}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+		
