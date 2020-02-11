@@ -141,7 +141,7 @@ static void task_non_null_data_test(void **state)
     test_task = simply_thread_new_thread("DataTask", thread_three_worker, 1, &test_val, sizeof(test_val));
     assert_true(NULL != test_task);
 
-    simply_thread_sleep_ms(300);
+    simply_thread_sleep_ms(1000);
     assert_true(task_non_null_data_test_continue);
     simply_thread_cleanup();
 }
@@ -387,7 +387,7 @@ static void queue_test(void **state)
     PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
     assert(true == simply_thread_queue_send(queue_handles[1], &val, 0));
     PRINT_MSG("Waiting for Cleanup\r\n");
-    simply_thread_sleep_ms(600);
+    simply_thread_sleep_ms(2000);
     PRINT_MSG("%s shutting down test\r\n", __FUNCTION__);
     simply_thread_cleanup();
     assert_true(thread_one_ran);

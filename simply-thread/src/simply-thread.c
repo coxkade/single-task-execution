@@ -45,11 +45,11 @@
 
 #define MUTEX_GET() do{\
 PRINT_MSG("**** %s waiting on Master Mutex\r\n", __FUNCTION__);\
-assert(0 == pthread_mutex_lock(&m_module_data.master_mutex));\
+assert(true == simply_thread_get_master_mutex());\
 PRINT_MSG("++++ %s Has Master Mutex\r\n", __FUNCTION__);\
 }while(0)
 #define MUTEX_RELEASE() do{\
-pthread_mutex_unlock(&m_module_data.master_mutex);\
+simply_thread_release_master_mutex();\
 PRINT_MSG("---- %s released master mutex\r\n", __FUNCTION__);\
 }while(0)
 
@@ -74,13 +74,19 @@ void m_simply_thread_sleep_ms(unsigned long ms);
  */
 static void m_sleep_maint(void);
 
+/**
+ * @brief Function that initializes the master semaphore
+ */
+static void m_init_master_semaphore(void);
+
 /***********************************************************************************/
 /***************************** Static Variables ************************************/
 /***********************************************************************************/
 
 static struct simply_thread_lib_data_s m_module_data =
 {
-    .master_mutex = PTHREAD_MUTEX_INITIALIZER,
+    .init_mutex = PTHREAD_MUTEX_INITIALIZER,
+    .master_semaphore = {.sem = NULL},
     .thread_list = NULL,
     .signals_initialized = false,
     .print_mutex = PTHREAD_MUTEX_INITIALIZER,
@@ -97,14 +103,14 @@ static struct simply_thread_lib_data_s m_module_data =
  */
 static void m_maint_timer(simply_thread_timer_t timer_handle)
 {
-    assert(0 == pthread_mutex_lock(&m_module_data.master_mutex));
+    assert(true == simply_thread_get_master_mutex());
     //Run the sleep maintenance
     m_sleep_maint();
     //trigger the mutex maintenance
     simply_thread_mutex_maint();
     //trigger the queue maintenance
     simply_thread_queue_maint();
-    pthread_mutex_unlock(&m_module_data.master_mutex);
+    simply_thread_release_master_mutex();
 }
 
 /**
@@ -289,7 +295,7 @@ static void m_sleep_maint(void)
     bool timeout;
     bool task_ready = false;
     task_ready = false;
-    assert(EBUSY == pthread_mutex_trylock(&simply_thread_lib_data()->master_mutex)); //We must be locked
+    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
     //Increment all of the sleeping task counts
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
     {
@@ -317,7 +323,7 @@ static void m_sleep_maint(void)
                         {
                             PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust);
                             simply_thread_set_task_state_from_locked(m_module_data.sleep.sleep_list[i].sleep_data.task_adjust, SIMPLY_THREAD_TASK_READY);
-                            assert(EBUSY == pthread_mutex_trylock(&simply_thread_lib_data()->master_mutex)); //We must be locked
+                            assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
                         }
                     }
                 }
@@ -334,6 +340,7 @@ static void m_sleep_maint(void)
 void simply_thread_reset(void)
 {
     ROOT_PRINT("%s\r\n", __FUNCTION__);
+    m_init_master_semaphore();
     simply_thread_ll_test();
     MUTEX_GET();
     if(false == m_module_data.signals_initialized)
@@ -366,6 +373,7 @@ void simply_thread_reset(void)
 void simply_thread_cleanup(void)
 {
     ROOT_PRINT("%s\r\n", __FUNCTION__);
+    m_init_master_semaphore();
     MUTEX_GET();
     m_intern_cleanup();
     MUTEX_RELEASE();
@@ -556,7 +564,7 @@ void simply_thread_set_task_state_from_locked(struct simply_thread_task_s *task,
     struct simply_thread_task_s *c_task;
 
     sched_data.sleeprequired = false;
-    assert(EBUSY == pthread_mutex_trylock(&simply_thread_lib_data()->master_mutex)); //We must be locked
+    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
     c_task =  simply_thread_get_ex_task();
     if(NULL == c_task)
     {
@@ -595,7 +603,7 @@ void simply_ex_sched_from_locked(void)
 {
     struct simply_thread_task_s *c_task;
     struct simply_thread_scheduler_data_s sched_data;
-    assert(EBUSY == pthread_mutex_trylock(&simply_thread_lib_data()->master_mutex)); //We must be locked
+    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
     sched_data.sleeprequired = false;
     c_task =  simply_thread_get_ex_task();
     if(NULL == c_task)
@@ -751,4 +759,40 @@ void simply_thread_wait_condition(struct simply_thread_condition_s *cond)
 struct simply_thread_lib_data_s *simply_thread_lib_data(void)
 {
     return &m_module_data;
+}
+
+/**
+ * @brief Function that gets the master mutex
+ * @return true on success
+ */
+bool simply_thread_get_master_mutex(void)
+{
+    while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore))
+    {
+    }
+    return true;
+}
+
+/**
+ * @brief Function that releases the master mutex
+ */
+void simply_thread_release_master_mutex(void)
+{
+    assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
+}
+
+/**
+ * @brief Function that initializes the master semaphore
+ */
+static void m_init_master_semaphore(void)
+{
+    if(NULL == m_module_data.master_semaphore.sem)
+    {
+        assert(0 == pthread_mutex_lock(&m_module_data.init_mutex));
+        if(NULL == m_module_data.master_semaphore.sem)
+        {
+            simply_thread_sem_init(&m_module_data.master_semaphore);
+        }
+        pthread_mutex_unlock(&m_module_data.init_mutex);
+    }
 }

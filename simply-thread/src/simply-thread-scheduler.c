@@ -32,11 +32,11 @@
 
 #define MUTEX_GET() do{\
 PRINT_MSG("**** %s waiting on Master Mutex\r\n", __FUNCTION__);\
-assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->master_mutex));\
+assert(true == simply_thread_get_master_mutex());\
 PRINT_MSG("++++ %s Has Master Mutex\r\n", __FUNCTION__);\
 }while(0)
 #define MUTEX_RELEASE() do{\
-pthread_mutex_unlock(&simply_thread_lib_data()->master_mutex);\
+simply_thread_release_master_mutex();\
 PRINT_MSG("---- %s released master mutex\r\n", __FUNCTION__);\
 }while(0)
 

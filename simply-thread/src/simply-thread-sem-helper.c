@@ -109,13 +109,23 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
 int simply_thread_sem_trywait(simply_thread_sem_t *sem)
 {
     int rv;
+    int result;
     assert(NULL != sem);
     assert(NULL != sem->sem);
-    rv = sem_trywait(sem->sem);
-    if(0 == rv && sem->count < 1)
+    result = sem_trywait(sem->sem);
+    if(0 == result)
     {
-        sem->count = 1;
+        rv = 0;
+        if(sem->count < 1)
+        {
+            sem->count = 1;
+        }
     }
+    else
+    {
+        rv = errno;
+    }
+
     return rv;
 }
 
