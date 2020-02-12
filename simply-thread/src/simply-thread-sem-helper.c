@@ -148,7 +148,6 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
     while(SEM_FAILED == sem->sem);
     PRINT_MSG("Created Semaphore: %s\r\n", name);
     simply_thread_sem_register(name);
-    sem->count = 1;
 }
 
 /**
@@ -163,18 +162,6 @@ void simply_thread_sem_destroy(simply_thread_sem_t *sem)
 }
 
 /**
- * Get a semaphores count
- * @param sem
- * @return the current semaphore count
- */
-int simply_thread_sem_get_count(simply_thread_sem_t *sem)
-{
-    assert(NULL != sem);
-    assert(NULL != sem->sem);
-    return sem->count;
-}
-
-/**
  * Blocking Wait for a semaphor
  * @param sem
  * @return 0 on success
@@ -185,10 +172,6 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
     assert(NULL != sem);
     assert(NULL != sem->sem);
     rv = sem_wait(sem->sem);
-    if(0 == rv && sem->count < 1)
-    {
-        sem->count = 1;
-    }
     return rv;
 }
 
@@ -207,16 +190,11 @@ int simply_thread_sem_trywait(simply_thread_sem_t *sem)
     if(0 == result)
     {
         rv = 0;
-        if(sem->count < 1)
-        {
-            sem->count = 1;
-        }
     }
     else
     {
         rv = errno;
     }
-
     return rv;
 }
 
@@ -231,10 +209,7 @@ int simply_thread_sem_post(simply_thread_sem_t *sem)
     assert(NULL != sem);
     assert(NULL != sem->sem);
     rv = sem_post(sem->sem);
-    if(0 == rv && sem->count > 0)
-    {
-        sem->count = 0;
-    }
+    assert(0 == rv);
     return rv;
 }
 
