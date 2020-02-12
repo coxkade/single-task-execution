@@ -42,13 +42,13 @@
 struct simply_thread_sem_list_element_s
 {
     char sem_name[MAX_SEM_NAME_SIZE];
-};
+}; //!< Structure for a single registry element
 
 struct simply_thread_sem_registery_s
 {
-    struct simply_thread_sem_list_element_s createded_sems[MAX_SEM_COUNT];
-    bool initialized;
-};
+    struct simply_thread_sem_list_element_s createded_sems[MAX_SEM_COUNT]; //!< List of registry entries
+    bool initialized; //!< Tells if the device has been initialized
+}; //!< Structure that contains the data for the semaphore registry
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
