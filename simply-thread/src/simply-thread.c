@@ -33,6 +33,16 @@
 #define ROOT_PRINT(...)
 #endif //DEBUG_SIMPLY_THREAD
 
+#define DEBUG_MASTER_MUTEX
+
+#ifdef DEBUG_MASTER_MUTEX
+#define MM_PRINT_MSG(...) simply_thread_log(COLOR_BLUE, __VA_ARGS__)
+#else
+#define MM_PRINT_MSG(...)
+#endif //DEBUG_MASTER_MUTEX
+
+#define MM_DEBUG_MESSAGE(...) MM_PRINT_MSG("%s: %s", __FUNCTION__, __VA_ARGS__)
+
 #ifndef ST_NS_PER_MS
 #define ST_NS_PER_MS 1E6
 #endif //ST_NS_PER_MS
@@ -238,6 +248,8 @@ static void *m_task_wrapper(void *data)
     typed->started = true;
     m_task_wait_running(typed);
     typed->fnct(typed->task_data.data, typed->task_data.data_size);
+    ST_LOG_ERROR("Error!!! task %s Exited on its own\r\n", typed->name);
+    assert(false);
     return NULL;
 }
 
@@ -288,7 +300,7 @@ static void m_sleep_maint(void)
     bool timeout;
     bool task_ready = false;
     task_ready = false;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     //Increment all of the sleeping task counts
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
     {
@@ -316,7 +328,7 @@ static void m_sleep_maint(void)
                         {
                             PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust);
                             simply_thread_set_task_state_from_locked(m_module_data.sleep.sleep_list[i].sleep_data.task_adjust, SIMPLY_THREAD_TASK_READY);
-                            assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+                            assert(true == simply_thread_master_mutex_locked()); //We must be locked
                         }
                     }
                 }
@@ -558,7 +570,7 @@ void simply_thread_set_task_state_from_locked(struct simply_thread_task_s *task,
     struct simply_thread_task_s *c_task;
 
     sched_data.sleeprequired = false;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     c_task =  simply_thread_get_ex_task();
     if(NULL == c_task)
     {
@@ -597,7 +609,7 @@ void simply_ex_sched_from_locked(void)
 {
     struct simply_thread_task_s *c_task;
     struct simply_thread_scheduler_data_s sched_data;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     sched_data.sleeprequired = false;
     c_task =  simply_thread_get_ex_task();
     if(NULL == c_task)
@@ -755,17 +767,134 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void)
     return &m_module_data;
 }
 
+
+/**
+ * @brief Function that checks if a task is already waiting on the master mutex
+ * @return The index farthest from the current pop location used by the process.   -1 if not waiting
+ */
+static int simply_thread_thread_waiting_master_mutex(void)
+{
+    pthread_t current;
+    current = pthread_self();
+    int start =  m_module_data.master_sem_data.fifo.pop_index;
+    int i = m_module_data.master_sem_data.fifo.pop_index;
+    do
+    {
+        if(true == m_module_data.master_sem_data.fifo.entries[i].in_use)
+        {
+            if(m_module_data.master_sem_data.fifo.entries[i].thread == current)
+            {
+                MM_PRINT_MSG("Pthread %u already waiting\r\n", current);
+                return i;
+            }
+        }
+        i++;
+        if(i >= ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries))
+        {
+            i = 0;
+        }
+    }
+    while(i != start);
+    return -1;
+}
+
+/**
+ * @brief Function that prints the pop order
+ */
+static void print_pop_queue(void)
+{
+#ifdef DEBUG_MASTER_MUTEX
+    int start =  m_module_data.master_sem_data.fifo.pop_index;
+    int i = m_module_data.master_sem_data.fifo.pop_index;
+    MM_PRINT_MSG("Pop Queue\r\n");
+    do
+    {
+        if(true == m_module_data.master_sem_data.fifo.entries[i].in_use)
+        {
+            MM_PRINT_MSG("\tPop Sem: %p %i\r\n", m_module_data.master_sem_data.fifo.entries[i].sem.sem, i);
+        }
+        i++;
+        if(i >= ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries))
+        {
+            i = 0;
+        }
+    }
+    while(i != start);
+#endif //DEBUG_MASTER_MUTEX
+}
+
 /**
  * @brief Function that gets the master mutex
  * @return true on success
  */
 bool simply_thread_get_master_mutex(void)
 {
+    int current_index;
+    simply_thread_sem_t sync_sem;
+    bool sync_required = false;
+    int wait_index = -1;
+    current_index = -1;
+    struct simply_thread_master_mutex_fifo_entry_s swap_1;
+    struct simply_thread_master_mutex_fifo_entry_s swap_2;
     assert(NULL != m_module_data.master_semaphore.sem);
-    while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore))
+    while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore)) {}
+    MM_DEBUG_MESSAGE("Getting the master mutex\r\n");
+    m_module_data.master_sem_data.fifo.count++;
+    if(1 < m_module_data.master_sem_data.fifo.count)
     {
-        simply_thread_sleep_ns(100);
+
+        MM_PRINT_MSG("%s: Master Mutex Count %u\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.count);
+        wait_index = simply_thread_thread_waiting_master_mutex();
+        MM_DEBUG_MESSAGE("The Mutex is not available we need to wait for it\r\n");
+        assert(false == m_module_data.master_sem_data.fifo.entries[m_module_data.master_sem_data.fifo.push_index].in_use);
+        current_index = (int)m_module_data.master_sem_data.fifo.push_index;
+        m_module_data.master_sem_data.fifo.entries[current_index].in_use = true;
+        m_module_data.master_sem_data.fifo.entries[current_index].thread = pthread_self();
+        simply_thread_sem_init(&m_module_data.master_sem_data.fifo.entries[current_index].sem);
+        memcpy(&sync_sem, &m_module_data.master_sem_data.fifo.entries[current_index].sem, sizeof(sync_sem));
+        sync_required = true;
+        assert(0 == simply_thread_sem_trywait(&sync_sem));
+        m_module_data.master_sem_data.fifo.push_index++;
+        if(m_module_data.master_sem_data.fifo.push_index >= ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries))
+        {
+            m_module_data.master_sem_data.fifo.push_index = 0;
+        }
+        ST_LOG_ERROR("Push Now: %i\r\n", m_module_data.master_sem_data.fifo.push_index);
+        MM_PRINT_MSG("************* New Semephore: %p\r\n", sync_sem.sem);
+        if(-1 != wait_index)
+        {
+            MM_PRINT_MSG("%s: Swapping %p and %p\r\n", __FUNCTION__,
+                         m_module_data.master_sem_data.fifo.entries[current_index].sem.sem,
+                         m_module_data.master_sem_data.fifo.entries[wait_index].sem.sem);
+            print_pop_queue();
+            assert(sizeof(swap_1) == sizeof(m_module_data.master_sem_data.fifo.entries[current_index]));
+            assert(sizeof(swap_2) == sizeof(m_module_data.master_sem_data.fifo.entries[wait_index]));
+            memcpy(&swap_1, &m_module_data.master_sem_data.fifo.entries[current_index], sizeof(swap_1));
+            memcpy(&swap_2, &m_module_data.master_sem_data.fifo.entries[wait_index], sizeof(swap_2));
+            memcpy(&m_module_data.master_sem_data.fifo.entries[current_index], &swap_2, sizeof(m_module_data.master_sem_data.fifo.entries[current_index]));
+            memcpy(&m_module_data.master_sem_data.fifo.entries[wait_index], &swap_1, sizeof(swap_1));
+            MM_PRINT_MSG("%s: Swapped %p and %p\r\n", __FUNCTION__,
+                         m_module_data.master_sem_data.fifo.entries[current_index].sem.sem,
+                         m_module_data.master_sem_data.fifo.entries[wait_index].sem.sem);
+            print_pop_queue();
+            MM_PRINT_MSG("************* New Semephore: %p\r\n", sync_sem.sem);
+            memcpy(&sync_sem, &m_module_data.master_sem_data.fifo.entries[wait_index].sem, sizeof(sync_sem));
+        }
     }
+    if(true == sync_required)
+    {
+        MM_PRINT_MSG("%s: %u waiting on semaphore at: %p\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.entries[current_index].thread, sync_sem.sem);
+        print_pop_queue();
+        assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
+        while(0 != simply_thread_sem_wait(&sync_sem)) {}
+        MM_PRINT_MSG("%s: %u Finished waiting on semaphore at: %p\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.entries[current_index].thread,
+                     sync_sem.sem);
+        assert(-1 != current_index);
+        simply_thread_sem_destroy(&sync_sem);
+        MM_PRINT_MSG("%s: %u semaphore at: %p Destroyed\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.entries[current_index].thread, sync_sem.sem);
+        while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore)) {}
+    }
+    assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
     return true;
 }
 
@@ -774,8 +903,60 @@ bool simply_thread_get_master_mutex(void)
  */
 void simply_thread_release_master_mutex(void)
 {
+    unsigned int current_index;
+    simply_thread_sem_t *sync_sem;
+    sync_sem = NULL;
     assert(NULL != m_module_data.master_semaphore.sem);
+    MM_DEBUG_MESSAGE("Starting pop\r\n");
+    while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore)) {}
+    if(0 < m_module_data.master_sem_data.fifo.count)
+    {
+        MM_DEBUG_MESSAGE("Releasing master mutex\r\n");
+        print_pop_queue();
+        MM_DEBUG_MESSAGE("Post Next Sem\r\n");
+        current_index = m_module_data.master_sem_data.fifo.pop_index;
+        if(true == m_module_data.master_sem_data.fifo.entries[current_index].in_use)
+        {
+            assert(1 < m_module_data.master_sem_data.fifo.count); //Sanity Check
+            sync_sem = &m_module_data.master_sem_data.fifo.entries[current_index].sem;
+
+            m_module_data.master_sem_data.fifo.pop_index++;
+            if(m_module_data.master_sem_data.fifo.pop_index >= ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries))
+            {
+                m_module_data.master_sem_data.fifo.pop_index = 0;
+            }
+            ST_LOG_ERROR("Pop Now: %i\r\n", m_module_data.master_sem_data.fifo.pop_index);
+            m_module_data.master_sem_data.fifo.entries[current_index].in_use = false;
+            print_pop_queue();
+            m_module_data.master_sem_data.fifo.count--;
+            ST_LOG_ERROR("Poppped: %i\r\n", current_index);
+            MM_PRINT_MSG("%s: Master Mutex Count %u\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.count);
+            MM_PRINT_MSG("%s: posting to sem at %p\r\n", __FUNCTION__, sync_sem->sem);
+            assert(0 == simply_thread_sem_post(sync_sem));
+        }
+        else
+        {
+            MM_PRINT_MSG("%s: Nothing to do at index: %i\r\n", __FUNCTION__, current_index);
+            m_module_data.master_sem_data.fifo.count--;
+            MM_PRINT_MSG("%s: Master Mutex Count %u\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.count);
+        }
+    }
     assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
+}
+
+/**
+ * @brief Function that checks if the master mutex is locked
+ * @return true if the master mutex is locked
+ */
+bool simply_thread_master_mutex_locked(void)
+{
+    if(0 < m_module_data.master_sem_data.fifo.count)
+    {
+        MM_PRINT_MSG("Master Mutex is Locked\r\n");
+        return true;
+    }
+    MM_PRINT_MSG("Master Mutex NOT Locked\r\n");
+    return false;
 }
 
 /**
@@ -783,13 +964,22 @@ void simply_thread_release_master_mutex(void)
  */
 static void m_init_master_semaphore(void)
 {
+
     if(NULL == m_module_data.master_semaphore.sem)
     {
         assert(0 == pthread_mutex_lock(&m_module_data.init_mutex));
         if(NULL == m_module_data.master_semaphore.sem)
         {
             simply_thread_sem_init(&m_module_data.master_semaphore);
+            for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries); i++)
+            {
+                m_module_data.master_sem_data.fifo.entries[i].in_use = false;
+            }
+            m_module_data.master_sem_data.fifo.pop_index = 0;
+            m_module_data.master_sem_data.fifo.push_index = 0;
+            m_module_data.master_sem_data.fifo.count = 0;
         }
         pthread_mutex_unlock(&m_module_data.init_mutex);
+        MM_PRINT_MSG("Initialized the master mutex\r\n");
     }
 }

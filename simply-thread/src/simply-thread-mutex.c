@@ -145,7 +145,7 @@ static inline void clear_mutex_list(void)
 {
     PRINT_MSG("%s\r\n", __FUNCTION__);
     struct mutex_wrapper_s *wrap_pointer;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     for(unsigned int i = 0; i < simply_thread_ll_count(m_mutex_module_data.mutex_list); i++)
     {
         wrap_pointer = simply_thread_ll_get(m_mutex_module_data.mutex_list, i);
@@ -165,7 +165,7 @@ static inline void clear_mutex_list(void)
 void simply_thread_mutex_init(void)
 {
     PRINT_MSG("%s\r\n", __FUNCTION__);
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     if(NULL == m_mutex_module_data.lib_data)
     {
         m_mutex_module_data.lib_data = simply_thread_lib_data();
@@ -230,7 +230,7 @@ static void simply_thread_mutex_unblock_next_task(struct mutex_data_s *mux)
 {
     struct simply_thread_task_s *run_task = NULL;
     PRINT_MSG("%s\r\n", __FUNCTION__);
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     unsigned int waiting_tasks;
     simply_thread_check_mutex_block_list(mux);
     waiting_tasks = mutex_get_wait_task_count(mux);
@@ -244,7 +244,7 @@ static void simply_thread_mutex_unblock_next_task(struct mutex_data_s *mux)
         {
             PRINT_MSG("\tSet task %s to ready\r\n", run_task->name);
             simply_thread_set_task_state_from_locked(run_task, SIMPLY_THREAD_TASK_READY);
-            assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+            assert(true == simply_thread_master_mutex_locked()); //We must be locked
         }
     }
     else
@@ -293,7 +293,7 @@ bool simply_thread_mutex_unlock(simply_thread_mutex_t mux)
 static void simply_thread_check_mutex_block_list(struct mutex_data_s *mux)
 {
     assert(NULL != mux);
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     unsigned int i = 0;
     unsigned int last_priority = 0xFFFFFFFF;
     bool null_hit = false;
@@ -340,7 +340,7 @@ static void simply_thread_element_swap(struct mutex_local_block_data_element_s *
 static void simply_thread_mutex_list_cleanup(struct mutex_data_s *mux)
 {
     bool shifted;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     //send NULLS to the Back
     do
     {
@@ -383,7 +383,7 @@ static void simply_thread_mutex_list_cleanup(struct mutex_data_s *mux)
 static unsigned int mutex_get_wait_task_count(struct mutex_data_s *mux)
 {
     unsigned int rv = 0;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(mux->block_list); i++)
     {
         if(NULL != mux->block_list[i].task)
@@ -404,7 +404,7 @@ static void simply_thread_add_task_blocked(struct mutex_data_s *mux, struct simp
     unsigned int task_count;
     struct simply_thread_task_s *c_task;
     assert(NULL != task);
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     task_count = mutex_get_wait_task_count(mux);
     c_task = simply_thread_get_ex_task();
     assert(c_task == task);
@@ -435,7 +435,7 @@ static void simply_thread_add_task_blocked(struct mutex_data_s *mux, struct simp
  */
 static bool simply_thread_mutex_lockdown(struct mutex_data_s *mux, unsigned int wait_time, struct simply_thread_task_s *task)
 {
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     assert(NULL != task);
     bool value_found = false;
     bool rv = false;
@@ -454,7 +454,7 @@ static bool simply_thread_mutex_lockdown(struct mutex_data_s *mux, unsigned int 
             simply_thread_add_task_blocked(mux, task);
             PRINT_MSG("\tSet task %s to blocked\r\n", task->name);
             simply_thread_set_task_state_from_locked(task, SIMPLY_THREAD_TASK_BLOCKED);
-            assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+            assert(true == simply_thread_master_mutex_locked()); //We must be locked
             rv = m_mutex_module_data.block_list[i].task_data.result;
             m_mutex_module_data.block_list[i].in_use = false;
         }
@@ -522,7 +522,7 @@ bool simply_thread_mutex_lock(simply_thread_mutex_t mux, unsigned int wait_time)
  */
 void simply_thread_mutex_maint(void)
 {
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_mutex_module_data.block_list);  i++)
     {
         if(true == m_mutex_module_data.block_list[i].in_use)
@@ -542,7 +542,7 @@ void simply_thread_mutex_maint(void)
                     PRINT_MSG("%s Mutex Timed out\r\n", m_mutex_module_data.block_list[i].task_data.mutex->name);
                     m_mutex_module_data.block_list[i].task_data.result = false;
                     simply_thread_set_task_state_from_locked(m_mutex_module_data.block_list[i].task_data.task, SIMPLY_THREAD_TASK_READY);
-                    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+                    assert(true == simply_thread_master_mutex_locked()); //We must be locked
                 }
             }
         }

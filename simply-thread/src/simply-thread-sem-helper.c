@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <simply-thread-log.h>
 
 
 /***********************************************************************************/
@@ -56,6 +57,12 @@ struct simply_thread_sem_registery_s
 /***************************** Function Declarations *******************************/
 /***********************************************************************************/
 
+/**
+ * @brief check if a semaphore exists if so kill it
+ * @param name
+ */
+static void unlink_sem_by_name(const char *name);
+
 /***********************************************************************************/
 /***************************** Static Variables ************************************/
 /***********************************************************************************/
@@ -93,7 +100,7 @@ static void simply_thread_init_registery(void)
  * @brief Function that registers a created semaphore
  * @param name pointer to string with the semaphores name
  */
-static void simply_thread_sem_register(char *name)
+static void simply_thread_sem_register(char *name, simply_thread_sem_t *sem)
 {
     simply_thread_init_registery();
     assert(NULL != name);
@@ -102,6 +109,7 @@ static void simply_thread_sem_register(char *name)
         if(0 == memcmp(st_sem_registery.createded_sems[i].sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE))
         {
             memcpy(st_sem_registery.createded_sems[i].sem_name, name, MAX_SEM_NAME_SIZE);
+            sem->data = &st_sem_registery.createded_sems[i];
             return;
         }
     }
@@ -150,7 +158,7 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
     }
     while(SEM_FAILED == sem->sem);
     PRINT_MSG("Created Semaphore: %s\r\n", name);
-    simply_thread_sem_register(name);
+    simply_thread_sem_register(name, sem);
 }
 
 /**
@@ -159,9 +167,14 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
  */
 void simply_thread_sem_destroy(simply_thread_sem_t *sem)
 {
+    struct simply_thread_sem_list_element_s *typed;
     assert(NULL != sem);
     assert(NULL != sem->sem);
     assert(0 == sem_close(sem->sem));
+    typed = sem->data;
+    assert(NULL != typed);
+    unlink_sem_by_name(typed->sem_name);
+    memcpy(typed->sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE);
 }
 
 /**
@@ -172,9 +185,19 @@ void simply_thread_sem_destroy(simply_thread_sem_t *sem)
 int simply_thread_sem_wait(simply_thread_sem_t *sem)
 {
     int rv;
+    int eval;
     assert(NULL != sem);
     assert(NULL != sem->sem);
     rv = sem_wait(sem->sem);
+    if(0 != rv)
+    {
+        eval = errno;
+        if(EINTR != eval)
+        {
+            ST_LOG_ERROR("Unsupported error %u\r\n", eval);
+            assert(false);
+        }
+    }
     return rv;
 }
 

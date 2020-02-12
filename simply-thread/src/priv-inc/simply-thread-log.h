@@ -22,6 +22,9 @@
 #define COLOR_EARTH_GREEN "\x001b[38;5;64m"
 #define COLOR_RESET   "\x1b[0m"
 
+//Macro for printing error messages
+#define ST_LOG_ERROR(...) simply_thread_log(COLOR_RED, __VA_ARGS__);
+
 /**
  * @brief Function that  prints a message in color
  * @param fmt Standard printf format

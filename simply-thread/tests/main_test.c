@@ -290,7 +290,7 @@ static void mutex_test(void **state)
     assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
     assert_true(NULL != task_one);
     assert_true(NULL != task_two);
-    simply_thread_sleep_ms(600);
+    simply_thread_sleep_ms(650);
     assert(true == thread_one_ran);
     assert(true == thread_two_ran);
     simply_thread_cleanup();
@@ -424,3 +424,4 @@ int main(void)
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
+

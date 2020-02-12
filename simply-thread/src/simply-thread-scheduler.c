@@ -100,8 +100,8 @@ static inline void m_sleep_all_tasks(void)
             assert(NULL != c);
             if(SIMPLY_THREAD_TASK_RUNNING == c->state)
             {
-                assert(0 == pthread_kill(c->thread, SIGUSR1));
                 m_sched_exit_if_kill();
+                assert(0 == pthread_kill(c->thread, SIGUSR1));
                 MUTEX_RELEASE();
                 simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
                 MUTEX_GET();

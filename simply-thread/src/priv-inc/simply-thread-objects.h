@@ -88,6 +88,13 @@ struct simply_thread_master_mutex_history_element_s
     unsigned int line; //!< The line number utilizing the mutex
 }; //!< Structure that holds info on the master mutexes history
 
+struct simply_thread_master_mutex_fifo_entry_s
+{
+    pthread_t thread; //!< ID of the waiting thread
+    simply_thread_sem_t sem; //!< The synchronization semaphore
+    bool in_use; //!< Tells if the semaphore is in use
+}; //!< Structure for the master mutex fifo entry
+
 struct simply_thread_lib_data_s
 {
     pthread_mutex_t init_mutex; //!< The modules initialization mutex
@@ -96,6 +103,13 @@ struct simply_thread_lib_data_s
     {
         struct simply_thread_master_mutex_history_element_s current; //!< Where the master was obtained from
         struct simply_thread_master_mutex_history_element_s release; //!< Where the master was released from
+        struct
+        {
+            struct simply_thread_master_mutex_fifo_entry_s entries[SIMPLY_THREAD_MAX_TASKS]; //!< The fifo entries
+            unsigned int count; //!< The current count.  0 if semaphore is available
+            unsigned int push_index; //!< The push index
+            unsigned int pop_index; //!< The pop index
+        } fifo; //!< Data for semaphore mutex scheduling
     } master_sem_data; //!< Data for helping debug the internal state
     simply_thread_linked_list_t thread_list; //!< The thread list handle
     struct simply_thread_sleep_data_s sleep; //!< Data for the sleep logic

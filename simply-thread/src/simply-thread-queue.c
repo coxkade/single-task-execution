@@ -160,7 +160,7 @@ void simply_thread_queue_cleanup(void)
  */
 void simply_thread_queue_maint(void)
 {
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_queue_data.block_list); i++)
     {
         if(true == m_queue_data.block_list[i].in_use)
@@ -181,7 +181,7 @@ void simply_thread_queue_maint(void)
                 {
                     m_queue_data.block_list[i].result = false;
                     simply_thread_set_task_state_from_locked(m_queue_data.block_list[i].task, SIMPLY_THREAD_TASK_READY);
-                    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+                    assert(true == simply_thread_master_mutex_locked()); //We must be locked
                 }
             }
         }
@@ -288,7 +288,7 @@ static void simply_thread_add_task_to_queue_blocklist(struct simply_thread_queue
         enum simply_thread_block_reason_e reason)
 {
     bool added;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     assert(NULL != queue && NULL != task);
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(queue->wait_list); i++)
     {
@@ -316,7 +316,7 @@ static void simply_thread_add_task_to_queue_blocklist(struct simply_thread_queue
 static unsigned int simply_thread_add_task_to_maint_block_list(struct simply_thread_task_s *task, unsigned int block_time)
 {
     unsigned int rv = 0;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     assert(NULL != task && 0 != block_time);
     //Check that the task is not on the block list
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_queue_data.block_list); i++)
@@ -353,7 +353,7 @@ static unsigned int simply_thread_add_task_to_maint_block_list(struct simply_thr
  */
 static void simply_thread_queue_block_cleanup(struct simply_thread_queue_data_s *queue, struct simply_thread_task_s *task, unsigned int index_used)
 {
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     assert(NULL != queue && NULL != task);
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(queue->wait_list); i++)
     {
@@ -382,7 +382,7 @@ static bool simply_thread_queue_lockdown(struct simply_thread_queue_data_s *queu
 {
     bool rv;
     unsigned int index_used = 0xFFFFFFFF;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     assert(NULL != queue);
     if(SIMPLY_THREAD_QUEUE_WAIT_REMOVE == reason)
     {
@@ -403,7 +403,7 @@ static bool simply_thread_queue_lockdown(struct simply_thread_queue_data_s *queu
     PRINT_MSG("\t%s task %s waiting %p\r\n", __FUNCTION__, task->name, task);
     simply_thread_set_task_state_from_locked(task, SIMPLY_THREAD_TASK_BLOCKED);
     PRINT_MSG("\t%s task %s finished waiting \r\n", __FUNCTION__, task->name);
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     rv = m_queue_data.block_list[index_used].result;
     simply_thread_queue_block_cleanup(queue, task, index_used);
     return rv;
@@ -417,7 +417,7 @@ static void simply_thread_queue_data_cleanup(struct simply_thread_queue_data_s *
 {
     struct simply_thread_queue_element_s temp;
     assert(NULL != queue);
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     for(unsigned int i = 0; i < (ARRAY_MAX_COUNT(queue->q_data) - 1); i++)
     {
         if(false == queue->q_data[i].in_use && true == queue->q_data[i + 1].in_use)
@@ -440,7 +440,7 @@ static void simply_thread_queue_data_cleanup(struct simply_thread_queue_data_s *
 static void simply_thread_queue_data_add(struct simply_thread_queue_data_s *queue, void *data)
 {
     bool data_saved;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     assert(NULL != data && NULL != queue);
     assert(queue->current_count < queue->max_count);
     data_saved = false;
@@ -468,7 +468,7 @@ static void simply_thread_queue_data_add(struct simply_thread_queue_data_s *queu
  */
 static void simply_thread_queue_data_remove(struct simply_thread_queue_data_s *queue, void *data)
 {
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     assert(NULL != data && NULL != queue);
     assert(0 < queue->current_count);
     assert(true == queue->q_data[0].in_use);
@@ -570,7 +570,7 @@ static void simply_thread_resume_queues(void)
     bool queues_ready = false;
     struct simply_thread_queue_data_s *queue;
     struct simply_thread_task_s *ready_task;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_queue_data.queue_list); i++)
     {
         // PRINT_MSG("i:%u\r\n", i);
@@ -627,7 +627,7 @@ static void simply_thread_resume_queues(void)
                 PRINT_MSG("\t%s Setting %s to SIMPLY_THREAD_TASK_READY\r\n", __FUNCTION__, ready_task->name);
                 assert(ready_task->state == SIMPLY_THREAD_TASK_BLOCKED);
                 simply_thread_set_task_state_from_locked(ready_task, SIMPLY_THREAD_TASK_READY);
-                assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+                assert(true == simply_thread_master_mutex_locked()); //We must be locked
                 return;
             }
         }

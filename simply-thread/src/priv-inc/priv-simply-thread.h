@@ -22,6 +22,9 @@ simply_thread_lib_data()->master_sem_data.current.line = __LINE__;\
 PRINT_MSG("++++ %s Has Master Mutex\r\n", __FUNCTION__);\
 }while(0)
 #define MUTEX_RELEASE() do{\
+simply_thread_lib_data()->master_sem_data.current.file = NULL;\
+simply_thread_lib_data()->master_sem_data.current.function = NULL;\
+simply_thread_lib_data()->master_sem_data.current.line = 0;\
 simply_thread_lib_data()->master_sem_data.release.file = __FILE__;\
 simply_thread_lib_data()->master_sem_data.release.function = __FUNCTION__;\
 simply_thread_lib_data()->master_sem_data.release.line = __LINE__;\
@@ -101,5 +104,11 @@ bool simply_thread_get_master_mutex(void);
  * @brief Function that releases the master mutex
  */
 void simply_thread_release_master_mutex(void);
+
+/**
+ * @brief Function that checks if the master mutex is locked
+ * @return true if the master mutex is locked
+ */
+bool simply_thread_master_mutex_locked(void);
 
 #endif /* PRIV_SIMPLY_THREAD_H_ */

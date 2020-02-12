@@ -14,6 +14,7 @@
 typedef struct simply_thread_sem_t
 {
     sem_t *sem; //!< Pointer to the posix semaphore
+    void *data;  //!< Additional data for the semaphore
 } simply_thread_sem_t; //!< Structure for holding my semaphore
 
 /**
