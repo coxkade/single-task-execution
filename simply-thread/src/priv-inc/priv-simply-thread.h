@@ -12,6 +12,24 @@
 #ifndef PRIV_SIMPLY_THREAD_H_
 #define PRIV_SIMPLY_THREAD_H_
 
+//Macros for fetching the master mutex
+#define MUTEX_GET() do{\
+PRINT_MSG("**** %s waiting on Master Mutex\r\n", __FUNCTION__);\
+assert(true == simply_thread_get_master_mutex());\
+simply_thread_lib_data()->master_sem_data.current.file = __FILE__;\
+simply_thread_lib_data()->master_sem_data.current.function = __FUNCTION__;\
+simply_thread_lib_data()->master_sem_data.current.line = __LINE__;\
+PRINT_MSG("++++ %s Has Master Mutex\r\n", __FUNCTION__);\
+}while(0)
+#define MUTEX_RELEASE() do{\
+simply_thread_lib_data()->master_sem_data.release.file = __FILE__;\
+simply_thread_lib_data()->master_sem_data.release.function = __FUNCTION__;\
+simply_thread_lib_data()->master_sem_data.release.line = __LINE__;\
+simply_thread_release_master_mutex();\
+PRINT_MSG("---- %s released master mutex\r\n", __FUNCTION__);\
+}while(0)
+
+
 /**
  * @brief execute the scheduler from a locked context
  */

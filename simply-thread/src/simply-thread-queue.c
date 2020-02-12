@@ -36,16 +36,6 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-#define MUTEX_GET() do{\
-PRINT_MSG("**** %s waiting on Master Mutex\r\n", __FUNCTION__);\
-assert(true == simply_thread_get_master_mutex());\
-PRINT_MSG("++++ %s Has Master Mutex\r\n", __FUNCTION__);\
-}while(0)
-#define MUTEX_RELEASE() do{\
-PRINT_MSG("---- %s releasing master mutex\r\n", __FUNCTION__);\
-simply_thread_release_master_mutex();\
-}while(0)
-
 //The maximum number of supported queues
 #ifndef SIMPLE_THREAD_MAX_QUEUE
 #define SIMPLE_THREAD_MAX_QUEUE (50)
