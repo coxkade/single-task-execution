@@ -44,16 +44,6 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-#define MUTEX_GET() do{\
-PRINT_MSG("**** %s waiting on Master Mutex\r\n", __FUNCTION__);\
-assert(true == simply_thread_get_master_mutex());\
-PRINT_MSG("++++ %s Has Master Mutex\r\n", __FUNCTION__);\
-}while(0)
-#define MUTEX_RELEASE() do{\
-simply_thread_release_master_mutex();\
-PRINT_MSG("---- %s released master mutex\r\n", __FUNCTION__);\
-}while(0)
-
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
 /***********************************************************************************/
@@ -84,6 +74,7 @@ static void m_init_master_semaphore(void);
 /***************************** Static Variables ************************************/
 /***********************************************************************************/
 
+
 static struct simply_thread_lib_data_s m_module_data =
 {
     .init_mutex = PTHREAD_MUTEX_INITIALIZER,
@@ -93,6 +84,7 @@ static struct simply_thread_lib_data_s m_module_data =
     .print_mutex = PTHREAD_MUTEX_INITIALIZER,
     .cleaning_up = false
 }; //!< Local Data for the module
+
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/

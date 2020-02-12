@@ -81,10 +81,22 @@ struct simply_thread_scheduler_task_data_s
     pthread_t thread; //!< The thread ID of the scheduler thread
 };
 
+struct simply_thread_master_mutex_history_element_s
+{
+    const char *file;  //!< The File utilizing the mutex
+    const char *function;  //!< The  function utilizing the mutex
+    unsigned int line; //!< The line number utilizing the mutex
+}; //!< Structure that holds info on the master mutexes history
+
 struct simply_thread_lib_data_s
 {
     pthread_mutex_t init_mutex; //!< The modules initialization mutex
     simply_thread_sem_t master_semaphore; //!< The modules master semaphore
+    struct
+    {
+        struct simply_thread_master_mutex_history_element_s current; //!< Where the master was obtained from
+        struct simply_thread_master_mutex_history_element_s release; //!< Where the master was released from
+    } master_sem_data; //!< Data for helping debug the internal state
     simply_thread_linked_list_t thread_list; //!< The thread list handle
     struct simply_thread_sleep_data_s sleep; //!< Data for the sleep logic
     struct simply_thread_scheduler_task_data_s sched; //!< Data used by the scheduler task

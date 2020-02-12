@@ -22,6 +22,10 @@
 #define MAX_SEM_NAME_SIZE 50
 #endif //MAX_SEM_NAME_SIZE
 
+#ifndef MAX_SEM_COUNT
+#define MAX_SEM_COUNT 500
+#endif //MAX_SEM_COUNT
+
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
@@ -35,6 +39,17 @@
 /***************************** Type Defs *******************************************/
 /***********************************************************************************/
 
+struct simply_thread_sem_list_element_s
+{
+    char sem_name[MAX_SEM_NAME_SIZE];
+};
+
+struct simply_thread_sem_registery_s
+{
+    struct simply_thread_sem_list_element_s createded_sems[MAX_SEM_COUNT];
+    bool initialized;
+};
+
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
 /***********************************************************************************/
@@ -43,10 +58,53 @@
 /***************************** Static Variables ************************************/
 /***********************************************************************************/
 
+static struct simply_thread_sem_registery_s st_sem_registery =
+{
+    .initialized = false
+}; //!< Variable that holds the semaphore registry
+
+static const struct simply_thread_sem_list_element_s st_empty_entry =
+{
+    .sem_name = "UNUSED"
+};//!< Variable that holds an unused registery entry
+
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
+/**
+ * @brief Function that initializes the registry if required
+ */
+static void simply_thread_init_registery(void)
+{
+    if(false == st_sem_registery.initialized)
+    {
+        for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
+        {
+            memcpy(st_sem_registery.createded_sems[i].sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE);
+        }
+        st_sem_registery.initialized = true;
+    }
+}
+
+/**
+ * @brief Function that registers a created semaphore
+ * @param name pointer to string with the semaphores name
+ */
+static void simply_thread_sem_register(char *name)
+{
+    simply_thread_init_registery();
+    assert(NULL != name);
+    for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
+    {
+        if(0 == memcmp(st_sem_registery.createded_sems[i].sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE))
+        {
+            memcpy(st_sem_registery.createded_sems[i].sem_name, name, MAX_SEM_NAME_SIZE);
+            return;
+        }
+    }
+    assert(false); //We should never get here
+}
 
 /**
  * @brief Initialize a semaphore
@@ -89,6 +147,7 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
     }
     while(SEM_FAILED == sem->sem);
     PRINT_MSG("Created Semaphore: %s\r\n", name);
+    simply_thread_sem_register(name);
     sem->count = 1;
 }
 
@@ -219,15 +278,12 @@ static void unlink_sem_by_name(const char *name)
  */
 void sem_helper_cleanup(void)
 {
-    static const char *base_string = "simply_thread_semaphore_";
-    static char name[MAX_SEM_NAME_SIZE];
-    int worker_count = 0;
-
-    do
+    simply_thread_init_registery();
+    for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
     {
-        snprintf(name, MAX_SEM_NAME_SIZE, "%s%i", base_string, worker_count);
-        unlink_sem_by_name(name);
-        worker_count++;
+        if(0 != memcmp(st_sem_registery.createded_sems[i].sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE))
+        {
+            unlink_sem_by_name(st_sem_registery.createded_sems[i].sem_name);
+        }
     }
-    while(1000000 > worker_count);
 }
