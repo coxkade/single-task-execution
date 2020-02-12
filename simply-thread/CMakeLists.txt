@@ -102,3 +102,14 @@ project(simply-thread-tests)
 		DEPENDS ${ALL_GCOV}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 		
+#project for the semaphore cleanup tool
+	add_executable(st-clean-semaphores-ex tools/unlink.c)
+	target_link_libraries(st-clean-semaphores-ex Threads::Threads)
+	
+	#target that cleans the semaphores
+	add_custom_target( semaphore-clean
+		COMMAND st-clean-semaphores-ex
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+		DEPENDS st-clean-semaphores-ex)
+	
+	

@@ -26,6 +26,8 @@
 #define MAX_SEM_COUNT 500
 #endif //MAX_SEM_COUNT
 
+#define MAX_SEM_NUMBER 9000 //The max semaphore count allowed
+
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
@@ -118,6 +120,7 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
     assert(NULL != sem);
     do
     {
+        assert(MAX_SEM_NUMBER > sem_count);
         snprintf(name, MAX_SEM_NAME_SIZE, "%s%i", base_string, sem_count++);
         sem->sem = sem_open((const char *)name, O_CREAT | O_EXCL, 0700, 1);
         if(SEM_FAILED == sem->sem)
