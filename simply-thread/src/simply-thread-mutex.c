@@ -472,7 +472,6 @@ bool simply_thread_mutex_lock(simply_thread_mutex_t mux, unsigned int wait_time)
 {
     struct simply_thread_task_s *c_task;
     bool rv;
-    unsigned int remove_count;
 
     PRINT_MSG("%s\r\n", __FUNCTION__);
 
@@ -481,7 +480,6 @@ bool simply_thread_mutex_lock(simply_thread_mutex_t mux, unsigned int wait_time)
         return false;
     }
     rv = true;
-    remove_count = 0;
     MUTEX_GET();
     c_task = simply_thread_get_ex_task();
     if(false == HANDLE_DATA(mux)->available)

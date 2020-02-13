@@ -11,9 +11,15 @@
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
 #include <pthread.h>
-#include <stdbool.h>
+#include <stdio.h>
 #include <assert.h>
-#include <fcntl.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <string.h>
+#include <sys/time.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/

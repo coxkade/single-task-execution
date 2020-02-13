@@ -3,13 +3,31 @@ cmake_minimum_required(VERSION 3.13)
 #Macro that configures the cmake flags for the unit tests
 macro(set_test_cmake_flags TARG)
 if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
-	target_compile_options(${TARG} PUBLIC -DDEBUG_SIMPLY_THREAD -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11)
-elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+    message(STATUS "Configuring for Mac")
 	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11)
+elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+	message(STATUS "Configuring for linux")
+	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11 -D_POSIX_C_SOURCE=200809L -DDEBUG_SIMPLY_THREAD)
 else()
     message( FATAL_ERROR "Cannot Configure for ${CMAKE_HOST_SYSTEM_NAME}")
 endif()
+
 endmacro(set_test_cmake_flags)
+
+#Macro that configures the cmake flags for the unit tests
+macro(set_lib_cmake_flags TARG)
+if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+    message(STATUS "Configuring for Mac")
+	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -std=c11)
+elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+	message(STATUS "Configuring for linux")
+	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11 -D_POSIX_C_SOURCE=200809L)
+else()
+    message( FATAL_ERROR "Cannot Configure for ${CMAKE_HOST_SYSTEM_NAME}")
+endif()
+
+endmacro(set_lib_cmake_flags)
+
 
 #Macro that does some test prep
 macro( simply_thred_test_prep )
@@ -63,26 +81,14 @@ LIST(APPEND simply-thread-sources
 	src/simply-thread-mutex.c
 	src/simply-thread-queue.c)
 
-
-project(simply-thread)
-
-	#Source for the simply thread Library
-	add_library(simply-thread STATIC 
-   	${simply-thread-sources})
-	SET_TARGET_PROPERTIES(simply-thread PROPERTIES COMPILE_FLAGS "-g -O0 -Wall -std=c11")
-	target_include_directories(simply-thread PUBLIC inc)
-	target_include_directories(simply-thread PRIVATE src/priv-inc)
-
-
 #project for the simply thread tests
 project(simply-thread-tests)
-
 	set(ENV{CMOCKA_TEST_ABORT} 1)
 	add_executable(simply-thread-test-ex tests/main_test.c ${simply-thread-sources})
 	simply_thred_test_prep()
 	set_test_cmake_flags(simply-thread-test-ex)
 	target_include_directories(simply-thread-test-ex PRIVATE ${MOCKA_PATH} inc src/priv-inc)
-	target_link_libraries(simply-thread-test-ex Threads::Threads ${MOCKA_LIB} -fprofile-arcs -ftest-coverage)
+	target_link_libraries(simply-thread-test-ex ${MOCKA_LIB} ${CMAKE_THREAD_LIBS_INIT} -fprofile-arcs -ftest-coverage)
 	add_test(NAME simply-thread-test 
 		COMMAND simply-thread-test-ex
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})		
@@ -101,15 +107,18 @@ project(simply-thread-tests)
 	add_custom_target(simply-thread-coverage
 		DEPENDS ${ALL_GCOV}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+project(simply-thread)
+
+	#Source for the simply thread Library
+	add_library(simply-thread STATIC 
+   	${simply-thread-sources})
+   	set_lib_cmake_flags(simply-thread)
+	#SET_TARGET_PROPERTIES(simply-thread PROPERTIES COMPILE_FLAGS ${MAIN_CFLAGS})
+	target_include_directories(simply-thread PUBLIC inc)
+	target_include_directories(simply-thread PRIVATE src/priv-inc)
+
+
+
+
 		
-#project for the semaphore cleanup tool
-	add_executable(st-clean-semaphores-ex tools/unlink.c)
-	target_link_libraries(st-clean-semaphores-ex Threads::Threads)
-	
-	#target that cleans the semaphores
-	add_custom_target( semaphore-clean
-		COMMAND st-clean-semaphores-ex
-		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-		DEPENDS st-clean-semaphores-ex)
-	
-	
