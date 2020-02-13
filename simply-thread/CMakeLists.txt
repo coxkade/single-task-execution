@@ -80,7 +80,8 @@ LIST(APPEND simply-thread-sources
     src/simply-thread-scheduler.c
     src/simply-thread-timers.c
 	src/simply-thread-mutex.c
-	src/simply-thread-queue.c)
+	src/simply-thread-queue.c
+	src/fifo-mutex.c)
 
 #project for the simply thread tests
 project(simply-thread-tests)
@@ -124,6 +125,7 @@ project(sem-clean-tool)
 	#executable that cleans up the semaphores
 	add_executable(semaphore-cleaner tools/unlink.c)
 	set_lib_cmake_flags(semaphore-cleaner)
+	target_link_libraries(semaphore-cleaner ${CMAKE_THREAD_LIBS_INIT} -fprofile-arcs -ftest-coverage)
 
 	add_custom_target(
 		semaphore-clean
