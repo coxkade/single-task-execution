@@ -4,10 +4,10 @@ cmake_minimum_required(VERSION 3.13)
 macro(set_test_cmake_flags TARG)
 if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
     message(STATUS "Configuring for Mac")
-	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11)
+	target_compile_options(${TARG} PUBLIC -DDEBUG_SIMPLY_THREAD -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11)
 elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
 	message(STATUS "Configuring for linux")
-	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11 -D_POSIX_C_SOURCE=200809L -DDEBUG_SIMPLY_THREAD)
+	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11 -D_POSIX_C_SOURCE=200809L)
 else()
     message( FATAL_ERROR "Cannot Configure for ${CMAKE_HOST_SYSTEM_NAME}")
 endif()
@@ -21,7 +21,7 @@ if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
 	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -std=c11)
 elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
 	message(STATUS "Configuring for linux")
-	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11 -D_POSIX_C_SOURCE=200809L)
+	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -std=c11 -D_POSIX_C_SOURCE=200809L)
 else()
     message( FATAL_ERROR "Cannot Configure for ${CMAKE_HOST_SYSTEM_NAME}")
 endif()
@@ -119,6 +119,16 @@ project(simply-thread)
 	target_include_directories(simply-thread PRIVATE src/priv-inc)
 
 
+project(sem-clean-tool)
+	#executable that cleans up the semaphores
+	add_executable(semaphore-cleaner tools/unlink.c)
+	set_lib_cmake_flags(semaphore-cleaner)
 
+	add_custom_target(
+		semaphore-clean
+		COMMAND semaphore-cleaner
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+		DEPENDS semaphore-cleaner
+	)
 
 		
