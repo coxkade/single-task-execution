@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <simply-thread-log.h>
+#include <fcntl.h>
 
 
 /***********************************************************************************/

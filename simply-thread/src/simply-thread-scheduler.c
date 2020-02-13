@@ -6,12 +6,14 @@
  *
  */
 
+#define _GNU_SOURCE
 #include <simply-thread-scheduler.h>
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
 #include <pthread.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <fcntl.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
