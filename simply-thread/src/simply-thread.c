@@ -33,8 +33,6 @@
 #define ROOT_PRINT(...)
 #endif //DEBUG_SIMPLY_THREAD
 
-//#define DEBUG_MASTER_MUTEX
-
 #ifdef DEBUG_MASTER_MUTEX
 #define MM_PRINT_MSG(...) simply_thread_log(COLOR_BLUE, __VA_ARGS__)
 #else
@@ -807,7 +805,6 @@ static struct simply_thread_master_mutex_fifo_entry_s * simply_thread_thread_wai
 	{
 		if(true == m_module_data.master_sem_data.fifo.entries[i].in_use)
 		{
-            printf("comparing %p to %p\r\n", current, m_module_data.master_sem_data.fifo.entries[i].thread);
             if(current == m_module_data.master_sem_data.fifo.entries[i].thread || id == m_module_data.master_sem_data.fifo.entries[i].id)
             {
             	//Sanity Check
@@ -881,7 +878,7 @@ static void print_pop_queue(void)
 	{
 		if(true == m_module_data.master_sem_data.fifo.entries[i].in_use)
         {
-            MM_PRINT_MSG("\tPop Sem: %p %i\r\n", m_module_data.master_sem_data.fifo.entries[i].sem.sem, i);
+            MM_PRINT_MSG("\tPop Sem: %p %i\r\n", m_module_data.master_sem_data.fifo.entries[i].sem, i);
         }
 		else
 		{
@@ -927,42 +924,38 @@ bool simply_thread_get_master_mutex(void)
         assert(0 == simply_thread_sem_trywait(block_sem));
         if(NULL != repeat_ent)
         {
-            simply_thread_log(COLOR_MAGENTA, "Swap Required\r\n");
             MM_PRINT_MSG("%s: Swapping %p and %p\r\n", __FUNCTION__,
-            		new_ent->sem.sem,
-					repeat_ent->sem.sem);
+            		new_ent->sem->sem,
+					repeat_ent->sem->sem);
             print_pop_queue();
             simply_thread_master_mutex_copy_entry(&swap_1, new_ent);
             simply_thread_master_mutex_copy_entry(&swap_2, repeat_ent);
             simply_thread_master_mutex_copy_entry(new_ent, &swap_2);
             simply_thread_master_mutex_copy_entry(repeat_ent, &swap_1);
             MM_PRINT_MSG("%s: Swapped %p and %p\r\n", __FUNCTION__,
-            		new_ent->sem.sem,
-					repeat_ent->sem.sem);
+            		new_ent->sem->sem,
+					repeat_ent->sem->sem);
             print_pop_queue();
         }
     }
     if(true == sync_required)
     {
-    	assert(NULL != block_sem)
-        MM_PRINT_MSG("%s: %u waiting on semaphore at: %p\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.entries[current_index].thread, sync_ent->sem.sem);
+    	assert(NULL != block_sem);
+        MM_PRINT_MSG("%s: waiting on semaphore at: %p\r\n", __FUNCTION__, block_sem->sem);
         print_pop_queue();
         assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
-        simply_thread_log(COLOR_MAGENTA, "%u %p waiting on sem at %p\r\n", m_get_thread_id(), block_sem, block_sem->sem);
         while(0 != simply_thread_sem_wait(block_sem)) {}
         assert(m_post_info.allocated = block_sem);
         assert(m_post_info.semaphore = block_sem->sem);
-        simply_thread_log(COLOR_MAGENTA, "%u %p finished waiting on sem at %p\r\n", m_get_thread_id(), block_sem, block_sem->sem);
-        MM_PRINT_MSG("%s: %u Finished waiting on semaphore at: %p\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.entries[current_index].thread,
-        		sync_ent->sem.sem);
+        MM_PRINT_MSG("%s: Finished waiting on semaphore at: %p\r\n", __FUNCTION__,
+        		block_sem->sem);
         assert(NULL != new_ent);
         simply_thread_sem_destroy(block_sem);
+        MM_PRINT_MSG("%s: semaphore at: %p Destroyed\r\n", __FUNCTION__, block_sem->sem);
         free(block_sem);
-        MM_PRINT_MSG("%s: %u semaphore at: %p Destroyed\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.entries[current_index].thread, sync_sem.sem);
         while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore)) {}
     }
     assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
-    simply_thread_log(COLOR_MAGENTA, "****** %u Has mutex\r\n",  m_get_thread_id());
     return true;
 }
 
@@ -973,7 +966,6 @@ void simply_thread_release_master_mutex(void)
 {
     simply_thread_sem_t * sync_sem;
     assert(NULL != m_module_data.master_semaphore.sem);
-    simply_thread_log(COLOR_MAGENTA, "****** %u releasing mutex\r\n",  m_get_thread_id());
     MM_DEBUG_MESSAGE("Starting pop\r\n");
     while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore)) {}
     if(0 < m_module_data.master_sem_data.fifo.count)
@@ -988,23 +980,20 @@ void simply_thread_release_master_mutex(void)
             m_module_data.master_sem_data.fifo.count--;
             MM_PRINT_MSG("%s: Master Mutex Count %u\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.count);
             MM_PRINT_MSG("%s: posting to sem at %p\r\n", __FUNCTION__, sync_sem->sem);
-            simply_thread_log(COLOR_MAGENTA, "posting to sem at %p\r\n", sync_sem->sem);
             m_post_info.semaphore = sync_sem->sem;
             m_post_info.allocated = sync_sem;
             assert(0 == simply_thread_sem_post(sync_sem));
             m_module_data.master_sem_data.fifo.entries[0].in_use = false;
 			simply_thread_master_mutex_fifo_cleanup();
 			print_pop_queue();
-            simply_thread_log(COLOR_MAGENTA, "posted to sem at %p\r\n", sync_sem->sem);
         }
         else
         {
-            MM_PRINT_MSG("%s: Nothing to do at index: %i\r\n", __FUNCTION__, current_index);
+            MM_PRINT_MSG("%s: Nothing to do at index: %i\r\n", __FUNCTION__, 0);
             m_module_data.master_sem_data.fifo.count--;
             MM_PRINT_MSG("%s: Master Mutex Count %u\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.count);
         }
     }
-    simply_thread_log(COLOR_MAGENTA, "****** %u released mutex\r\n",  m_get_thread_id());
     assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
 }
 
