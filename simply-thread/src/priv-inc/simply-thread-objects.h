@@ -97,7 +97,7 @@ struct simply_thread_master_mutex_fifo_entry_s
 {
     pthread_t thread; //!< ID of the waiting thread
     uint64_t id; //!< The process id of the thread
-    simply_thread_sem_t sem; //!< The synchronization semaphore
+    simply_thread_sem_t * sem; //!< The synchronization semaphore
     bool in_use; //!< Tells if the semaphore is in use
 }; //!< Structure for the master mutex fifo entry
 

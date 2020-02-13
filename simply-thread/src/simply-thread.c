@@ -95,6 +95,11 @@ static struct simply_thread_lib_data_s m_module_data =
 }; //!< Local Data for the module
 
 
+static struct {
+	void * allocated;
+	void * semaphore;
+}m_post_info;
+
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
@@ -846,8 +851,7 @@ static struct simply_thread_master_mutex_fifo_entry_s * simply_thread_master_fif
 static void simply_thread_master_mutex_copy_entry(struct simply_thread_master_mutex_fifo_entry_s * one, struct simply_thread_master_mutex_fifo_entry_s * two)
 {
 	one->in_use = two->in_use;
-	one->sem.data = two->sem.data;
-	one->sem.sem = two->sem.sem;
+	one->sem = two->sem;
 	one->thread = two->thread;
 }
 
@@ -898,11 +902,11 @@ bool simply_thread_get_master_mutex(void)
     struct simply_thread_master_mutex_fifo_entry_s * repeat_ent;
     struct simply_thread_master_mutex_fifo_entry_s swap_1;
     struct simply_thread_master_mutex_fifo_entry_s swap_2;
-    struct simply_thread_master_mutex_fifo_entry_s * sync_ent;
+    simply_thread_sem_t * block_sem;
     assert(NULL != m_module_data.master_semaphore.sem);
     while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore)) {}
     MM_DEBUG_MESSAGE("Getting the master mutex\r\n");
-    sync_ent = NULL;
+    block_sem = NULL;
     m_module_data.master_sem_data.fifo.count++;
     if(1 < m_module_data.master_sem_data.fifo.count)
     {
@@ -915,11 +919,12 @@ bool simply_thread_get_master_mutex(void)
         new_ent->in_use = true;
         new_ent->thread = pthread_self();
         new_ent->id = m_get_thread_id();
-        simply_thread_sem_init(&new_ent->sem);
+        new_ent->sem = malloc(sizeof(simply_thread_sem_t));
+        assert(NULL != new_ent->sem);
+        simply_thread_sem_init(new_ent->sem);
+        block_sem = new_ent->sem;
         sync_required = true;
-        sync_ent = new_ent;
-        assert(0 == simply_thread_sem_trywait(&sync_ent->sem));
-        MM_PRINT_MSG("************* New Semephore: %p\r\n", sync_sem.sem);
+        assert(0 == simply_thread_sem_trywait(block_sem));
         if(NULL != repeat_ent)
         {
             simply_thread_log(COLOR_MAGENTA, "Swap Required\r\n");
@@ -935,23 +940,24 @@ bool simply_thread_get_master_mutex(void)
             		new_ent->sem.sem,
 					repeat_ent->sem.sem);
             print_pop_queue();
-            MM_PRINT_MSG("************* New Semephore: %p\r\n", sync_sem.sem);
-            sync_ent = repeat_ent;
         }
     }
     if(true == sync_required)
     {
-    	assert(NULL != sync_ent)
+    	assert(NULL != block_sem)
         MM_PRINT_MSG("%s: %u waiting on semaphore at: %p\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.entries[current_index].thread, sync_ent->sem.sem);
         print_pop_queue();
         assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
-        simply_thread_log(COLOR_MAGENTA, "%u waiting on sem at %p\r\n", m_get_thread_id(), sync_ent->sem.sem);
-        while(0 != simply_thread_sem_wait(&sync_ent->sem)) {}
-        simply_thread_log(COLOR_MAGENTA, "%u finished waiting on sem at %p\r\n", m_get_thread_id(), sync_ent->sem.sem);
+        simply_thread_log(COLOR_MAGENTA, "%u %p waiting on sem at %p\r\n", m_get_thread_id(), block_sem, block_sem->sem);
+        while(0 != simply_thread_sem_wait(block_sem)) {}
+        assert(m_post_info.allocated = block_sem);
+        assert(m_post_info.semaphore = block_sem->sem);
+        simply_thread_log(COLOR_MAGENTA, "%u %p finished waiting on sem at %p\r\n", m_get_thread_id(), block_sem, block_sem->sem);
         MM_PRINT_MSG("%s: %u Finished waiting on semaphore at: %p\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.entries[current_index].thread,
         		sync_ent->sem.sem);
         assert(NULL != new_ent);
-        simply_thread_sem_destroy(&sync_ent->sem);
+        simply_thread_sem_destroy(block_sem);
+        free(block_sem);
         MM_PRINT_MSG("%s: %u semaphore at: %p Destroyed\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.entries[current_index].thread, sync_sem.sem);
         while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore)) {}
     }
@@ -965,7 +971,7 @@ bool simply_thread_get_master_mutex(void)
  */
 void simply_thread_release_master_mutex(void)
 {
-    simply_thread_sem_t sync_sem;
+    simply_thread_sem_t * sync_sem;
     assert(NULL != m_module_data.master_semaphore.sem);
     simply_thread_log(COLOR_MAGENTA, "****** %u releasing mutex\r\n",  m_get_thread_id());
     MM_DEBUG_MESSAGE("Starting pop\r\n");
@@ -978,16 +984,18 @@ void simply_thread_release_master_mutex(void)
         if(true == m_module_data.master_sem_data.fifo.entries[0].in_use)
         {
             assert(1 < m_module_data.master_sem_data.fifo.count); //Sanity Check
-            memcpy(&sync_sem, &m_module_data.master_sem_data.fifo.entries[0].sem, sizeof(simply_thread_sem_t));
-            m_module_data.master_sem_data.fifo.entries[0].in_use = false;
-            simply_thread_master_mutex_fifo_cleanup();
-            print_pop_queue();
+            sync_sem = m_module_data.master_sem_data.fifo.entries[0].sem;
             m_module_data.master_sem_data.fifo.count--;
             MM_PRINT_MSG("%s: Master Mutex Count %u\r\n", __FUNCTION__, m_module_data.master_sem_data.fifo.count);
             MM_PRINT_MSG("%s: posting to sem at %p\r\n", __FUNCTION__, sync_sem->sem);
-            simply_thread_log(COLOR_MAGENTA, "posting to sem at %p\r\n", sync_sem.sem);
-            assert(0 == simply_thread_sem_post(&sync_sem));
-            simply_thread_log(COLOR_MAGENTA, "posted to sem at %p\r\n", sync_sem.sem);
+            simply_thread_log(COLOR_MAGENTA, "posting to sem at %p\r\n", sync_sem->sem);
+            m_post_info.semaphore = sync_sem->sem;
+            m_post_info.allocated = sync_sem;
+            assert(0 == simply_thread_sem_post(sync_sem));
+            m_module_data.master_sem_data.fifo.entries[0].in_use = false;
+			simply_thread_master_mutex_fifo_cleanup();
+			print_pop_queue();
+            simply_thread_log(COLOR_MAGENTA, "posted to sem at %p\r\n", sync_sem->sem);
         }
         else
         {

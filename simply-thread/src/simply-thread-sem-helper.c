@@ -20,8 +20,6 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
- #define DEBUG_SIMPLY_THREAD
-
 #ifndef MAX_SEM_NAME_SIZE
 #define MAX_SEM_NAME_SIZE 50
 #endif //MAX_SEM_NAME_SIZE
