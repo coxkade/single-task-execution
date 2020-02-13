@@ -20,6 +20,8 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+ #define DEBUG_SIMPLY_THREAD
+
 #ifndef MAX_SEM_NAME_SIZE
 #define MAX_SEM_NAME_SIZE 50
 #endif //MAX_SEM_NAME_SIZE
@@ -34,7 +36,7 @@
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
 #ifdef DEBUG_SIMPLY_THREAD
-#define PRINT_MSG(...) printf(__VA_ARGS__)
+#define PRINT_MSG(...) simply_thread_log(COLOR_WHITE, __VA_ARGS__)
 #else
 #define PRINT_MSG(...)
 #endif //DEBUG_SIMPLY_THREAD
@@ -156,9 +158,8 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
                     break;
             }
         }
-    }
-    while(SEM_FAILED == sem->sem);
-    PRINT_MSG("Created Semaphore: %s\r\n", name);
+    }while(SEM_FAILED == sem->sem);
+    PRINT_MSG("Created semaphore: %s\r\n", name);
     simply_thread_sem_register(name, sem);
 }
 
@@ -171,10 +172,16 @@ void simply_thread_sem_destroy(simply_thread_sem_t *sem)
     struct simply_thread_sem_list_element_s *typed;
     assert(NULL != sem);
     assert(NULL != sem->sem);
-    assert(0 == sem_close(sem->sem));
     typed = sem->data;
     assert(NULL != typed);
+    // assert(0 == sem_close(sem->sem));
+    if(0 != sem_close(sem->sem))
+    {
+        ST_LOG_ERROR("ERROR! %u Failed to close semaphore %s\r\n", errno, typed->sem_name);
+        assert(false);
+    }
     unlink_sem_by_name(typed->sem_name);
+    PRINT_MSG("Closed %s\r\n", typed->sem_name);
     memcpy(typed->sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE);
 }
 
@@ -189,6 +196,7 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
     int eval;
     assert(NULL != sem);
     assert(NULL != sem->sem);
+    PRINT_MSG("Waiting on 0x%04X\r\n", sem->sem);
     rv = sem_wait(sem->sem);
     if(0 != rv)
     {
@@ -235,8 +243,13 @@ int simply_thread_sem_post(simply_thread_sem_t *sem)
     int rv;
     assert(NULL != sem);
     assert(NULL != sem->sem);
-    rv = sem_post(sem->sem);
-    assert(0 == rv);
+    PRINT_MSG("Posting to 0x%04X\r\n", sem->sem);
+    do{
+        rv = sem_post(sem->sem);
+        assert(EOVERFLOW != errno);
+        assert(EINVAL != errno);
+    }while(0 != rv);
+  
     return rv;
 }
 
@@ -268,10 +281,6 @@ static void unlink_sem_by_name(const char *name)
                 assert(false);
                 break;
         }
-    }
-    else
-    {
-        PRINT_MSG("Semaphore %s unlinked\r\n", name);
     }
 }
 
