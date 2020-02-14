@@ -160,6 +160,7 @@ void simply_thread_queue_cleanup(void)
  */
 void simply_thread_queue_maint(void)
 {
+    printf("%s Thread %X\r\n", __FUNCTION__, pthread_self());
     assert(true == simply_thread_master_mutex_locked()); //We must be locked
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_queue_data.block_list); i++)
     {

@@ -14,11 +14,15 @@
 #include <stdbool.h>
 #include <simply-thread-log.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
+
+
+#define DEBUG_SIMPLY_THREAD
 
 #ifndef MAX_SEM_NAME_SIZE
 #define MAX_SEM_NAME_SIZE 50
@@ -38,6 +42,8 @@
 #else
 #define PRINT_MSG(...)
 #endif //DEBUG_SIMPLY_THREAD
+
+
 
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
@@ -194,7 +200,7 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
     int eval;
     assert(NULL != sem);
     assert(NULL != sem->sem);
-    PRINT_MSG("Waiting on 0x%04X\r\n", sem->sem);
+    PRINT_MSG("%X Waiting on 0x%04X %s\r\n", pthread_self(), sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
     rv = sem_wait(sem->sem);
     if(0 != rv)
     {
@@ -241,7 +247,8 @@ int simply_thread_sem_post(simply_thread_sem_t *sem)
     int rv;
     assert(NULL != sem);
     assert(NULL != sem->sem);
-    PRINT_MSG("Posting to 0x%04X\r\n", sem->sem);
+//    PRINT_MSG("Posting to 0x%04X %s\r\n", sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
+    PRINT_MSG("%X Posting to 0x%04X %s\r\n", pthread_self(), sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
     do{
         rv = sem_post(sem->sem);
         assert(EOVERFLOW != errno);

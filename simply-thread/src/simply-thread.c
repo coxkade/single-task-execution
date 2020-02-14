@@ -312,6 +312,7 @@ static void m_sleep_maint(void)
     bool timeout;
     bool task_ready = false;
     task_ready = false;
+    printf("%s Thread %X\r\n", __FUNCTION__, pthread_self());
     assert(true == simply_thread_master_mutex_locked()); //We must be locked
     //Increment all of the sleeping task counts
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
