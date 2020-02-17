@@ -20,6 +20,10 @@
 #define SIMPLY_THREAD_MAX_TASKS 250
 #endif //SIMPLY_THREAD_MAX_TASKS
 
+#ifndef MAX_TASK_DATA_BUFFER_SIZE
+#define MAX_TASK_DATA_BUFFER_SIZE 250
+#endif //MAX_TASK_DATA_BUFFER_SIZE
+
 struct simply_thread_task_s
 {
     simply_thread_sem_t sem; //!< The Tasks signal semaphore
@@ -33,6 +37,7 @@ struct simply_thread_task_s
     struct
     {
         void *data; //!< The task data
+        uint8_t data_buffer[MAX_TASK_DATA_BUFFER_SIZE]; //!< Array that holds the raw data for the task
         unsigned int data_size; //!< The Size of the task data
     } task_data; //!< Data to use with the task
 }; //!< Structure that holds the data for a single task.
@@ -88,6 +93,14 @@ struct simply_thread_master_mutex_history_element_s
     unsigned int line; //!< The line number utilizing the mutex
 }; //!< Structure that holds info on the master mutexes history
 
+struct simply_thread_master_mutex_fifo_entry_s
+{
+    pthread_t thread; //!< ID of the waiting thread
+    uint64_t id; //!< The process id of the thread
+    simply_thread_sem_t *sem;  //!< The synchronization semaphore
+    bool in_use; //!< Tells if the semaphore is in use
+}; //!< Structure for the master mutex fifo entry
+
 struct simply_thread_lib_data_s
 {
     pthread_mutex_t init_mutex; //!< The modules initialization mutex
@@ -97,7 +110,7 @@ struct simply_thread_lib_data_s
         struct simply_thread_master_mutex_history_element_s current; //!< Where the master was obtained from
         struct simply_thread_master_mutex_history_element_s release; //!< Where the master was released from
     } master_sem_data; //!< Data for helping debug the internal state
-    simply_thread_linked_list_t thread_list; //!< The thread list handle
+    struct simply_thread_task_s tcb_list[SIMPLY_THREAD_MAX_TASKS]; //!< Array of all the task control blocks
     struct simply_thread_sleep_data_s sleep; //!< Data for the sleep logic
     struct simply_thread_scheduler_task_data_s sched; //!< Data used by the scheduler task
     bool signals_initialized; //!< Tells if the signals have been initialized

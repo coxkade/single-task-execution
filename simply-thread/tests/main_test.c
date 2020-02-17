@@ -20,13 +20,17 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+// #define DEBUG_TESTS
+
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) printf(__VA_ARGS__)
+#define PRINT_TASK_STATE() simply_thread_print_tcb()
 #else
 #define PRINT_MSG(...)
+#define PRINT_TASK_STATE()
 #endif //DEBUG_TESTS
 
 /***********************************************************************************/
@@ -212,11 +216,18 @@ static void mutex_worker_1_task(void *data, uint16_t data_size)
     simply_thread_mutex_t *m_handle = data;
     assert_true(NULL != m_handle);
     assert_true(sizeof(simply_thread_mutex_t) == data_size);
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
     simply_thread_sleep_ms(25);
+    PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
+    PRINT_TASK_STATE();
     assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+    PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
+    PRINT_TASK_STATE();
     assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
     while(1)
     {
+        PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
+        PRINT_TASK_STATE();
         assert_true(simply_thread_mutex_lock(m_handle[0], 0xFFFFFFFF));
         thread_one_ran = true;
         simply_thread_sleep_ms(25);
@@ -230,18 +241,27 @@ static void mutex_worker_2_task(void *data, uint16_t data_size)
     simply_thread_mutex_t *m_handle = data;
     assert_true(NULL != m_handle);
     assert_true(sizeof(simply_thread_mutex_t) == data_size);
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
     simply_thread_sleep_ms(40);
+    PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
+    PRINT_TASK_STATE();
     assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+    PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
+    PRINT_TASK_STATE();
     assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
     assert_true(simply_thread_mutex_lock(mutex_handles[1], 0xFFFFFFFF));
     assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
     simply_thread_sleep_ms(50);
     while(1)
     {
+        PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
+        PRINT_TASK_STATE();
         assert_true(simply_thread_mutex_lock(m_handle[0], 0xFFFFFFFF));
         assert_false(simply_thread_mutex_lock(m_handle[0], 10));
         thread_two_ran = true;
         simply_thread_sleep_ms(25);
+        PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
+        PRINT_TASK_STATE();
         assert_true(simply_thread_mutex_unlock(m_handle[0]));
         simply_thread_sleep_ms(100);
     }
@@ -251,7 +271,12 @@ static void mutex_worker_3_task(void *data, uint16_t data_size)
 {
     assert_true(NULL == data);
     assert_true(0 == data_size);
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+    PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
+    PRINT_TASK_STATE();
     assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+    PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
+    PRINT_TASK_STATE();
     assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
     assert_true(simply_thread_mutex_lock(mutex_handles[1], 0xFFFFFFFF));
     assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
@@ -264,6 +289,9 @@ static void mutex_worker_3_task(void *data, uint16_t data_size)
 static void mutex_test(void **state)
 {
     simply_thread_mutex_t mutex_handle;
+
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+
     thread_one_ran = false;
     thread_two_ran = false;
     simply_thread_reset();
@@ -271,28 +299,45 @@ static void mutex_test(void **state)
     assert_true(NULL == mutex_handle);
     assert_false(simply_thread_mutex_unlock(NULL));
     assert_false(simply_thread_mutex_lock(NULL, 0));
+    PRINT_MSG("\tCreating the test_mutex \r\n");
     mutex_handle = simply_thread_mutex_create("test_mutex");
     assert_true(NULL != mutex_handle);
+    PRINT_MSG("\tCreating the second_mutex \r\n");
     mutex_handles[0] = simply_thread_mutex_create("second_mutex");
+    PRINT_MSG("\tCreating the third_mutex \r\n");
     mutex_handles[1] = simply_thread_mutex_create("third_mutex");
     assert_true(NULL != mutex_handles[0]);
     assert_true(NULL != mutex_handles[1]);
+    PRINT_MSG("\tLocking all of the Mutexes\r\n");
     assert_true(simply_thread_mutex_lock(mutex_handles[0], 0));
     assert_true(simply_thread_mutex_lock(mutex_handles[1], 0));
     assert_true(simply_thread_mutex_lock(mutex_handle, 0));
+    PRINT_MSG("\tCreating TASK1 to run mutex_worker_1_task\r\n");
     task_one = simply_thread_new_thread("TASK1", mutex_worker_1_task, 1, &mutex_handle, sizeof(mutex_handle));
+    PRINT_MSG("\tCreating TASK2 to run mutex_worker_2_task\r\n");
     task_two = simply_thread_new_thread("TASK2", mutex_worker_2_task, 3, &mutex_handle, sizeof(mutex_handle));
+    PRINT_MSG("\tCreating TASK3 to run mutex_worker_3_task\r\n");
     assert(NULL != simply_thread_new_thread("TASK3", mutex_worker_3_task, 4, NULL, 0));
+    PRINT_MSG("\tVerifying simply_thread_mutex_lock(mutex_handle, 0xFFFFFFFF) fails\r\n");
     assert_false(simply_thread_mutex_lock(mutex_handle, 0xFFFFFFFF));
     simply_thread_sleep_ms(100);
+    PRINT_MSG("\t%s Unlocking test_mutex\r\n", __FUNCTION__);
+    PRINT_TASK_STATE();
     assert_true(simply_thread_mutex_unlock(mutex_handle));
+    PRINT_MSG("\t%s Unlocking second_mutex\r\n", __FUNCTION__);
+    PRINT_TASK_STATE();
     assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
+    PRINT_MSG("\t%s Unlocking third_mutex\r\n", __FUNCTION__);
+    PRINT_TASK_STATE();
     assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
     assert_true(NULL != task_one);
     assert_true(NULL != task_two);
-    simply_thread_sleep_ms(600);
+    PRINT_MSG("\t%s Letting tasks run\r\n", __FUNCTION__);
+    simply_thread_sleep_ms(650);
+    PRINT_MSG("\t%s Checking that the tasks ran\r\n", __FUNCTION__);
     assert(true == thread_one_ran);
     assert(true == thread_two_ran);
+    PRINT_MSG("\tStopping the Library");
     simply_thread_cleanup();
 }
 
@@ -424,3 +469,4 @@ int main(void)
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
+

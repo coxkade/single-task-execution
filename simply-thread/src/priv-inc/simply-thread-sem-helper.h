@@ -13,9 +13,9 @@
 
 typedef struct simply_thread_sem_t
 {
-    int count;
-    sem_t *sem;
-} simply_thread_sem_t; //Structure for holding my semaphore
+    sem_t *sem; //!< Pointer to the posix semaphore
+    void *data;  //!< Additional data for the semaphore
+} simply_thread_sem_t; //!< Structure for holding my semaphore
 
 /**
  * @brief Initialize a semaphore
@@ -28,13 +28,6 @@ void simply_thread_sem_init(simply_thread_sem_t *sem);
  * @param sem
  */
 void simply_thread_sem_destroy(simply_thread_sem_t *sem);
-
-/**
- * Get a semaphores count
- * @param sem
- * @return the current semaphore count
- */
-int simply_thread_sem_get_count(simply_thread_sem_t *sem);
 
 /**
  * Blocking Wait for a semaphor

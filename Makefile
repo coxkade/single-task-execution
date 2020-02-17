@@ -1,7 +1,7 @@
 build_dir?=build
 mac_build_dir?=macbuild
 
-.PHONY: mac_config config rm_build all clean coverage reconfig test
+.PHONY: mac_config config rm_build all clean coverage reconfig test semaphore-clean
 
 all: $(build_dir)
 	make -C $(build_dir) $@
@@ -30,6 +30,9 @@ rm_build: $(build_dir)
 reconfig: $(build_dir)
 	make rm_build
 	make config	
+	
+semaphore-clean: $(build_dir)
+	make -C $(build_dir) $@
 
 $(build_dir):
 	mkdir $@

@@ -14,6 +14,7 @@
 #include <simply-thread-scheduler.h>
 #include <simply-thread-timers.h>
 #include <simply-thread-mutex.h>
+#include <fifo-mutex.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
@@ -32,6 +33,14 @@
 #define PRINT_MSG(...)
 #define ROOT_PRINT(...)
 #endif //DEBUG_SIMPLY_THREAD
+
+#ifdef DEBUG_MASTER_MUTEX
+#define MM_PRINT_MSG(...) simply_thread_log(COLOR_BLUE, __VA_ARGS__)
+#else
+#define MM_PRINT_MSG(...)
+#endif //DEBUG_MASTER_MUTEX
+
+#define MM_DEBUG_MESSAGE(...) MM_PRINT_MSG("%s: %s", __FUNCTION__, __VA_ARGS__)
 
 #ifndef ST_NS_PER_MS
 #define ST_NS_PER_MS 1E6
@@ -65,10 +74,6 @@ void m_simply_thread_sleep_ms(unsigned long ms);
  */
 static void m_sleep_maint(void);
 
-/**
- * @brief Function that initializes the master semaphore
- */
-static void m_init_master_semaphore(void);
 
 /***********************************************************************************/
 /***************************** Static Variables ************************************/
@@ -79,7 +84,6 @@ static struct simply_thread_lib_data_s m_module_data =
 {
     .init_mutex = PTHREAD_MUTEX_INITIALIZER,
     .master_semaphore = {.sem = NULL},
-    .thread_list = NULL,
     .signals_initialized = false,
     .print_mutex = PTHREAD_MUTEX_INITIALIZER,
     .cleaning_up = false
@@ -90,20 +94,21 @@ static struct simply_thread_lib_data_s m_module_data =
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
+
 /**
  * @brief system maintenance timer
  * @param timer_handle
  */
 static void m_maint_timer(simply_thread_timer_t timer_handle)
 {
-    assert(true == simply_thread_get_master_mutex());
+    MUTEX_GET();
     //Run the sleep maintenance
     m_sleep_maint();
     //trigger the mutex maintenance
     simply_thread_mutex_maint();
     //trigger the queue maintenance
     simply_thread_queue_maint();
-    simply_thread_release_master_mutex();
+    MUTEX_RELEASE();
 }
 
 /**
@@ -131,9 +136,9 @@ struct simply_thread_task_s *simply_thread_get_ex_task(void)
     pthread = pthread_self();
     struct simply_thread_task_s *rv;
     rv = NULL;
-    for(unsigned int i = 0; i < simply_thread_ll_count(m_module_data.thread_list) && NULL == rv; i++)
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list)  && NULL == rv; i++)
     {
-        rv = (struct simply_thread_task_s *)simply_thread_ll_get(m_module_data.thread_list, i);
+        rv = &m_module_data.tcb_list[i];
         if(NULL != rv)
         {
             if(pthread != rv->thread)
@@ -238,6 +243,8 @@ static void *m_task_wrapper(void *data)
     typed->started = true;
     m_task_wait_running(typed);
     typed->fnct(typed->task_data.data, typed->task_data.data_size);
+    ST_LOG_ERROR("Error!!! task %s Exited on its own\r\n", typed->name);
+    assert(false);
     return NULL;
 }
 
@@ -247,7 +254,6 @@ static void *m_task_wrapper(void *data)
 static void m_intern_cleanup(void)
 {
     static bool first_time = true;
-    struct simply_thread_task_s *c;
     m_module_data.cleaning_up = true;
     if(false == first_time)
     {
@@ -259,19 +265,17 @@ static void m_intern_cleanup(void)
         {
             m_module_data.sleep.sleep_list[i].in_use = false;
         }
-        if(NULL != m_module_data.thread_list)
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list); i++)
         {
-            for(unsigned int i = 0; i < simply_thread_ll_count(m_module_data.thread_list); i++)
+            if(NULL != m_module_data.tcb_list[i].name)
             {
-                c = (struct simply_thread_task_s *)simply_thread_ll_get(m_module_data.thread_list, i);
-                assert(c != NULL);
-                assert(0 == pthread_kill(c->thread, SIGUSR2));
+                assert(0 == pthread_kill(m_module_data.tcb_list[i].thread, SIGUSR2));
                 MUTEX_RELEASE();
-                pthread_join(c->thread, NULL);
+                pthread_join(m_module_data.tcb_list[i].thread, NULL);
                 MUTEX_GET();
+                m_module_data.tcb_list[i].name = NULL;
+                m_module_data.tcb_list[i].state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
             }
-            simply_thread_ll_destroy(m_module_data.thread_list);
-            m_module_data.thread_list = NULL;
         }
         simply_thread_mutex_cleanup();
         simply_thread_queue_cleanup();
@@ -288,7 +292,7 @@ static void m_sleep_maint(void)
     bool timeout;
     bool task_ready = false;
     task_ready = false;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     //Increment all of the sleeping task counts
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
     {
@@ -316,7 +320,7 @@ static void m_sleep_maint(void)
                         {
                             PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust);
                             simply_thread_set_task_state_from_locked(m_module_data.sleep.sleep_list[i].sleep_data.task_adjust, SIMPLY_THREAD_TASK_READY);
-                            assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+                            assert(true == simply_thread_master_mutex_locked()); //We must be locked
                         }
                     }
                 }
@@ -333,8 +337,8 @@ static void m_sleep_maint(void)
 void simply_thread_reset(void)
 {
     ROOT_PRINT("%s\r\n", __FUNCTION__);
-    m_init_master_semaphore();
     simply_thread_ll_test();
+    fifo_mutex_reset();
     MUTEX_GET();
     if(false == m_module_data.signals_initialized)
     {
@@ -354,8 +358,11 @@ void simply_thread_reset(void)
         m_module_data.sleep.sleep_list[i].in_use = false;
     }
     //Recreate thread list
-    m_module_data.thread_list = simply_thread_new_ll(sizeof(struct simply_thread_task_s));
-    assert(NULL != m_module_data.thread_list);
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list); i++)
+    {
+        m_module_data.tcb_list[i].name = NULL;
+        m_module_data.tcb_list[i].state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
+    }
     simply_thread_scheduler_init();
     assert(NULL != simply_thread_create_timer(m_maint_timer, "SYSTEM Timer", 1, SIMPLY_THREAD_TIMER_REPEAT, true));
     MUTEX_RELEASE();
@@ -367,7 +374,6 @@ void simply_thread_reset(void)
 void simply_thread_cleanup(void)
 {
     ROOT_PRINT("%s\r\n", __FUNCTION__);
-    m_init_master_semaphore();
     MUTEX_GET();
     m_intern_cleanup();
     MUTEX_RELEASE();
@@ -385,31 +391,37 @@ void simply_thread_cleanup(void)
 simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_task_fnct cb, unsigned int priority, void *data, uint16_t data_size)
 {
     ROOT_PRINT("%s\r\n", __FUNCTION__);
-    struct simply_thread_task_s task;
     struct simply_thread_task_s *ptr_task;
-    task.abort = false;
-    task.priority = priority;
-    task.state = SIMPLY_THREAD_TASK_SUSPENDED;
-    task.task_data.data = NULL;
-    task.task_data.data_size = 0;
-    task.fnct = cb;
-    task.name = name;
-    task.started = false;
-    simply_thread_sem_init(&task.sem);
+
     assert(NULL != name && NULL != cb);
-    if(data_size != 0)
-    {
-        assert(NULL != data);
-        task.task_data.data_size = data_size;
-        task.task_data.data = malloc(data_size);
-        assert(NULL != task.task_data.data);
-        memcpy(task.task_data.data, data, data_size);
-    }
+
     MUTEX_GET();
-    assert(true == simply_thread_ll_append(m_module_data.thread_list, &task));
-    ptr_task = (struct simply_thread_task_s *)simply_thread_ll_get_final(m_module_data.thread_list);
+    ptr_task = NULL;
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list) && NULL == ptr_task; i++)
+    {
+        if(NULL == m_module_data.tcb_list[i].name)
+        {
+            m_module_data.tcb_list[i].abort = false;
+            m_module_data.tcb_list[i].priority = priority;
+            m_module_data.tcb_list[i].state = SIMPLY_THREAD_TASK_SUSPENDED;
+            m_module_data.tcb_list[i].task_data.data = NULL;
+            m_module_data.tcb_list[i].task_data.data_size = 0;
+            m_module_data.tcb_list[i].fnct = cb;
+            m_module_data.tcb_list[i].name = name;
+            m_module_data.tcb_list[i].started = false;
+            simply_thread_sem_init(&m_module_data.tcb_list[i].sem);
+            if(data_size != 0)
+            {
+                assert(NULL != data);
+                m_module_data.tcb_list[i].task_data.data_size = data_size;
+                m_module_data.tcb_list[i].task_data.data =  m_module_data.tcb_list[i].task_data.data_buffer;
+                assert(NULL != m_module_data.tcb_list[i].task_data.data);
+                memcpy(m_module_data.tcb_list[i].task_data.data, data, data_size);
+            }
+            ptr_task = &m_module_data.tcb_list[i];
+        }
+    }
     assert(NULL != ptr_task);
-    assert(0 == memcmp(&task, ptr_task, sizeof(task)));
     //Ok now launch the thread
     assert(0 == pthread_create(&ptr_task->thread, NULL, m_task_wrapper, ptr_task));
     //wait for the task to start
@@ -558,7 +570,7 @@ void simply_thread_set_task_state_from_locked(struct simply_thread_task_s *task,
     struct simply_thread_task_s *c_task;
 
     sched_data.sleeprequired = false;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     c_task =  simply_thread_get_ex_task();
     if(NULL == c_task)
     {
@@ -597,7 +609,7 @@ void simply_ex_sched_from_locked(void)
 {
     struct simply_thread_task_s *c_task;
     struct simply_thread_scheduler_data_s sched_data;
-    assert(EAGAIN == simply_thread_sem_trywait(&simply_thread_lib_data()->master_semaphore)); //We must be locked
+    assert(true == simply_thread_master_mutex_locked()); //We must be locked
     sched_data.sleeprequired = false;
     c_task =  simply_thread_get_ex_task();
     if(NULL == c_task)
@@ -742,7 +754,7 @@ void simply_thread_wait_condition(struct simply_thread_condition_s *cond)
 {
     assert(NULL != cond);
     PRINT_MSG("\tCondition %p waiting\r\n", cond);
-    assert(0 == simply_thread_sem_wait(&cond->sig_sem));
+    while(0 != simply_thread_sem_wait(&cond->sig_sem)) {}
     PRINT_MSG("\tCondition Wait complete %p\r\n", cond);
 }
 
@@ -761,12 +773,7 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void)
  */
 bool simply_thread_get_master_mutex(void)
 {
-    assert(NULL != m_module_data.master_semaphore.sem);
-    while(0 != simply_thread_sem_wait(&m_module_data.master_semaphore))
-    {
-        simply_thread_sleep_ns(100);
-    }
-    return true;
+    return fifo_mutex_get();
 }
 
 /**
@@ -774,22 +781,64 @@ bool simply_thread_get_master_mutex(void)
  */
 void simply_thread_release_master_mutex(void)
 {
-    assert(NULL != m_module_data.master_semaphore.sem);
-    assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
+    fifo_mutex_release();
 }
 
 /**
- * @brief Function that initializes the master semaphore
+ * @brief Function that checks if the master mutex is locked
+ * @return true if the master mutex is locked
  */
-static void m_init_master_semaphore(void)
+bool simply_thread_master_mutex_locked(void)
 {
-    if(NULL == m_module_data.master_semaphore.sem)
+    return fifo_mutex_locked();
+}
+
+
+static inline void _print_task_stats(struct simply_thread_task_s *tcb)
+{
+    assert(NULL != tcb);
+    ST_LOG_ERROR("\tNAME: %s\r\n", tcb->name);
+    ST_LOG_ERROR("\tPriority: %u\r\n", tcb->priority);
+    switch(tcb->state)
     {
-        assert(0 == pthread_mutex_lock(&m_module_data.init_mutex));
-        if(NULL == m_module_data.master_semaphore.sem)
-        {
-            simply_thread_sem_init(&m_module_data.master_semaphore);
-        }
-        pthread_mutex_unlock(&m_module_data.init_mutex);
+        case SIMPLY_THREAD_TASK_RUNNING:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_RUNNING\r\n");
+            break;
+        case SIMPLY_THREAD_TASK_READY:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_READY\r\n");
+            break;
+        case SIMPLY_THREAD_TASK_BLOCKED:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_BLOCKED\r\n");
+            break;
+        case SIMPLY_THREAD_TASK_SUSPENDED:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_SUSPENDED\r\n");
+            break;
+        case SIMPLY_THREAD_TASK_UNKNOWN_STATE:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_UNKNOWN_STATE\r\n");
+            break;
+        case SIMPLY_THREAD__TASK_STATE_COUNT:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD__TASK_STATE_COUNT\r\n");
+            break;
+        default:
+            assert(false);
+            break;
     }
+    ST_LOG_ERROR("\r\n");
+}
+
+/**
+ * @brief Function that prints the contents of the tcb
+ */
+void simply_thread_print_tcb(void)
+{
+    MUTEX_GET();
+    ST_LOG_ERROR("ALL TASK States\r\n")
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list); i++)
+    {
+        if(NULL != m_module_data.tcb_list[i].name)
+        {
+            _print_task_stats(&m_module_data.tcb_list[i]);
+        }
+    }
+    MUTEX_RELEASE();
 }

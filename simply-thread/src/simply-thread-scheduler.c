@@ -6,12 +6,20 @@
  *
  */
 
+#define _GNU_SOURCE
 #include <simply-thread-scheduler.h>
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
 #include <pthread.h>
-#include <stdbool.h>
+#include <stdio.h>
 #include <assert.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <string.h>
+#include <sys/time.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -28,7 +36,7 @@
 
 #define MODULE_DATA simply_thread_lib_data()->sched
 
-#define TASK_LIST simply_thread_lib_data()->thread_list
+#define TASK_LIST simply_thread_lib_data()->tcb_list
 
 
 /***********************************************************************************/
@@ -56,13 +64,11 @@
  */
 static inline unsigned int m_running_tasks(void)
 {
-    struct simply_thread_task_s *c;
     unsigned int rv = 0;
 
-    for(unsigned int i = 0; i < simply_thread_ll_count(TASK_LIST); i++)
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(TASK_LIST); i++)
     {
-        c = (struct simply_thread_task_s *)simply_thread_ll_get(TASK_LIST, i);
-        if(SIMPLY_THREAD_TASK_RUNNING == c->state)
+        if(SIMPLY_THREAD_TASK_RUNNING == TASK_LIST[i].state)
         {
             rv++;
         }
@@ -90,18 +96,14 @@ static inline void m_sched_exit_if_kill(void)
  */
 static inline void m_sleep_all_tasks(void)
 {
-    struct simply_thread_task_s *c;
-
     while(0 != m_running_tasks())
     {
-        for(unsigned int i = 0; i < simply_thread_ll_count(TASK_LIST); i++)
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(TASK_LIST); i++)
         {
-            c = (struct simply_thread_task_s *)simply_thread_ll_get(TASK_LIST, i);
-            assert(NULL != c);
-            if(SIMPLY_THREAD_TASK_RUNNING == c->state)
+            if(SIMPLY_THREAD_TASK_RUNNING == TASK_LIST[i].state)
             {
-                assert(0 == pthread_kill(c->thread, SIGUSR1));
                 m_sched_exit_if_kill();
+                assert(0 == pthread_kill(TASK_LIST[i].thread, SIGUSR1));
                 MUTEX_RELEASE();
                 simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
                 MUTEX_GET();
@@ -117,22 +119,19 @@ static inline void m_sleep_all_tasks(void)
  */
 static inline void m_sched_run_best_task(void)
 {
-    struct simply_thread_task_s *c;
     struct simply_thread_task_s *best_task;
     best_task = NULL;
-    for(unsigned int i = 0; i < simply_thread_ll_count(TASK_LIST); i++)
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(TASK_LIST); i++)
     {
-        c = (struct simply_thread_task_s *)simply_thread_ll_get(TASK_LIST, i);
-        assert(NULL != c);
-        if(SIMPLY_THREAD_TASK_READY == c->state)
+        if(SIMPLY_THREAD_TASK_READY == TASK_LIST[i].state)
         {
             if(NULL == best_task)
             {
-                best_task = c;
+                best_task = &TASK_LIST[i];
             }
-            else if(best_task->priority < c->priority)
+            else if(best_task->priority < TASK_LIST[i].priority)
             {
-                best_task = c;
+                best_task = &TASK_LIST[i];
             }
         }
     }

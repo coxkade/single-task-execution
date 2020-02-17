@@ -190,5 +190,10 @@ bool simply_thread_queue_send(simply_thread_queue_t queue, void *data, unsigned 
  */
 bool simply_thread_queue_rcv(simply_thread_queue_t queue, void *data, unsigned int block_time);
 
+/**
+ * @brief Function that prints the contents of the tcb
+ */
+void simply_thread_print_tcb(void);
+
 
 #endif /* SIMPLY_THREAD_H_ */
