@@ -433,7 +433,7 @@ static void queue_test(void **state)
     PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
     assert(true == simply_thread_queue_send(queue_handles[1], &val, 0));
     PRINT_MSG("Waiting for Cleanup\r\n");
-    simply_thread_sleep_ms(2000);
+    simply_thread_sleep_ms(1000);
     PRINT_MSG("%s shutting down test\r\n", __FUNCTION__);
     simply_thread_cleanup();
     assert_true(thread_one_ran);

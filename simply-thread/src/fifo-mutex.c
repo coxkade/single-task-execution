@@ -315,7 +315,7 @@ static bool fifo_task_resumed(void)
         current_count++;
         if(current_count >= timeout_count)
         {
-            printf("*******Task Resume Timed Out *********\r\n");
+        	ST_LOG_ERROR("******* Task Resume Timed Out *********\r\n");
             return false;
         }
     }
