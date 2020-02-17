@@ -25,7 +25,7 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
-//#define DEBUG_FIFO
+#define DEBUG_FIFO
 
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
@@ -65,7 +65,8 @@ struct fifo_mutex_module_data_s
     pthread_mutex_t init_mutex;
     simply_thread_sem_t ticket_semaphore;
     struct ticket_entry_s ticket_table[MAX_LIST_SIZE];
-    bool started;
+//    bool started;
+    simply_thread_sem_t * sync_semaphore;
     bool locked;  //!< Tells if we are currently locked
 };
 
@@ -86,6 +87,7 @@ static struct fifo_mutex_module_data_s fifo_module_data =
 {
     .init_mutex = PTHREAD_MUTEX_INITIALIZER,
     .initialized = false,
+	.sync_semaphore = NULL
 };
 
 /***********************************************************************************/
@@ -258,7 +260,8 @@ static void fifo_mutex_wait_turn(struct ticket_entry_s *entry)
     SEM_BLOCK((entry->ticket[0]));
     PRINT_MSG("\tGot ticket %p\r\n", entry->ticket);
     SEM_BLOCK(fifo_module_data.ticket_semaphore);
-    fifo_module_data.started = true;
+//    fifo_module_data.started = true;
+
     assert(entry->ticket == fifo_module_data.ticket_table[0].ticket);
     if(1 == ticket_use_count(entry->ticket))
     {
@@ -270,6 +273,11 @@ static void fifo_mutex_wait_turn(struct ticket_entry_s *entry)
     ticket_counter_shift();
     PRINT_MSG("Finished Waiting\r\n");
     fifo_module_data.locked = true;
+    if(NULL != fifo_module_data.sync_semaphore)
+    {
+    	SEM_UNBLOCK(fifo_module_data.sync_semaphore[0]);
+    	fifo_module_data.sync_semaphore = NULL;
+    }
     SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
 }
 
@@ -361,7 +369,7 @@ static inline unsigned int time_diff(struct timeval *x, struct timeval *y)
  * @brief function that verifies a new task started running
  * @return true if a new task started running
  */
-static bool fifo_task_resumed(void)
+static bool fifo_task_resumed(simply_thread_sem_t * sync)
 {
 	struct timeval start;
 	struct timeval current;
@@ -369,11 +377,15 @@ static bool fifo_task_resumed(void)
 	static const unsigned int ns_period = 100;
 	static const unsigned int max_wait_ms = 100; //Max number of ms to wait for start
 	bool started;
+	simply_thread_sem_t * sync_sem;
+	sync_sem = sync;
 	assert(0 == ms_elapsed);
 	gettimeofday(&start, NULL);
-	SEM_BLOCK(M_DATA.ticket_semaphore);
-	started = fifo_module_data.started;
-	SEM_UNBLOCK(M_DATA.ticket_semaphore);
+	started = false;
+	if(NULL == sync_sem)
+	{
+		started = true;
+	}
 	while(false == started)
 	{
 		gettimeofday(&current, NULL);
@@ -385,9 +397,17 @@ static bool fifo_task_resumed(void)
 			fifo_mutex_sleep_ns(ns_period);
 			return false;
 		}
-		SEM_BLOCK(M_DATA.ticket_semaphore);
-		started = fifo_module_data.started;
-		SEM_UNBLOCK(M_DATA.ticket_semaphore);
+
+		if(0 == simply_thread_sem_trywait(sync_sem))
+		{
+			SEM_BLOCK(M_DATA.ticket_semaphore);
+			started = true;
+			simply_thread_sem_destroy(sync_sem);
+			free(sync_sem);
+			assert(NULL != M_DATA.sync_semaphore);
+			SEM_UNBLOCK(M_DATA.ticket_semaphore);
+		}
+
 	}
 	return true;
 }
@@ -397,31 +417,31 @@ static bool fifo_task_resumed(void)
  */
 void fifo_mutex_release(void)
 {
-    bool first_time = true;
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     m_init_master_semaphore();
-
+    simply_thread_sem_t * sync;
 	SEM_BLOCK(M_DATA.ticket_semaphore);
 	PRINT_MSG("\t%s has ticket semaphore\r\n");
-	if(true == first_time)
-	{
-		fifo_module_data.locked = false;
-		first_time = false;
-	}
+
+	assert(NULL == fifo_module_data.sync_semaphore);
+	fifo_module_data.locked = false;
+
 	//We need to shift the ticket counter
 	if(NULL != M_DATA.ticket_table[0].ticket)
 	{
-		fifo_module_data.started = false;
+		fifo_module_data.sync_semaphore = malloc(sizeof(simply_thread_sem_t));
+		assert(NULL != fifo_module_data.sync_semaphore);
 		PRINT_MSG("\tSelecting Ticket %p\r\n", M_DATA.ticket_table[0].ticket);
 		SEM_UNBLOCK(M_DATA.ticket_table[0].ticket[0]);
 	}
 	else
 	{
-		fifo_module_data.started = true;
+		fifo_module_data.sync_semaphore = NULL;
 	}
+	sync = fifo_module_data.sync_semaphore;
 	SEM_UNBLOCK(M_DATA.ticket_semaphore);
     
-    assert(false != fifo_task_resumed());
+    assert(false != fifo_task_resumed(sync));
 }
 
 /**
@@ -455,9 +475,9 @@ static void m_init_master_semaphore(void)
             {
                 fifo_module_data.ticket_table[i].ticket = NULL;
             }
-            fifo_module_data.started = false;
             fifo_module_data.initialized = true;
             fifo_module_data.locked = false;
+            fifo_module_data.sync_semaphore = NULL;
         }
         pthread_mutex_unlock(&fifo_module_data.init_mutex);
     }
