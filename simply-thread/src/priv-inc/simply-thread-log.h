@@ -20,6 +20,8 @@
 #define COLOR_LIGHT_GREEN "\x001b[38;5;154m"
 #define COLOR_PURPLE "\x001b[38;5;93m"
 #define COLOR_EARTH_GREEN "\x001b[38;5;64m"
+#define COLOR_ORANGE "\x001b[38;5;202m"
+#define COLOR_SKY_BLUE "\x001b[38;5;87m"
 #define COLOR_RESET   "\x1b[0m"
 
 //Macro for printing error messages

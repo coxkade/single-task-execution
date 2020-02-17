@@ -6,7 +6,7 @@
 /**
  * @brief fetch the mutex
  * @return true on success
- */ 
+ */
 bool fifo_mutex_get(void);
 
 /**

@@ -22,8 +22,6 @@
 /***********************************************************************************/
 
 
-#define DEBUG_SIMPLY_THREAD
-
 #ifndef MAX_SEM_NAME_SIZE
 #define MAX_SEM_NAME_SIZE 50
 #endif //MAX_SEM_NAME_SIZE
@@ -129,14 +127,15 @@ static void simply_thread_sem_register(char *name, simply_thread_sem_t *sem)
  */
 void simply_thread_sem_init(simply_thread_sem_t *sem)
 {
-    int sem_count = 0; //!< Variable that deals with the semaphore count
+    static const int max_sem_count = 1000;
+    static int sem_count = 0; //!< Variable that deals with the semaphore count
     const char *base_string = "simply_thread_semaphore_";
     char name[MAX_SEM_NAME_SIZE];
     assert(NULL != sem);
     do
     {
         assert(MAX_SEM_NUMBER > sem_count);
-        snprintf(name, MAX_SEM_NAME_SIZE, "%s%i", base_string, sem_count++);
+        snprintf(name, MAX_SEM_NAME_SIZE, "%s%i", base_string, sem_count);
         sem->sem = sem_open((const char *)name, O_CREAT | O_EXCL, 0700, 1);
         if(SEM_FAILED == sem->sem)
         {
@@ -162,7 +161,13 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
                     break;
             }
         }
-    }while(SEM_FAILED == sem->sem);
+        sem_count++;
+        if(max_sem_count < sem_count)
+        {
+            sem_count = 0;
+        }
+    }
+    while(SEM_FAILED == sem->sem);
     PRINT_MSG("Created semaphore: %s\r\n", name);
     simply_thread_sem_register(name, sem);
 }
@@ -249,12 +254,14 @@ int simply_thread_sem_post(simply_thread_sem_t *sem)
     assert(NULL != sem->sem);
 //    PRINT_MSG("Posting to 0x%04X %s\r\n", sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
     PRINT_MSG("%X Posting to 0x%04X %s\r\n", pthread_self(), sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
-    do{
+    do
+    {
         rv = sem_post(sem->sem);
         assert(EOVERFLOW != errno);
         assert(EINVAL != errno);
-    }while(0 != rv);
-  
+    }
+    while(0 != rv);
+
     return rv;
 }
 

@@ -98,7 +98,7 @@ static inline void m_sleep_all_tasks(void)
 {
     while(0 != m_running_tasks())
     {
-    	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(TASK_LIST); i++)
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(TASK_LIST); i++)
         {
             if(SIMPLY_THREAD_TASK_RUNNING == TASK_LIST[i].state)
             {
@@ -121,7 +121,7 @@ static inline void m_sched_run_best_task(void)
 {
     struct simply_thread_task_s *best_task;
     best_task = NULL;
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(TASK_LIST); i++)
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(TASK_LIST); i++)
     {
         if(SIMPLY_THREAD_TASK_READY == TASK_LIST[i].state)
         {

@@ -97,7 +97,7 @@ struct simply_thread_master_mutex_fifo_entry_s
 {
     pthread_t thread; //!< ID of the waiting thread
     uint64_t id; //!< The process id of the thread
-    simply_thread_sem_t * sem; //!< The synchronization semaphore
+    simply_thread_sem_t *sem;  //!< The synchronization semaphore
     bool in_use; //!< Tells if the semaphore is in use
 }; //!< Structure for the master mutex fifo entry
 
@@ -109,11 +109,6 @@ struct simply_thread_lib_data_s
     {
         struct simply_thread_master_mutex_history_element_s current; //!< Where the master was obtained from
         struct simply_thread_master_mutex_history_element_s release; //!< Where the master was released from
-        struct
-        {
-            struct simply_thread_master_mutex_fifo_entry_s entries[SIMPLY_THREAD_MAX_TASKS]; //!< The fifo entries
-            unsigned int count; //!< The current count.  0 if semaphore is available
-        } fifo; //!< Data for semaphore mutex scheduling
     } master_sem_data; //!< Data for helping debug the internal state
     struct simply_thread_task_s tcb_list[SIMPLY_THREAD_MAX_TASKS]; //!< Array of all the task control blocks
     struct simply_thread_sleep_data_s sleep; //!< Data for the sleep logic

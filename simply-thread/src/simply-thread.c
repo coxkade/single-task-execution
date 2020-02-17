@@ -74,10 +74,6 @@ void m_simply_thread_sleep_ms(unsigned long ms);
  */
 static void m_sleep_maint(void);
 
-/**
- * @brief Function that initializes the master semaphore
- */
-static void m_init_master_semaphore(void);
 
 /***********************************************************************************/
 /***************************** Static Variables ************************************/
@@ -95,8 +91,8 @@ static struct simply_thread_lib_data_s m_module_data =
 
 
 //static struct {
-//	void * allocated;
-//	void * semaphore;
+//  void * allocated;
+//  void * semaphore;
 //}m_post_info;
 
 /***********************************************************************************/
@@ -109,10 +105,10 @@ static struct simply_thread_lib_data_s m_module_data =
  */
 //static uint64_t m_get_thread_id(void)
 //{
-//	uint64_t rv;
-//	// pthread_threadid_np(NULL, &rv);
+//  uint64_t rv;
+//  // pthread_threadid_np(NULL, &rv);
 //    rv = 20;  //TODO Remove this
-//	return rv;
+//  return rv;
 //}
 
 /**
@@ -121,14 +117,16 @@ static struct simply_thread_lib_data_s m_module_data =
  */
 static void m_maint_timer(simply_thread_timer_t timer_handle)
 {
-    assert(true == simply_thread_get_master_mutex());
+//    assert(true == simply_thread_get_master_mutex());
+    MUTEX_GET();
     //Run the sleep maintenance
     m_sleep_maint();
     //trigger the mutex maintenance
     simply_thread_mutex_maint();
     //trigger the queue maintenance
     simply_thread_queue_maint();
-    simply_thread_release_master_mutex();
+//    simply_thread_release_master_mutex();
+    MUTEX_RELEASE();
 }
 
 /**
@@ -285,18 +283,18 @@ static void m_intern_cleanup(void)
         {
             m_module_data.sleep.sleep_list[i].in_use = false;
         }
-		for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list); i++)
-		{
-			if(NULL != m_module_data.tcb_list[i].name)
-			{
-				assert(0 == pthread_kill(m_module_data.tcb_list[i].thread, SIGUSR2));
-				MUTEX_RELEASE();
-				pthread_join(m_module_data.tcb_list[i].thread, NULL);
-				MUTEX_GET();
-				m_module_data.tcb_list[i].name = NULL;
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list); i++)
+        {
+            if(NULL != m_module_data.tcb_list[i].name)
+            {
+                assert(0 == pthread_kill(m_module_data.tcb_list[i].thread, SIGUSR2));
+                MUTEX_RELEASE();
+                pthread_join(m_module_data.tcb_list[i].thread, NULL);
+                MUTEX_GET();
+                m_module_data.tcb_list[i].name = NULL;
                 m_module_data.tcb_list[i].state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
-			}
-		}
+            }
+        }
         simply_thread_mutex_cleanup();
         simply_thread_queue_cleanup();
     }
@@ -312,7 +310,6 @@ static void m_sleep_maint(void)
     bool timeout;
     bool task_ready = false;
     task_ready = false;
-    printf("%s Thread %X\r\n", __FUNCTION__, pthread_self());
     assert(true == simply_thread_master_mutex_locked()); //We must be locked
     //Increment all of the sleeping task counts
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
@@ -358,7 +355,6 @@ static void m_sleep_maint(void)
 void simply_thread_reset(void)
 {
     ROOT_PRINT("%s\r\n", __FUNCTION__);
-    m_init_master_semaphore();
     simply_thread_ll_test();
     fifo_mutex_reset();
     MUTEX_GET();
@@ -382,7 +378,7 @@ void simply_thread_reset(void)
     //Recreate thread list
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list); i++)
     {
-    	m_module_data.tcb_list[i].name = NULL;
+        m_module_data.tcb_list[i].name = NULL;
         m_module_data.tcb_list[i].state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
     }
     simply_thread_scheduler_init();
@@ -396,7 +392,6 @@ void simply_thread_reset(void)
 void simply_thread_cleanup(void)
 {
     ROOT_PRINT("%s\r\n", __FUNCTION__);
-    m_init_master_semaphore();
     MUTEX_GET();
     m_intern_cleanup();
     MUTEX_RELEASE();
@@ -415,15 +410,15 @@ simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_ta
 {
     ROOT_PRINT("%s\r\n", __FUNCTION__);
     struct simply_thread_task_s *ptr_task;
-   
+
     assert(NULL != name && NULL != cb);
 
     MUTEX_GET();
     ptr_task = NULL;
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list) && NULL == ptr_task; i++)
     {
-    	if(NULL == m_module_data.tcb_list[i].name)
-    	{
+        if(NULL == m_module_data.tcb_list[i].name)
+        {
             m_module_data.tcb_list[i].abort = false;
             m_module_data.tcb_list[i].priority = priority;
             m_module_data.tcb_list[i].state = SIMPLY_THREAD_TASK_SUSPENDED;
@@ -441,8 +436,8 @@ simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_ta
                 assert(NULL != m_module_data.tcb_list[i].task_data.data);
                 memcpy(m_module_data.tcb_list[i].task_data.data, data, data_size);
             }
-    		 ptr_task = &m_module_data.tcb_list[i];
-    	}
+            ptr_task = &m_module_data.tcb_list[i];
+        }
     }
     assert(NULL != ptr_task);
     //Ok now launch the thread
@@ -777,7 +772,7 @@ void simply_thread_wait_condition(struct simply_thread_condition_s *cond)
 {
     assert(NULL != cond);
     PRINT_MSG("\tCondition %p waiting\r\n", cond);
-    while(0 != simply_thread_sem_wait(&cond->sig_sem)){}
+    while(0 != simply_thread_sem_wait(&cond->sig_sem)) {}
     PRINT_MSG("\tCondition Wait complete %p\r\n", cond);
 }
 
@@ -804,16 +799,16 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void)
 //    current = pthread_self();
 //    id = m_get_thread_id();
 //    repeat_count = 0;
-//	rv = NULL;
-//	for(unsigned int i=0; i<ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries); i++)
-//	{
-//		if(true == m_module_data.master_sem_data.fifo.entries[i].in_use)
-//		{
+//  rv = NULL;
+//  for(unsigned int i=0; i<ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries); i++)
+//  {
+//      if(true == m_module_data.master_sem_data.fifo.entries[i].in_use)
+//      {
 //            if(current == m_module_data.master_sem_data.fifo.entries[i].thread || id == m_module_data.master_sem_data.fifo.entries[i].id)
 //            {
-//            	//Sanity Check
-//            	assert(current == m_module_data.master_sem_data.fifo.entries[i].thread);
-//            	assert(id == m_module_data.master_sem_data.fifo.entries[i].id);
+//              //Sanity Check
+//              assert(current == m_module_data.master_sem_data.fifo.entries[i].thread);
+//              assert(id == m_module_data.master_sem_data.fifo.entries[i].id);
 //
 //                repeat_count++;
 //                if(NULL == rv)
@@ -821,15 +816,15 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void)
 //                    rv = &m_module_data.master_sem_data.fifo.entries[i];
 //                }
 //            }
-//		}
-//	}
-//	//Sanity Checks
-//	assert(repeat_count<2);
-//	if(0 == repeat_count)
-//	{
-//		assert(NULL == rv);
-//	}
-//	return rv;
+//      }
+//  }
+//  //Sanity Checks
+//  assert(repeat_count<2);
+//  if(0 == repeat_count)
+//  {
+//      assert(NULL == rv);
+//  }
+//  return rv;
 //}
 
 /**
@@ -838,22 +833,22 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void)
  */
 //static struct simply_thread_master_mutex_fifo_entry_s * simply_thread_master_fifo_nxt_entry(void)
 //{
-//	struct simply_thread_master_mutex_fifo_entry_s * rv = NULL;
-//	for(unsigned int i=0; i<ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries) && NULL == rv; i++)
-//	{
-//		if(false == m_module_data.master_sem_data.fifo.entries[i].in_use)
-//		{
-//			rv = &m_module_data.master_sem_data.fifo.entries[i];
-//		}
-//	}
-//	return rv;
+//  struct simply_thread_master_mutex_fifo_entry_s * rv = NULL;
+//  for(unsigned int i=0; i<ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries) && NULL == rv; i++)
+//  {
+//      if(false == m_module_data.master_sem_data.fifo.entries[i].in_use)
+//      {
+//          rv = &m_module_data.master_sem_data.fifo.entries[i];
+//      }
+//  }
+//  return rv;
 //}
 
 //static void simply_thread_master_mutex_copy_entry(struct simply_thread_master_mutex_fifo_entry_s * one, struct simply_thread_master_mutex_fifo_entry_s * two)
 //{
-//	one->in_use = two->in_use;
-//	one->sem = two->sem;
-//	one->thread = two->thread;
+//  one->in_use = two->in_use;
+//  one->sem = two->sem;
+//  one->thread = two->thread;
 //}
 
 /**
@@ -861,14 +856,14 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void)
  */
 //static void simply_thread_master_mutex_fifo_cleanup(void)
 //{
-//	if(false == m_module_data.master_sem_data.fifo.entries[0].in_use)
-//	{
-//		for(unsigned int i=1; i<ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries) && true == m_module_data.master_sem_data.fifo.entries[i].in_use; i++)
-//		{
-//			simply_thread_master_mutex_copy_entry(&m_module_data.master_sem_data.fifo.entries[i-1], &m_module_data.master_sem_data.fifo.entries[i]);
+//  if(false == m_module_data.master_sem_data.fifo.entries[0].in_use)
+//  {
+//      for(unsigned int i=1; i<ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries) && true == m_module_data.master_sem_data.fifo.entries[i].in_use; i++)
+//      {
+//          simply_thread_master_mutex_copy_entry(&m_module_data.master_sem_data.fifo.entries[i-1], &m_module_data.master_sem_data.fifo.entries[i]);
 //            m_module_data.master_sem_data.fifo.entries[i].in_use = false;
 //        }
-//	}
+//  }
 //}
 
 /**
@@ -877,18 +872,18 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void)
 //static void print_pop_queue(void)
 //{
 //#ifdef DEBUG_MASTER_MUTEX
-//	MM_PRINT_MSG("Pop Queue\r\n");
-//	for(unsigned int i=0; i<ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries); i++)
-//	{
-//		if(true == m_module_data.master_sem_data.fifo.entries[i].in_use)
+//  MM_PRINT_MSG("Pop Queue\r\n");
+//  for(unsigned int i=0; i<ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries); i++)
+//  {
+//      if(true == m_module_data.master_sem_data.fifo.entries[i].in_use)
 //        {
 //            MM_PRINT_MSG("\tPop Sem: %p %i\r\n", m_module_data.master_sem_data.fifo.entries[i].sem, i);
 //        }
-//		else
-//		{
-//			return;
-//		}
-//	}
+//      else
+//      {
+//          return;
+//      }
+//  }
 //#endif //DEBUG_MASTER_MUTEX
 //}
 
@@ -929,22 +924,22 @@ bool simply_thread_get_master_mutex(void)
 //        if(NULL != repeat_ent)
 //        {
 //            MM_PRINT_MSG("%s: Swapping %p and %p\r\n", __FUNCTION__,
-//            		new_ent->sem->sem,
-//					repeat_ent->sem->sem);
+//                  new_ent->sem->sem,
+//                  repeat_ent->sem->sem);
 //            print_pop_queue();
 //            simply_thread_master_mutex_copy_entry(&swap_1, new_ent);
 //            simply_thread_master_mutex_copy_entry(&swap_2, repeat_ent);
 //            simply_thread_master_mutex_copy_entry(new_ent, &swap_2);
 //            simply_thread_master_mutex_copy_entry(repeat_ent, &swap_1);
 //            MM_PRINT_MSG("%s: Swapped %p and %p\r\n", __FUNCTION__,
-//            		new_ent->sem->sem,
-//					repeat_ent->sem->sem);
+//                  new_ent->sem->sem,
+//                  repeat_ent->sem->sem);
 //            print_pop_queue();
 //        }
 //    }
 //    if(true == sync_required)
 //    {
-//    	assert(NULL != block_sem);
+//      assert(NULL != block_sem);
 //        MM_PRINT_MSG("%s: waiting on semaphore at: %p\r\n", __FUNCTION__, block_sem->sem);
 //        print_pop_queue();
 //        assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
@@ -952,7 +947,7 @@ bool simply_thread_get_master_mutex(void)
 //        assert(m_post_info.allocated = block_sem);
 //        assert(m_post_info.semaphore = block_sem->sem);
 //        MM_PRINT_MSG("%s: Finished waiting on semaphore at: %p\r\n", __FUNCTION__,
-//        		block_sem->sem);
+//              block_sem->sem);
 //        assert(NULL != new_ent);
 //        simply_thread_sem_destroy(block_sem);
 //        MM_PRINT_MSG("%s: semaphore at: %p Destroyed\r\n", __FUNCTION__, block_sem->sem);
@@ -961,7 +956,7 @@ bool simply_thread_get_master_mutex(void)
 //    }
 //    assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
 //    return true;
-	return fifo_mutex_get();
+    return fifo_mutex_get();
 }
 
 /**
@@ -989,8 +984,8 @@ void simply_thread_release_master_mutex(void)
 //            m_post_info.allocated = sync_sem;
 //            assert(0 == simply_thread_sem_post(sync_sem));
 //            m_module_data.master_sem_data.fifo.entries[0].in_use = false;
-//			simply_thread_master_mutex_fifo_cleanup();
-//			print_pop_queue();
+//          simply_thread_master_mutex_fifo_cleanup();
+//          print_pop_queue();
 //        }
 //        else
 //        {
@@ -1000,7 +995,7 @@ void simply_thread_release_master_mutex(void)
 //        }
 //    }
 //    assert(0 == simply_thread_sem_post(&m_module_data.master_semaphore));
-	fifo_mutex_release();
+    fifo_mutex_release();
 }
 
 /**
@@ -1016,61 +1011,39 @@ bool simply_thread_master_mutex_locked(void)
 //    }
 //    MM_PRINT_MSG("Master Mutex NOT Locked\r\n");
 //    return false;
-	return fifo_mutex_locked();
+    return fifo_mutex_locked();
 }
 
-/**
- * @brief Function that initializes the master semaphore
- */
-static void m_init_master_semaphore(void)
-{
 
-    if(NULL == m_module_data.master_semaphore.sem)
+static inline void _print_task_stats(struct simply_thread_task_s *tcb)
+{
+    assert(NULL != tcb);
+    ST_LOG_ERROR("\tNAME: %s\r\n", tcb->name);
+    ST_LOG_ERROR("\tPriority: %u\r\n", tcb->priority);
+    switch(tcb->state)
     {
-        assert(0 == pthread_mutex_lock(&m_module_data.init_mutex));
-        if(NULL == m_module_data.master_semaphore.sem)
-        {
-            simply_thread_sem_init(&m_module_data.master_semaphore);
-            for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.master_sem_data.fifo.entries); i++)
-            {
-                m_module_data.master_sem_data.fifo.entries[i].in_use = false;
-            }
-            m_module_data.master_sem_data.fifo.count = 0;
-        }
-        pthread_mutex_unlock(&m_module_data.init_mutex);
-        MM_PRINT_MSG("Initialized the master mutex\r\n");
+        case SIMPLY_THREAD_TASK_RUNNING:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_RUNNING\r\n");
+            break;
+        case SIMPLY_THREAD_TASK_READY:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_READY\r\n");
+            break;
+        case SIMPLY_THREAD_TASK_BLOCKED:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_BLOCKED\r\n");
+            break;
+        case SIMPLY_THREAD_TASK_SUSPENDED:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_SUSPENDED\r\n");
+            break;
+        case SIMPLY_THREAD_TASK_UNKNOWN_STATE:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_UNKNOWN_STATE\r\n");
+            break;
+        case SIMPLY_THREAD__TASK_STATE_COUNT:
+            ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD__TASK_STATE_COUNT\r\n");
+            break;
+        default:
+            assert(false);
+            break;
     }
-}
-
-static inline void _print_task_stats(struct simply_thread_task_s * tcb)
-{
-	assert(NULL != tcb);
-	ST_LOG_ERROR("\tNAME: %s\r\n", tcb->name);
-	ST_LOG_ERROR("\tPriority: %u\r\n", tcb->priority);
-	switch(tcb->state)
-	{
-	case SIMPLY_THREAD_TASK_RUNNING:
-		ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_RUNNING\r\n");
-		break;
-	case SIMPLY_THREAD_TASK_READY:
-		ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_READY\r\n");
-		break;
-	case SIMPLY_THREAD_TASK_BLOCKED:
-		ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_BLOCKED\r\n");
-		break;
-	case SIMPLY_THREAD_TASK_SUSPENDED:
-		ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_SUSPENDED\r\n");
-		break;
-	case SIMPLY_THREAD_TASK_UNKNOWN_STATE:
-		ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD_TASK_UNKNOWN_STATE\r\n");
-		break;
-	case SIMPLY_THREAD__TASK_STATE_COUNT:
-		ST_LOG_ERROR("\tSTATE: SIMPLY_THREAD__TASK_STATE_COUNT\r\n");
-		break;
-	default:
-		assert(false);
-		break;
-	}
     ST_LOG_ERROR("\r\n");
 }
 
@@ -1080,14 +1053,13 @@ static inline void _print_task_stats(struct simply_thread_task_s * tcb)
 void simply_thread_print_tcb(void)
 {
     MUTEX_GET();
-	ST_LOG_ERROR("ALL TASK States\r\n")
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list); i++)
-	{
-		if(NULL != m_module_data.tcb_list[i].name)
-		{
-			_print_task_stats(&m_module_data.tcb_list[i]);
-		}
-	}
-    ST_LOG_ERROR("Master Mutex Count %u\r\n", m_module_data.master_sem_data.fifo.count);
+    ST_LOG_ERROR("ALL TASK States\r\n")
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list); i++)
+    {
+        if(NULL != m_module_data.tcb_list[i].name)
+        {
+            _print_task_stats(&m_module_data.tcb_list[i]);
+        }
+    }
     MUTEX_RELEASE();
 }

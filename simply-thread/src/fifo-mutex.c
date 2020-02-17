@@ -7,6 +7,7 @@
  */
 
 #include <fifo-mutex.h>
+#include <simply-thread-log.h>
 #include <simply-thread-sem-helper.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -24,6 +25,7 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
@@ -40,24 +42,28 @@
 #define MAX_LIST_SIZE 250
 #endif //MAX_LIST_SIZE
 
+#ifdef DEBUG_FIFO
+#define PRINT_MSG(...) simply_thread_log(COLOR_SKY_BLUE, __VA_ARGS__)
+#else
+#define PRINT_MSG(...)
+#endif //DEBUG_FIFO
+
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
 /***********************************************************************************/
 
-struct ticket_entry_s{
-//    	int ticket;
-		simply_thread_sem_t * ticket;
-    	pthread_t id;
-    };
+struct ticket_entry_s
+{
+    simply_thread_sem_t *ticket;
+    pthread_t id;
+};
 
 struct fifo_mutex_module_data_s
 {
     bool initialized;
     pthread_mutex_t init_mutex;
     simply_thread_sem_t ticket_semaphore;
-//    simply_thread_sem_t process_semaphore[2]; //We may only need one of these
     struct ticket_entry_s ticket_table[MAX_LIST_SIZE];
-//    int ticket_counter;
     bool started;
     bool locked;  //!< Tells if we are currently locked
 };
@@ -75,9 +81,10 @@ static void m_init_master_semaphore(void);
 /***************************** Static Variables ************************************/
 /***********************************************************************************/
 
-static struct fifo_mutex_module_data_s fifo_module_data = {
+static struct fifo_mutex_module_data_s fifo_module_data =
+{
     .init_mutex = PTHREAD_MUTEX_INITIALIZER,
-    .initialized = false
+    .initialized = false,
 };
 
 /***********************************************************************************/
@@ -106,46 +113,46 @@ static void fifo_mutex_sleep_ns(unsigned long ns)
  * @param id the process id
  * @return NULL on error otherwise the entry
  */
-static struct ticket_entry_s * process_entry(pthread_t id)
+static struct ticket_entry_s *process_entry(pthread_t id)
 {
-	unsigned int entry_count;
-	struct ticket_entry_s * rv;
-	rv = NULL;
-	entry_count = 0;
-	for(int i=0; i<ARRAY_MAX_COUNT(M_DATA.ticket_table); i++)
-	{
-		if(M_DATA.ticket_table[i].ticket != NULL && M_DATA.ticket_table[i].id == id)
-		{
-			entry_count++;
-		}
-	}
-	assert(2 > entry_count);
-	for(int i=0; i<ARRAY_MAX_COUNT(M_DATA.ticket_table) && NULL == rv; i++)
-	{
-		if(M_DATA.ticket_table[i].ticket != NULL && M_DATA.ticket_table[i].id == id)
-		{
-			rv = &M_DATA.ticket_table[i];
-		}
-	}
-	return rv;
+    unsigned int entry_count;
+    struct ticket_entry_s *rv;
+    rv = NULL;
+    entry_count = 0;
+    for(int i = 0; i < ARRAY_MAX_COUNT(M_DATA.ticket_table); i++)
+    {
+        if(M_DATA.ticket_table[i].ticket != NULL && M_DATA.ticket_table[i].id == id)
+        {
+            entry_count++;
+        }
+    }
+    assert(2 > entry_count);
+    for(int i = 0; i < ARRAY_MAX_COUNT(M_DATA.ticket_table) && NULL == rv; i++)
+    {
+        if(M_DATA.ticket_table[i].ticket != NULL && M_DATA.ticket_table[i].id == id)
+        {
+            rv = &M_DATA.ticket_table[i];
+        }
+    }
+    return rv;
 }
 
 /**
  * @brief Fetch the next available ticket table entry
  * @return NULL on error, otherwise a pointer to the entry
  */
-static struct ticket_entry_s * next_available_entry(void)
+static struct ticket_entry_s *next_available_entry(void)
 {
-	struct ticket_entry_s * rv;
-	rv = NULL;
-	for(int i=0; i<ARRAY_MAX_COUNT(M_DATA.ticket_table) && NULL == rv; i++)
-	{
-		if(M_DATA.ticket_table[i].ticket == NULL)
-		{
-			rv = &M_DATA.ticket_table[i];
-		}
-	}
-	return rv;
+    struct ticket_entry_s *rv;
+    rv = NULL;
+    for(int i = 0; i < ARRAY_MAX_COUNT(M_DATA.ticket_table) && NULL == rv; i++)
+    {
+        if(M_DATA.ticket_table[i].ticket == NULL)
+        {
+            rv = &M_DATA.ticket_table[i];
+        }
+    }
+    return rv;
 }
 
 /**
@@ -153,45 +160,33 @@ static struct ticket_entry_s * next_available_entry(void)
  * @param ticket the ticket to check
  * @return The number of times the ticket is in the queue
  */
-static int ticket_use_count(simply_thread_sem_t * ticket)
+static int ticket_use_count(simply_thread_sem_t *ticket)
 {
-	int rv;
-	rv = 0;
-	assert(NULL != ticket);
-	for(int i=0; i<ARRAY_MAX_COUNT(M_DATA.ticket_table); i++)
-	{
-		if(ticket == M_DATA.ticket_table[i].ticket)
-		{
-			rv++;
-		}
-	}
-	return rv;
+    int rv;
+    rv = 0;
+    assert(NULL != ticket);
+    for(int i = 0; i < ARRAY_MAX_COUNT(M_DATA.ticket_table); i++)
+    {
+        if(ticket == M_DATA.ticket_table[i].ticket)
+        {
+            rv++;
+        }
+    }
+    return rv;
 }
 
-///**
-// * @brief function that fetches the next available ticket
-// * @return the next available ticket
-// */
-//static int next_ticket(void)
-//{
-//	while(true == ticket_in_use(fifo_module_data.ticket_counter))
-//	{
-//		fifo_module_data.ticket_counter++;
-//	}
-//	return fifo_module_data.ticket_counter;
-//}
 /**
  * @brief Function that creates a new ticket
  * @return Pointer to new ticket. asserts on error
  */
-simply_thread_sem_t * new_ticket(void)
+simply_thread_sem_t *new_ticket(void)
 {
-	simply_thread_sem_t * rv;
-	rv = malloc(sizeof(simply_thread_sem_t));
-	assert(NULL != rv);
-	simply_thread_sem_init(rv);
-	assert(0 == simply_thread_sem_trywait(rv));
-	return rv;
+    simply_thread_sem_t *rv;
+    rv = malloc(sizeof(simply_thread_sem_t));
+    assert(NULL != rv);
+    simply_thread_sem_init(rv);
+    assert(0 == simply_thread_sem_trywait(rv));
+    return rv;
 }
 
 /**
@@ -200,38 +195,42 @@ simply_thread_sem_t * new_ticket(void)
  */
 static struct ticket_entry_s fifo_mutex_fetch_ticket(void)
 {
-	struct ticket_entry_s * existing;
-	struct ticket_entry_s * next;
-	struct ticket_entry_s entry;
-	pthread_t id;
+    struct ticket_entry_s *existing;
+    struct ticket_entry_s *next;
+    struct ticket_entry_s entry;
+    pthread_t id;
+    SEM_BLOCK(fifo_module_data.ticket_semaphore);
+    id = pthread_self();
+    existing = process_entry(id);
+    next = next_available_entry();
+    assert(NULL != next);
 
-	SEM_BLOCK(fifo_module_data.ticket_semaphore);
-	id = pthread_self();
-	existing = process_entry(id);
-	next = next_available_entry();
-	assert(NULL != next);
-
-	if(NULL != existing)
-	{
-		//We already have a semaphore for the task
-		assert(existing->id == id);
-		next->id = existing->id;
-		next->ticket = existing->ticket;
-	}
-	else
-	{
-		next->id = id;
-		next->ticket = new_ticket();
-	}
-	if(&fifo_module_data.ticket_table[0] == next)
-	{
-		//We are the first entry on the table
-		SEM_UNBLOCK(next->ticket[0]);
-	}
-	entry.id = id;
-	entry.ticket = next->ticket;
-	SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
-	return entry;
+    if(NULL != existing)
+    {
+        //We already have a semaphore for the task
+        assert(existing->id == id);
+        next->id = existing->id;
+        next->ticket = existing->ticket;
+    }
+    else
+    {
+        next->id = id;
+        next->ticket = new_ticket();
+    }
+    if(&fifo_module_data.ticket_table[0] == next && false == fifo_module_data.locked)
+    {
+        //We are the first entry on the table and are already locked
+        PRINT_MSG("\tadded first entry\r\n");
+        SEM_UNBLOCK(next->ticket[0]);
+    }
+    else
+    {
+        PRINT_MSG("\tadded non first entry\r\n");
+    }
+    entry.id = id;
+    entry.ticket = next->ticket;
+    SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
+    return entry;
 }
 
 /**
@@ -239,63 +238,50 @@ static struct ticket_entry_s fifo_mutex_fetch_ticket(void)
  */
 static void ticket_counter_shift(void)
 {
-	for(int i=1; i<ARRAY_MAX_COUNT(M_DATA.ticket_table); i++)
-	{
-		M_DATA.ticket_table[i-1].id = M_DATA.ticket_table[i].id;
-		M_DATA.ticket_table[i-1].ticket = M_DATA.ticket_table[i].ticket;
-	}
+    for(int i = 1; i < ARRAY_MAX_COUNT(M_DATA.ticket_table); i++)
+    {
+        M_DATA.ticket_table[i - 1].id = M_DATA.ticket_table[i].id;
+        M_DATA.ticket_table[i - 1].ticket = M_DATA.ticket_table[i].ticket;
+    }
 }
 
 /**
  * @brief wait for our entries turn for the mutex
  * @param entry pointer to our entry
  */
-static void fifo_mutex_wait_turn(struct ticket_entry_s * entry)
+static void fifo_mutex_wait_turn(struct ticket_entry_s *entry)
 {
-//	bool myturn;
-//	myturn = false;
-	assert(NULL != entry);
-	assert(NULL != entry->ticket);
-	SEM_BLOCK((entry->ticket[0]));
-	SEM_BLOCK(fifo_module_data.ticket_semaphore);
-	assert(entry->ticket == fifo_module_data.ticket_table[0].ticket);
-	if(1 == ticket_use_count(entry->ticket))
-	{
-		//We need to free the memory
-		simply_thread_sem_destroy(entry->ticket);
-		free(entry->ticket);
-	}
-	fifo_module_data.ticket_table[0].ticket = NULL;
-	ticket_counter_shift();
-	SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
-//	while(false == myturn)
-//	{
-//		SEM_BLOCK(M_DATA.process_semaphore[0]);
-//
-//        if(entry->ticket == M_DATA.ticket_table[0].ticket)
-//		{
-//            assert(entry->id == M_DATA.ticket_table[0].id);
-//			myturn = true;
-//			fifo_module_data.started = true;
-//			M_DATA.ticket_count++;
-//			assert(2>M_DATA.ticket_count);
-//		}
-//
-//		SEM_UNBLOCK(M_DATA.process_semaphore[0]);
-//	}
+    assert(NULL != entry);
+    assert(NULL != entry->ticket);
+    PRINT_MSG("\tWaiting on ticket %p\r\n", entry->ticket);
+    SEM_BLOCK((entry->ticket[0]));
+    PRINT_MSG("\tGot ticket %p\r\n", entry->ticket);
+    SEM_BLOCK(fifo_module_data.ticket_semaphore);
+    assert(entry->ticket == fifo_module_data.ticket_table[0].ticket);
+    if(1 == ticket_use_count(entry->ticket))
+    {
+        //We need to free the memory
+        simply_thread_sem_destroy(entry->ticket);
+        free(entry->ticket);
+    }
+    fifo_module_data.ticket_table[0].ticket = NULL;
+    ticket_counter_shift();
+    PRINT_MSG("Finished Waiting\r\n");
+    fifo_module_data.locked = true;
+    SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
 }
 
 /**
  * @brief fetch the mutex
  * @return true on success
- */ 
+ */
 bool fifo_mutex_get(void)
 {
-	struct ticket_entry_s entry;
+    struct ticket_entry_s entry;
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     m_init_master_semaphore();
     entry = fifo_mutex_fetch_ticket();
     fifo_mutex_wait_turn(&entry);
-    fifo_module_data.locked = true;
     return true;
 }
 
@@ -305,12 +291,13 @@ bool fifo_mutex_get(void)
  */
 bool fifo_mutex_locked(void)
 {
-	bool rv = true;
-	m_init_master_semaphore();
-	SEM_BLOCK(fifo_module_data.ticket_semaphore);
-	rv = fifo_module_data.locked;
-	SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
-	return rv;
+    bool rv = true;
+    m_init_master_semaphore();
+    SEM_BLOCK(fifo_module_data.ticket_semaphore);
+    rv = fifo_module_data.locked;
+    SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
+    assert(true == rv);
+    return rv;
 }
 
 /**
@@ -319,20 +306,20 @@ bool fifo_mutex_locked(void)
  */
 static bool fifo_task_resumed(void)
 {
-	static const unsigned int ns_period = 1000000/2;
-	static const unsigned int timeout_count = 100*2;
-	unsigned int current_count = 0;
-	while(false == fifo_module_data.started)
-	{
-		 fifo_mutex_sleep_ns(ns_period);
-		 current_count++;
-		 if(current_count >= timeout_count)
-		 {
-			 printf("*******Task Resume Timed Out *********\r\n");
-			 return false;
-		 }
-	}
-	return true;
+    static const unsigned int ns_period = 1000000 / 2;
+    static const unsigned int timeout_count = 100 * 2;
+    unsigned int current_count = 0;
+    while(false == fifo_module_data.started)
+    {
+        fifo_mutex_sleep_ns(ns_period);
+        current_count++;
+        if(current_count >= timeout_count)
+        {
+            printf("*******Task Resume Timed Out *********\r\n");
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -340,23 +327,31 @@ static bool fifo_task_resumed(void)
  */
 void fifo_mutex_release(void)
 {
+    bool first_time = true;
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     m_init_master_semaphore();
     do
     {
-		SEM_BLOCK(M_DATA.ticket_semaphore);
-		//We need to shift the ticket counter
-		if(NULL != M_DATA.ticket_table[0].ticket)
-		{
-			fifo_module_data.started = false;
-			SEM_UNBLOCK(M_DATA.ticket_table[0].ticket[0]);
-		}
-		else
-		{
-			fifo_module_data.started = true;
-		}
-		SEM_UNBLOCK(M_DATA.ticket_semaphore);
-    }while(false == fifo_task_resumed());
-    fifo_module_data.locked = false;
+        SEM_BLOCK(M_DATA.ticket_semaphore);
+        if(true == first_time)
+        {
+            fifo_module_data.locked = false;
+            first_time = false;
+        }
+        //We need to shift the ticket counter
+        if(NULL != M_DATA.ticket_table[0].ticket)
+        {
+            fifo_module_data.started = false;
+            PRINT_MSG("\tSelecting Ticket %p\r\n", M_DATA.ticket_table[0].ticket);
+            SEM_UNBLOCK(M_DATA.ticket_table[0].ticket[0]);
+        }
+        else
+        {
+            fifo_module_data.started = true;
+        }
+        SEM_UNBLOCK(M_DATA.ticket_semaphore);
+    }
+    while(false == fifo_task_resumed());
 }
 
 /**
@@ -385,9 +380,9 @@ static void m_init_master_semaphore(void)
         {
             simply_thread_sem_init(&fifo_module_data.ticket_semaphore);
 
-            for(unsigned int i=0; i<ARRAY_MAX_COUNT(fifo_module_data.ticket_table); i++)
+            for(unsigned int i = 0; i < ARRAY_MAX_COUNT(fifo_module_data.ticket_table); i++)
             {
-            	fifo_module_data.ticket_table[i].ticket = NULL;
+                fifo_module_data.ticket_table[i].ticket = NULL;
             }
             fifo_module_data.started = false;
             fifo_module_data.initialized = true;
