@@ -4,7 +4,6 @@ cmake_minimum_required(VERSION 3.13)
 macro(set_test_cmake_flags TARG)
 if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
 	message(STATUS "Configuring for Mac")
-	# -DDEBUG_SIMPLY_THREAD
 	target_compile_options(${TARG} PUBLIC -g -O0 -Wall -fprofile-arcs -ftest-coverage -std=c11)
 elseif (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
 	message(STATUS "Configuring for linux")

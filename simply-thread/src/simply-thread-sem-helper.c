@@ -252,7 +252,6 @@ int simply_thread_sem_post(simply_thread_sem_t *sem)
     int rv;
     assert(NULL != sem);
     assert(NULL != sem->sem);
-//    PRINT_MSG("Posting to 0x%04X %s\r\n", sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
     PRINT_MSG("%X Posting to 0x%04X %s\r\n", pthread_self(), sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
     do
     {
