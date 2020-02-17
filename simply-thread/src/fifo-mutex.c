@@ -307,7 +307,7 @@ bool fifo_mutex_locked(void)
 static bool fifo_task_resumed(void)
 {
     static const unsigned int ns_period = 1000000 / 2;
-    static const unsigned int timeout_count = 100 * 2;
+    static const unsigned int timeout_count = 1000 * 2;
     unsigned int current_count = 0;
     while(false == fifo_module_data.started)
     {
