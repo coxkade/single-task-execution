@@ -44,6 +44,14 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem);
 int simply_thread_sem_trywait(simply_thread_sem_t *sem);
 
 /**
+ * @brief blocking semaphore wait with a timeout
+ * @param sem
+ * @param ms The max number of ms to wait for
+ * @return o on success
+ */
+int simply_thread_sem_timed_wait(simply_thread_sem_t *sem, unsigned int ms);
+
+/**
  * Semaphore post
  * @param sem
  * @return 0 on success
@@ -54,5 +62,12 @@ int simply_thread_sem_post(simply_thread_sem_t *sem);
  * @brief Function that unlinks created semaphores so they can be freed when tests complete
  */
 void sem_helper_cleanup(void);
+
+/**
+ * @brief Function that fetches the filename of the semaphore
+ * @param sem pointer to the file name
+ * @return
+ */
+const char *simply_thread_sem_get_filename(simply_thread_sem_t *sem);
 
 #endif /* SIMPLY_THREAD_SEM_HELPER_H_ */
