@@ -25,6 +25,7 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+//#define DEBUG_FIFO
 
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
@@ -257,6 +258,7 @@ static void fifo_mutex_wait_turn(struct ticket_entry_s *entry)
     SEM_BLOCK((entry->ticket[0]));
     PRINT_MSG("\tGot ticket %p\r\n", entry->ticket);
     SEM_BLOCK(fifo_module_data.ticket_semaphore);
+    fifo_module_data.started = true;
     assert(entry->ticket == fifo_module_data.ticket_table[0].ticket);
     if(1 == ticket_use_count(entry->ticket))
     {
@@ -300,26 +302,94 @@ bool fifo_mutex_locked(void)
     return rv;
 }
 
+
+/**
+ * @brief Function that calculates the number of milliseconds elapsed between to times
+ * @param x pointer to the earlier time
+ * @param y pointer to the later time
+ * @return the time value used
+ */
+static inline unsigned int time_diff(struct timeval *x, struct timeval *y)
+{
+	struct time_diff_value_s
+	{
+		uint64_t s;
+		uint64_t us;
+	};
+
+	static const unsigned int ms_per_s = 1000;
+	static const unsigned int us_per_ms = 1000;
+	static const unsigned int us_per_s = 1000000;
+	struct time_diff_value_s x_worker;
+	struct time_diff_value_s y_worker;
+	struct time_diff_value_s diff;
+	unsigned int rv = 0;
+
+	assert(NULL != x && NULL != y);
+	x_worker.us = (uint64_t) x->tv_usec;
+	x_worker.s = (uint64_t) x->tv_sec;
+	y_worker.us = (uint64_t) y->tv_usec;
+	y_worker.s = (uint64_t) y->tv_sec;
+
+	//Sanity checks
+	assert(x_worker.s <= y_worker.s);
+	if(x_worker.s == y_worker.s)
+	{
+		assert(x_worker.us <= y_worker.us);
+	}
+
+	if(x_worker.us > y_worker.us)
+	{
+		assert(x_worker.s < y_worker.s);
+		y_worker.us = y_worker.us + us_per_s;
+		y_worker.s = y_worker.s - 1;
+	}
+
+	assert(x_worker.s <= y_worker.s);
+	assert(x_worker.us <= y_worker.us);
+
+	//Calculate the difference
+	diff.s = y_worker.s - x_worker.s;
+	diff.us = y_worker.us - x_worker.us;
+
+	rv = (diff.us/us_per_ms) + (diff.s * ms_per_s);
+
+	return rv;
+}
+
 /**
  * @brief function that verifies a new task started running
  * @return true if a new task started running
  */
 static bool fifo_task_resumed(void)
 {
-    static const unsigned int ns_period = 1000000 / 2;
-    static const unsigned int timeout_count = 1000 * 2;
-    unsigned int current_count = 0;
-    while(false == fifo_module_data.started)
-    {
-        fifo_mutex_sleep_ns(ns_period);
-        current_count++;
-        if(current_count >= timeout_count)
-        {
-        	ST_LOG_ERROR("******* Task Resume Timed Out *********\r\n");
-            return false;
-        }
-    }
-    return true;
+	struct timeval start;
+	struct timeval current;
+	unsigned int ms_elapsed =0;
+	static const unsigned int ns_period = 100;
+	static const unsigned int max_wait_ms = 100; //Max number of ms to wait for start
+	bool started;
+	assert(0 == ms_elapsed);
+	gettimeofday(&start, NULL);
+	SEM_BLOCK(M_DATA.ticket_semaphore);
+	started = fifo_module_data.started;
+	SEM_UNBLOCK(M_DATA.ticket_semaphore);
+	while(false == started)
+	{
+		gettimeofday(&current, NULL);
+		ms_elapsed = time_diff(&start, &current);
+		if(max_wait_ms < ms_elapsed)
+		{
+
+			ST_LOG_ERROR("******* Task Resume Timed Out %u*********\r\n", ms_elapsed);
+			fifo_mutex_sleep_ns(ns_period);
+			return false;
+		}
+		SEM_BLOCK(M_DATA.ticket_semaphore);
+		started = fifo_module_data.started;
+		SEM_UNBLOCK(M_DATA.ticket_semaphore);
+	}
+	return true;
 }
 
 /**
@@ -330,28 +400,28 @@ void fifo_mutex_release(void)
     bool first_time = true;
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     m_init_master_semaphore();
-    do
-    {
-        SEM_BLOCK(M_DATA.ticket_semaphore);
-        if(true == first_time)
-        {
-            fifo_module_data.locked = false;
-            first_time = false;
-        }
-        //We need to shift the ticket counter
-        if(NULL != M_DATA.ticket_table[0].ticket)
-        {
-            fifo_module_data.started = false;
-            PRINT_MSG("\tSelecting Ticket %p\r\n", M_DATA.ticket_table[0].ticket);
-            SEM_UNBLOCK(M_DATA.ticket_table[0].ticket[0]);
-        }
-        else
-        {
-            fifo_module_data.started = true;
-        }
-        SEM_UNBLOCK(M_DATA.ticket_semaphore);
-    }
-    while(false == fifo_task_resumed());
+
+	SEM_BLOCK(M_DATA.ticket_semaphore);
+	PRINT_MSG("\t%s has ticket semaphore\r\n");
+	if(true == first_time)
+	{
+		fifo_module_data.locked = false;
+		first_time = false;
+	}
+	//We need to shift the ticket counter
+	if(NULL != M_DATA.ticket_table[0].ticket)
+	{
+		fifo_module_data.started = false;
+		PRINT_MSG("\tSelecting Ticket %p\r\n", M_DATA.ticket_table[0].ticket);
+		SEM_UNBLOCK(M_DATA.ticket_table[0].ticket[0]);
+	}
+	else
+	{
+		fifo_module_data.started = true;
+	}
+	SEM_UNBLOCK(M_DATA.ticket_semaphore);
+    
+    assert(false != fifo_task_resumed());
 }
 
 /**
@@ -359,6 +429,7 @@ void fifo_mutex_release(void)
  */
 void fifo_mutex_reset(void)
 {
+	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     assert(0 == pthread_mutex_lock(&fifo_module_data.init_mutex));
     if(true == fifo_module_data.initialized)
     {

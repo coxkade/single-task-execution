@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 
-# set(CMAKE_C_FLAGS -DST_NS_PER_MS=1E6)
+set(CMAKE_C_FLAGS -DST_NS_PER_MS=1000000)
 
 enable_testing ()
 
