@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-typedef void * fifo_mutex_entry_t; //!< typedef for pulling and pushing an entry of of and onto the fifo queue
+typedef void *fifo_mutex_entry_t;  //!< typedef for pulling and pushing an entry of of and onto the fifo queue
 
 /**
  * @brief fetch the mutex

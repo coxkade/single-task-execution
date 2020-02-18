@@ -172,7 +172,7 @@ static void m_usr1_catch(int signo)
     int rv;
     int error_val;
     assert(SIGUSR1 == signo);
-    
+
     m_entry = fifo_mutex_pull();
     // fifo_mutex_clear_signal();
 
@@ -215,10 +215,10 @@ static void m_usr1_catch(int signo)
 
     if(NULL != m_entry)
     {
-    	MUTEX_GET();
-    	fifo_mutex_push(m_entry);
-    	MUTEX_RELEASE();
-   	}
+        MUTEX_GET();
+        fifo_mutex_push(m_entry);
+        MUTEX_RELEASE();
+    }
 }
 
 /**
@@ -281,7 +281,7 @@ static void m_intern_cleanup(void)
         {
             if(NULL != m_module_data.tcb_list[i].name)
             {
-            	fifo_mutex_prep_signal();
+                fifo_mutex_prep_signal();
                 assert(0 == pthread_kill(m_module_data.tcb_list[i].thread, SIGUSR2));
                 // fifo_mutex_clear_signal();
                 MUTEX_RELEASE();
