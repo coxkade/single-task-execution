@@ -167,10 +167,13 @@ static void m_usr1_catch(int signo)
 {
     struct simply_thread_task_s *ptr_task;
     bool wait_required;
+    fifo_mutex_entry_t m_entry;
     bool keep_going = true;
     int rv;
     int error_val;
     assert(SIGUSR1 == signo);
+    m_entry = fifo_mutex_pull();
+
     MUTEX_GET();
     wait_required = false;
     ptr_task = simply_thread_get_ex_task();
@@ -206,6 +209,10 @@ static void m_usr1_catch(int signo)
     if(true == wait_required)
     {
         m_task_wait_running(ptr_task);
+    }
+    if(NULL != m_entry)
+    {
+    	fifo_mutex_push(m_entry);
     }
 }
 
