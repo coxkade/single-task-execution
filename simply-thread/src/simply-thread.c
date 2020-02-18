@@ -212,10 +212,13 @@ static void m_usr1_catch(int signo)
     {
         m_task_wait_running(ptr_task);
     }
+
     if(NULL != m_entry)
     {
+    	MUTEX_GET();
     	fifo_mutex_push(m_entry);
-    }
+    	MUTEX_RELEASE();
+   	}
 }
 
 /**
@@ -329,8 +332,7 @@ static void m_sleep_maint(void)
                     {
                         if(SIMPLY_THREAD_TASK_SUSPENDED == m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state)
                         {
-                        	printf("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->name);
-//                            PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->name);
+                            PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->name);
                             simply_thread_set_task_state_from_locked(m_module_data.sleep.sleep_list[i].sleep_data.task_adjust, SIMPLY_THREAD_TASK_READY);
                             assert(true == simply_thread_master_mutex_locked()); //We must be locked
                         }

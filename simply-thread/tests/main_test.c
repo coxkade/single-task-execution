@@ -104,7 +104,7 @@ static void task_test_success(void **state)
     assert_true(NULL != task_two);
     assert_false(simply_thread_task_suspend(NULL));
     assert_false(simply_thread_task_resume(NULL));
-    simply_thread_sleep_ms(500);
+    simply_thread_sleep_ms(1000);
     simply_thread_cleanup();
     assert_true(thread_one_ran);
     assert_true(thread_two_ran);
@@ -433,7 +433,7 @@ static void queue_test(void **state)
     PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
     assert(true == simply_thread_queue_send(queue_handles[1], &val, 0));
     PRINT_MSG("Waiting for Cleanup\r\n");
-    simply_thread_sleep_ms(1000);
+    simply_thread_sleep_ms(2000);
     PRINT_MSG("%s shutting down test\r\n", __FUNCTION__);
     simply_thread_cleanup();
     assert_true(thread_one_ran);
@@ -462,10 +462,10 @@ int main(void)
         cmocka_unit_test(task_non_null_data_test),
         cmocka_unit_test(main_timer_tests),
         cmocka_unit_test(second_timer_tests),
-//        cmocka_unit_test(first_mutex_test_tests),
-//        cmocka_unit_test(second_mutex_test_tests),
-//        cmocka_unit_test(first_queue_test_tests),
-//        cmocka_unit_test(second_queue_test_tests),
+        cmocka_unit_test(first_mutex_test_tests),
+        cmocka_unit_test(second_mutex_test_tests),
+        cmocka_unit_test(first_queue_test_tests),
+        cmocka_unit_test(second_queue_test_tests),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

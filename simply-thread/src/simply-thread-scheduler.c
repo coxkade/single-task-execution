@@ -181,7 +181,7 @@ static void *m_run_sched(void *data)
                 {
                     m_sched_exit_if_kill();
                     MUTEX_RELEASE();
-                    simply_thread_sleep_ns(137);
+//                    simply_thread_sleep_ns(137);
                     MUTEX_GET();
                 }
             }
@@ -237,7 +237,7 @@ void simply_thread_scheduler_kill(void)
             if(true == sched_running)
             {
                 MUTEX_RELEASE();
-                simply_thread_sleep_ns(127);
+//                simply_thread_sleep_ns(127);
                 MUTEX_GET();
             }
         }
@@ -276,7 +276,7 @@ void simply_thread_run(struct simply_thread_scheduler_data_s *thread_data)
         if(true == sched_running)
         {
             MUTEX_RELEASE();
-            simply_thread_sleep_ns(131);
+//            simply_thread_sleep_ns(131);
             MUTEX_GET();
             if(false == MODULE_DATA.threadlaunched)
             {

@@ -385,7 +385,7 @@ static void *timed_worker(void * data)
 	struct timeval start;
 	struct timeval current;
 	unsigned int c_ms = 0;
-	static const unsigned int sleep_time = 50;
+	static const unsigned int sleep_time = 25;
 	typed = data;
 	assert(NULL != typed);
 	gettimeofday(&start, NULL);
