@@ -10,6 +10,7 @@
 #include <simply-thread-scheduler.h>
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
+#include <fifo-mutex.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
@@ -103,7 +104,9 @@ static inline void m_sleep_all_tasks(void)
             if(SIMPLY_THREAD_TASK_RUNNING == TASK_LIST[i].state)
             {
                 m_sched_exit_if_kill();
+                fifo_mutex_prep_signal();
                 assert(0 == pthread_kill(TASK_LIST[i].thread, SIGUSR1));
+                // fifo_mutex_clear_signal();
                 MUTEX_RELEASE();
                 simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
                 MUTEX_GET();

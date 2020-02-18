@@ -462,10 +462,10 @@ int main(void)
         cmocka_unit_test(task_non_null_data_test),
         cmocka_unit_test(main_timer_tests),
         cmocka_unit_test(second_timer_tests),
-        cmocka_unit_test(first_mutex_test_tests),
-        cmocka_unit_test(second_mutex_test_tests),
-        cmocka_unit_test(first_queue_test_tests),
-        cmocka_unit_test(second_queue_test_tests),
+//        cmocka_unit_test(first_mutex_test_tests),
+//        cmocka_unit_test(second_mutex_test_tests),
+//        cmocka_unit_test(first_queue_test_tests),
+//        cmocka_unit_test(second_queue_test_tests),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -172,7 +172,9 @@ static void m_usr1_catch(int signo)
     int rv;
     int error_val;
     assert(SIGUSR1 == signo);
+    
     m_entry = fifo_mutex_pull();
+    // fifo_mutex_clear_signal();
 
     MUTEX_GET();
     wait_required = false;
@@ -222,8 +224,12 @@ static void m_usr1_catch(int signo)
  */
 static void m_usr2_catch(int signo)
 {
+    fifo_mutex_entry_t m_entry;
     struct simply_thread_task_s *ptr_task;
     assert(SIGUSR2 == signo);
+    m_entry = fifo_mutex_pull();
+    // fifo_mutex_clear_signal();
+
     MUTEX_GET();
     ptr_task = simply_thread_get_ex_task();
     MUTEX_RELEASE();
@@ -272,7 +278,9 @@ static void m_intern_cleanup(void)
         {
             if(NULL != m_module_data.tcb_list[i].name)
             {
+            	fifo_mutex_prep_signal();
                 assert(0 == pthread_kill(m_module_data.tcb_list[i].thread, SIGUSR2));
+                // fifo_mutex_clear_signal();
                 MUTEX_RELEASE();
                 pthread_join(m_module_data.tcb_list[i].thread, NULL);
                 MUTEX_GET();
@@ -321,7 +329,8 @@ static void m_sleep_maint(void)
                     {
                         if(SIMPLY_THREAD_TASK_SUSPENDED == m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state)
                         {
-                            PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust);
+                        	printf("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->name);
+//                            PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->name);
                             simply_thread_set_task_state_from_locked(m_module_data.sleep.sleep_list[i].sleep_data.task_adjust, SIMPLY_THREAD_TASK_READY);
                             assert(true == simply_thread_master_mutex_locked()); //We must be locked
                         }
