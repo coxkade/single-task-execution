@@ -44,9 +44,5 @@ void fifo_mutex_push(fifo_mutex_entry_t entry);
  */
 void fifo_mutex_prep_signal(void);
 
-/**
- * Function that tells the fifo mutex that the signal has been sent
- */
-void fifo_mutex_clear_signal(void);
 
 #endif //#ifndef FIFO_MUTEX_H_

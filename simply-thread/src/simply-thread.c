@@ -174,7 +174,6 @@ static void m_usr1_catch(int signo)
     assert(SIGUSR1 == signo);
 
     m_entry = fifo_mutex_pull();
-    // fifo_mutex_clear_signal();
 
     MUTEX_GET();
     wait_required = false;
@@ -231,10 +230,13 @@ static void m_usr2_catch(int signo)
     struct simply_thread_task_s *ptr_task;
     assert(SIGUSR2 == signo);
     m_entry = fifo_mutex_pull();
-    // fifo_mutex_clear_signal();
 
     MUTEX_GET();
     ptr_task = simply_thread_get_ex_task();
+    if(NULL != m_entry)
+    {
+        fifo_mutex_push(m_entry);
+    }
     MUTEX_RELEASE();
     assert(NULL != ptr_task);
     PRINT_MSG("\tForce Closing %s\r\n", ptr_task->name);
@@ -283,7 +285,6 @@ static void m_intern_cleanup(void)
             {
                 fifo_mutex_prep_signal();
                 assert(0 == pthread_kill(m_module_data.tcb_list[i].thread, SIGUSR2));
-                // fifo_mutex_clear_signal();
                 MUTEX_RELEASE();
                 pthread_join(m_module_data.tcb_list[i].thread, NULL);
                 MUTEX_GET();
@@ -441,7 +442,6 @@ simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_ta
     //wait for the task to start
     while(false == ptr_task->started)
     {
-        simply_thread_sleep_ns(10);
     }
     simply_thread_set_task_state_from_locked(ptr_task, SIMPLY_THREAD_TASK_READY);
     MUTEX_RELEASE();

@@ -573,14 +573,12 @@ static void simply_thread_resume_queues(void)
     assert(true == simply_thread_master_mutex_locked()); //We must be locked
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_queue_data.queue_list); i++)
     {
-        // PRINT_MSG("i:%u\r\n", i);
         queue = m_queue_data.queue_list[i];
         ready_task = NULL;
         if(NULL != queue)
         {
             for(unsigned int j = 0; j < ARRAY_MAX_COUNT(queue->wait_list); j++)
             {
-                // PRINT_MSG("j:%u\r\n", j);
                 if(NULL != queue->wait_list[j].task)
                 {
                     if(SIMPLY_THREAD_TASK_BLOCKED == queue->wait_list[j].task->state)

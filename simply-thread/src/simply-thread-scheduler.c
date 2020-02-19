@@ -106,7 +106,6 @@ static inline void m_sleep_all_tasks(void)
                 m_sched_exit_if_kill();
                 fifo_mutex_prep_signal();
                 assert(0 == pthread_kill(TASK_LIST[i].thread, SIGUSR1));
-                // fifo_mutex_clear_signal();
                 MUTEX_RELEASE();
                 simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
                 MUTEX_GET();
@@ -181,7 +180,6 @@ static void *m_run_sched(void *data)
                 {
                     m_sched_exit_if_kill();
                     MUTEX_RELEASE();
-//                    simply_thread_sleep_ns(137);
                     MUTEX_GET();
                 }
             }
@@ -237,7 +235,6 @@ void simply_thread_scheduler_kill(void)
             if(true == sched_running)
             {
                 MUTEX_RELEASE();
-//                simply_thread_sleep_ns(127);
                 MUTEX_GET();
             }
         }
@@ -276,7 +273,6 @@ void simply_thread_run(struct simply_thread_scheduler_data_s *thread_data)
         if(true == sched_running)
         {
             MUTEX_RELEASE();
-//            simply_thread_sleep_ns(131);
             MUTEX_GET();
             if(false == MODULE_DATA.threadlaunched)
             {

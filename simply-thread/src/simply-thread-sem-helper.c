@@ -193,7 +193,6 @@ void simply_thread_sem_destroy(simply_thread_sem_t *sem)
     assert(NULL != sem->sem);
     typed = sem->data;
     assert(NULL != typed);
-    // assert(0 == sem_close(sem->sem));
     if(0 != sem_close(sem->sem))
     {
         ST_LOG_ERROR("ERROR! %u Failed to close semaphore %s\r\n", errno, typed->sem_name);
@@ -393,7 +392,7 @@ static void *timed_worker(void *data)
     struct timeval start;
     struct timeval current;
     unsigned int c_ms = 0;
-    static const unsigned int sleep_time = 25;
+    static const unsigned int sleep_time = ST_NS_PER_MS;
     typed = data;
     assert(NULL != typed);
     gettimeofday(&start, NULL);
