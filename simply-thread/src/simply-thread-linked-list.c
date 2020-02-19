@@ -309,5 +309,4 @@ void simply_thread_ll_test(void)
     assert(0 == simply_thread_ll_count(handle));
 
     simply_thread_ll_destroy(handle);
-//  assert(true == false);
 }

@@ -31,10 +31,6 @@
 //Macro that casts the handle data
 #define TIMER_DATA(x) ((struct single_timer_data_s *)x)
 
-#ifndef ST_NS_PER_MS
-#define ST_NS_PER_MS 1E6
-#endif //ST_NS_PER_MS
-
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_WHITE, __VA_ARGS__)
 #else

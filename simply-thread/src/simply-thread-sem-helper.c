@@ -7,6 +7,7 @@
  */
 
 #include <simply-thread-sem-helper.h>
+#include <priv-simply-thread.h>
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
@@ -15,7 +16,8 @@
 #include <simply-thread-log.h>
 #include <fcntl.h>
 #include <pthread.h>
-
+#include <sys/time.h>
+#include <stdint.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -57,6 +59,14 @@ struct simply_thread_sem_registery_s
     struct simply_thread_sem_list_element_s createded_sems[MAX_SEM_COUNT]; //!< List of registry entries
     bool initialized; //!< Tells if the device has been initialized
 }; //!< Structure that contains the data for the semaphore registry
+
+struct simply_thread_timout_worker_data_s
+{
+    bool timed_out; //!< Tells if the sem wait timed out
+    bool cont; //!< Tells if the worker should keep going
+    unsigned int timeout_ms; //!< The max number of milliseconds to try and connect for
+    simply_thread_sem_t *sem;  //!< The pointer to the waiting semaphore
+};
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
@@ -183,7 +193,6 @@ void simply_thread_sem_destroy(simply_thread_sem_t *sem)
     assert(NULL != sem->sem);
     typed = sem->data;
     assert(NULL != typed);
-    // assert(0 == sem_close(sem->sem));
     if(0 != sem_close(sem->sem))
     {
         ST_LOG_ERROR("ERROR! %u Failed to close semaphore %s\r\n", errno, typed->sem_name);
@@ -210,6 +219,10 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
     if(0 != rv)
     {
         eval = errno;
+        if(EBADF == eval)
+        {
+            ST_LOG_ERROR("Bad File Descriptor: %s\r\n", simply_thread_sem_get_filename(sem));
+        }
         if(EINTR != eval)
         {
             ST_LOG_ERROR("Unsupported error %u\r\n", eval);
@@ -293,6 +306,10 @@ static void unlink_sem_by_name(const char *name)
                 break;
         }
     }
+    else
+    {
+        PRINT_MSG("Unlinked %s\r\n", name);
+    }
 }
 
 /**
@@ -308,4 +325,151 @@ void sem_helper_cleanup(void)
             unlink_sem_by_name(st_sem_registery.createded_sems[i].sem_name);
         }
     }
+}
+
+
+/**
+ * @brief Function that calculates the number of milliseconds elapsed between to times
+ * @param x pointer to the earlier time
+ * @param y pointer to the later time
+ * @return the time value used
+ */
+static inline unsigned int time_diff(struct timeval *x, struct timeval *y)
+{
+    struct time_diff_value_s
+    {
+        uint64_t s;
+        uint64_t us;
+    };
+
+    static const unsigned int ms_per_s = 1000;
+    static const unsigned int us_per_ms = 1000;
+    static const unsigned int us_per_s = 1000000;
+    struct time_diff_value_s x_worker;
+    struct time_diff_value_s y_worker;
+    struct time_diff_value_s diff;
+    unsigned int rv = 0;
+
+    assert(NULL != x && NULL != y);
+    x_worker.us = (uint64_t) x->tv_usec;
+    x_worker.s = (uint64_t) x->tv_sec;
+    y_worker.us = (uint64_t) y->tv_usec;
+    y_worker.s = (uint64_t) y->tv_sec;
+
+    //Sanity checks
+    assert(x_worker.s <= y_worker.s);
+    if(x_worker.s == y_worker.s)
+    {
+        assert(x_worker.us <= y_worker.us);
+    }
+
+    if(x_worker.us > y_worker.us)
+    {
+        assert(x_worker.s < y_worker.s);
+        y_worker.us = y_worker.us + us_per_s;
+        y_worker.s = y_worker.s - 1;
+    }
+
+    assert(x_worker.s <= y_worker.s);
+    assert(x_worker.us <= y_worker.us);
+
+    //Calculate the difference
+    diff.s = y_worker.s - x_worker.s;
+    diff.us = y_worker.us - x_worker.us;
+
+    rv = (diff.us / us_per_ms) + (diff.s * ms_per_s);
+
+    return rv;
+}
+
+/**
+ * @brief worker task function for the timed sem wait
+ * @param data
+ */
+static void *timed_worker(void *data)
+{
+    struct simply_thread_timout_worker_data_s *typed;
+    struct timeval start;
+    struct timeval current;
+    unsigned int c_ms = 0;
+    static const unsigned int sleep_time = ST_NS_PER_MS;
+    typed = data;
+    assert(NULL != typed);
+    gettimeofday(&start, NULL);
+    while(typed->cont == true)
+    {
+        simply_thread_sleep_ns(sleep_time);
+        gettimeofday(&current, NULL);
+        c_ms = time_diff(&start, &current);
+        if(c_ms > typed->timeout_ms)
+        {
+            ST_LOG_ERROR("Sem Wait Timed out\r\n");
+            typed->timed_out = true;
+            typed->cont = false;
+            assert(0 == simply_thread_sem_post(typed->sem));
+        }
+    }
+    return NULL;
+}
+
+/**
+ * @brief blocking semaphore wait with a timeout
+ * @param sem
+ * @param ms The max number of ms to wait for
+ * @return o on success
+ */
+int simply_thread_sem_timed_wait(simply_thread_sem_t *sem, unsigned int ms)
+{
+    struct simply_thread_timout_worker_data_s *worker_data;
+    pthread_t local_thread;
+    int rv;
+
+    assert(NULL != sem);
+    assert(NULL != sem->sem);
+    assert(0 < ms);
+
+    worker_data = malloc(sizeof(struct simply_thread_timout_worker_data_s));
+    assert(NULL != worker_data);
+    worker_data->timeout_ms = ms;
+    worker_data->cont = true;
+    worker_data->timed_out = false;
+    worker_data->sem = sem;
+
+    assert(0 == pthread_create(&local_thread, NULL, timed_worker, worker_data));
+    while(0 != simply_thread_sem_wait(sem)) {}
+    if(true == worker_data->cont)
+    {
+        worker_data->cont = false;
+    }
+    pthread_join(local_thread, NULL);
+    rv = -1;
+    if(false == worker_data->timed_out)
+    {
+        rv = 0;
+    }
+    worker_data->sem = NULL;
+    free(worker_data);
+    return rv;
+}
+
+/**
+ * @brief Function that fetches the filename of the semaphore
+ * @param sem pointer to the file name
+ * @return
+ */
+const char *simply_thread_sem_get_filename(simply_thread_sem_t *sem)
+{
+    struct simply_thread_sem_list_element_s *typed;
+    const char *rv;
+
+    assert(sem != NULL);
+    assert(sem->data != NULL);
+    assert(sem->sem != NULL);
+
+    typed = sem->data;
+    rv = NULL;
+
+    rv = typed->sem_name;
+
+    return rv;
 }

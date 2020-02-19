@@ -42,10 +42,6 @@
 
 #define MM_DEBUG_MESSAGE(...) MM_PRINT_MSG("%s: %s", __FUNCTION__, __VA_ARGS__)
 
-#ifndef ST_NS_PER_MS
-#define ST_NS_PER_MS 1E6
-#endif //ST_NS_PER_MS
-
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
@@ -171,10 +167,14 @@ static void m_usr1_catch(int signo)
 {
     struct simply_thread_task_s *ptr_task;
     bool wait_required;
+    fifo_mutex_entry_t m_entry;
     bool keep_going = true;
     int rv;
     int error_val;
     assert(SIGUSR1 == signo);
+
+    m_entry = fifo_mutex_pull();
+
     MUTEX_GET();
     wait_required = false;
     ptr_task = simply_thread_get_ex_task();
@@ -211,6 +211,13 @@ static void m_usr1_catch(int signo)
     {
         m_task_wait_running(ptr_task);
     }
+
+    if(NULL != m_entry)
+    {
+        MUTEX_GET();
+        fifo_mutex_push(m_entry);
+        MUTEX_RELEASE();
+    }
 }
 
 /**
@@ -219,10 +226,17 @@ static void m_usr1_catch(int signo)
  */
 static void m_usr2_catch(int signo)
 {
+    fifo_mutex_entry_t m_entry;
     struct simply_thread_task_s *ptr_task;
     assert(SIGUSR2 == signo);
+    m_entry = fifo_mutex_pull();
+
     MUTEX_GET();
     ptr_task = simply_thread_get_ex_task();
+    if(NULL != m_entry)
+    {
+        fifo_mutex_push(m_entry);
+    }
     MUTEX_RELEASE();
     assert(NULL != ptr_task);
     PRINT_MSG("\tForce Closing %s\r\n", ptr_task->name);
@@ -269,6 +283,7 @@ static void m_intern_cleanup(void)
         {
             if(NULL != m_module_data.tcb_list[i].name)
             {
+                fifo_mutex_prep_signal();
                 assert(0 == pthread_kill(m_module_data.tcb_list[i].thread, SIGUSR2));
                 MUTEX_RELEASE();
                 pthread_join(m_module_data.tcb_list[i].thread, NULL);
@@ -318,7 +333,7 @@ static void m_sleep_maint(void)
                     {
                         if(SIMPLY_THREAD_TASK_SUSPENDED == m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state)
                         {
-                            PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust);
+                            PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->name);
                             simply_thread_set_task_state_from_locked(m_module_data.sleep.sleep_list[i].sleep_data.task_adjust, SIMPLY_THREAD_TASK_READY);
                             assert(true == simply_thread_master_mutex_locked()); //We must be locked
                         }
@@ -427,7 +442,6 @@ simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_ta
     //wait for the task to start
     while(false == ptr_task->started)
     {
-        simply_thread_sleep_ns(10);
     }
     simply_thread_set_task_state_from_locked(ptr_task, SIMPLY_THREAD_TASK_READY);
     MUTEX_RELEASE();
