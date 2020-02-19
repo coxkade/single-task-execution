@@ -20,18 +20,30 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
-// #define DEBUG_TESTS
-
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) printf(__VA_ARGS__)
 #define PRINT_TASK_STATE() simply_thread_print_tcb()
+#ifndef USE_SPIN_ASSERT
+#define USE_SPIN_ASSERT
+#endif //USE_SPIN_ASSERT
 #else
 #define PRINT_MSG(...)
 #define PRINT_TASK_STATE()
 #endif //DEBUG_TESTS
+
+//Macro to help debug asserts
+#ifdef USE_SPIN_ASSERT
+#define LOCAL_ASSERT(...) \
+    if(true != (__VA_ARGS__)){\
+        printf("Assert Line: %i\r\n", __LINE__);\
+        while(1){}}
+#else
+#define LOCAL_ASSERT(...) assert(__VA_ARGS__)
+#endif //USE_SPIN_ASSERT
+
 
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
@@ -145,7 +157,7 @@ static void task_non_null_data_test(void **state)
     test_task = simply_thread_new_thread("DataTask", thread_three_worker, 1, &test_val, sizeof(test_val));
     assert_true(NULL != test_task);
 
-    simply_thread_sleep_ms(1000);
+    simply_thread_sleep_ms(2000);
     assert_true(task_non_null_data_test_continue);
     simply_thread_cleanup();
 }
@@ -317,7 +329,7 @@ static void mutex_test(void **state)
     PRINT_MSG("\tCreating TASK2 to run mutex_worker_2_task\r\n");
     task_two = simply_thread_new_thread("TASK2", mutex_worker_2_task, 3, &mutex_handle, sizeof(mutex_handle));
     PRINT_MSG("\tCreating TASK3 to run mutex_worker_3_task\r\n");
-    assert(NULL != simply_thread_new_thread("TASK3", mutex_worker_3_task, 4, NULL, 0));
+    LOCAL_ASSERT(NULL != simply_thread_new_thread("TASK3", mutex_worker_3_task, 4, NULL, 0));
     PRINT_MSG("\tVerifying simply_thread_mutex_lock(mutex_handle, 0xFFFFFFFF) fails\r\n");
     assert_false(simply_thread_mutex_lock(mutex_handle, 0xFFFFFFFF));
     simply_thread_sleep_ms(100);
@@ -335,8 +347,8 @@ static void mutex_test(void **state)
     PRINT_MSG("\t%s Letting tasks run\r\n", __FUNCTION__);
     simply_thread_sleep_ms(650);
     PRINT_MSG("\t%s Checking that the tasks ran\r\n", __FUNCTION__);
-    assert(true == thread_one_ran);
-    assert(true == thread_two_ran);
+    LOCAL_ASSERT(true == thread_one_ran);
+    LOCAL_ASSERT(true == thread_two_ran);
     PRINT_MSG("\tStopping the Library");
     simply_thread_cleanup();
 }
@@ -362,14 +374,14 @@ static void first_queue_task(void *data, uint16_t data_size)
     unsigned int val = 1;
     //Test the timeout condition
     PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 0);
-    assert(false == simply_thread_queue_send(queue_handles[0], &val, 15));
+    LOCAL_ASSERT(false == simply_thread_queue_send(queue_handles[0], &val, 15));
     PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 1);
-    assert(true == simply_thread_queue_rcv(queue_handles[1], &val, 1000));
+    LOCAL_ASSERT(true == simply_thread_queue_rcv(queue_handles[1], &val, 1000));
     PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
     PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 0);
     assert_true(simply_thread_queue_rcv(queue_handles[0], &val, 500));
     PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
-    assert(7 == val);
+    LOCAL_ASSERT(7 == val);
     while(1)
     {
         thread_one_ran = true;
@@ -431,7 +443,7 @@ static void queue_test(void **state)
     val = 6;
     simply_thread_sleep_ms(100);
     PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
-    assert(true == simply_thread_queue_send(queue_handles[1], &val, 0));
+    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[1], &val, 0));
     PRINT_MSG("Waiting for Cleanup\r\n");
     simply_thread_sleep_ms(2000);
     PRINT_MSG("%s shutting down test\r\n", __FUNCTION__);
