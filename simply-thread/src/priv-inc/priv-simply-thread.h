@@ -129,4 +129,13 @@ void simply_thread_release_master_mutex(void);
  */
 bool simply_thread_master_mutex_locked(void);
 
+/**
+ * @brief Internal implementation of snprintf
+ * @param s The too buffer
+ * @param n the max size of the buffer
+ * @param format The format of the string
+ * @return The size of the string
+ */
+int simply_thread_snprintf(char *s, size_t n, const char *format, ...);
+
 #endif /* PRIV_SIMPLY_THREAD_H_ */

@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <sys/time.h>
+#include <stdarg.h>
 
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_MAGENTA, __VA_ARGS__)
@@ -297,6 +298,9 @@ static void m_intern_cleanup(void)
     }
     m_module_data.cleaning_up = false;
     first_time = false;
+    MUTEX_RELEASE();
+    fifo_mutex_reset();
+    MUTEX_GET();
 }
 
 /**
@@ -353,7 +357,6 @@ void simply_thread_reset(void)
 {
     ROOT_PRINT("%s\r\n", __FUNCTION__);
     simply_thread_ll_test();
-    fifo_mutex_reset();
     MUTEX_GET();
     if(false == m_module_data.signals_initialized)
     {
@@ -855,4 +858,35 @@ void simply_thread_print_tcb(void)
         }
     }
     MUTEX_RELEASE();
+}
+
+/**
+ * @brief Internal implementation of snprintf
+ * @param s The too buffer
+ * @param n the max size of the buffer
+ * @param format The format of the string
+ * @return The size of the string
+ */
+int simply_thread_snprintf(char *s, size_t n, const char *format, ...)
+{
+    va_list argList;
+    va_list worker;
+
+    assert(NULL != s);
+    assert(0 < n);
+
+    int rv = -1;
+
+    va_start(argList, format);
+
+    va_copy(worker, argList);
+    assert(n >= vsnprintf(NULL, 0, format, worker));
+    va_end(worker);
+
+    va_copy(worker, argList);
+    rv = vsnprintf(s, n, format, worker);
+    va_end(worker);
+
+    va_end(argList);
+    return rv;
 }
