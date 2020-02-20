@@ -23,7 +23,6 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
-
 #ifndef MAX_SEM_NAME_SIZE
 #define MAX_SEM_NAME_SIZE 50
 #endif //MAX_SEM_NAME_SIZE
@@ -139,13 +138,13 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
 {
     static const int max_sem_count = 1000;
     static int sem_count = 0; //!< Variable that deals with the semaphore count
-    const char *base_string = "simply_thread_semaphore_";
+    static const char *base_string = "simply_thread_semaphore_";
     char name[MAX_SEM_NAME_SIZE];
     assert(NULL != sem);
     do
     {
         assert(MAX_SEM_NUMBER > sem_count);
-        snprintf(name, MAX_SEM_NAME_SIZE, "%s%i", base_string, sem_count);
+        simply_thread_snprintf(name, MAX_SEM_NAME_SIZE, "%s%i", base_string, sem_count);
         sem->sem = sem_open((const char *)name, O_CREAT | O_EXCL, 0700, 1);
         if(SEM_FAILED == sem->sem)
         {
@@ -178,7 +177,7 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
         }
     }
     while(SEM_FAILED == sem->sem);
-    PRINT_MSG("Created semaphore: %s\r\n", name);
+    PRINT_MSG("Created semaphore: %p %s\r\n", sem->sem, name);
     simply_thread_sem_register(name, sem);
 }
 
@@ -199,7 +198,7 @@ void simply_thread_sem_destroy(simply_thread_sem_t *sem)
         assert(false);
     }
     unlink_sem_by_name(typed->sem_name);
-    PRINT_MSG("Closed %s\r\n", typed->sem_name);
+    PRINT_MSG("Closed: %p %s\r\n", sem->sem, typed->sem_name);
     memcpy(typed->sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE);
 }
 
@@ -263,14 +262,19 @@ int simply_thread_sem_trywait(simply_thread_sem_t *sem)
 int simply_thread_sem_post(simply_thread_sem_t *sem)
 {
     int rv;
+    int errorval;
     assert(NULL != sem);
     assert(NULL != sem->sem);
     PRINT_MSG("%X Posting to 0x%04X %s\r\n", pthread_self(), sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
     do
     {
         rv = sem_post(sem->sem);
-        assert(EOVERFLOW != errno);
-        assert(EINVAL != errno);
+        if(0 != rv)
+        {
+            errorval = errno;
+            assert(EOVERFLOW != errorval);
+            assert(EINVAL != errorval);
+        }
     }
     while(0 != rv);
 
