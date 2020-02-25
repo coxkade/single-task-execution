@@ -66,10 +66,6 @@
  */
 void m_simply_thread_sleep_ms(unsigned long ms);
 
-/**
- * @brief sleep maintenance function
- */
-static void m_sleep_maint(void);
 
 
 /***********************************************************************************/
@@ -99,8 +95,6 @@ static struct simply_thread_lib_data_s m_module_data =
 static void m_maint_timer(simply_thread_timer_t timer_handle)
 {
     MUTEX_GET();
-    //Run the sleep maintenance
-    m_sleep_maint();
     //trigger the mutex maintenance
     simply_thread_mutex_maint();
     //trigger the queue maintenance
@@ -303,52 +297,6 @@ static void m_intern_cleanup(void)
     MUTEX_GET();
 }
 
-/**
- * @brief sleep maintenance function
- */
-static void m_sleep_maint(void)
-{
-    bool timeout;
-    bool task_ready = false;
-    task_ready = false;
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    //Increment all of the sleeping task counts
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
-    {
-        if(true == m_module_data.sleep.sleep_list[i].in_use)
-        {
-            m_module_data.sleep.sleep_list[i].sleep_data.current_ms++;
-            if(m_module_data.sleep.sleep_list[i].sleep_data.current_ms >= m_module_data.sleep.sleep_list[i].sleep_data.ms)
-            {
-                task_ready = true;
-            }
-        }
-    }
-    if(true == task_ready)
-    {
-        do
-        {
-            timeout = false;
-            for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
-            {
-                if(true == m_module_data.sleep.sleep_list[i].in_use)
-                {
-                    if(m_module_data.sleep.sleep_list[i].sleep_data.current_ms >= m_module_data.sleep.sleep_list[i].sleep_data.ms)
-                    {
-                        if(SIMPLY_THREAD_TASK_SUSPENDED == m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state)
-                        {
-                            PRINT_MSG("\tTask %s Ready From Timer\r\n",  m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->name);
-                            simply_thread_set_task_state_from_locked(m_module_data.sleep.sleep_list[i].sleep_data.task_adjust, SIMPLY_THREAD_TASK_READY);
-                            assert(true == simply_thread_master_mutex_locked()); //We must be locked
-                        }
-                    }
-                }
-            }
-        }
-        while(true == timeout);
-    }
-}
-
 
 /**
  * Function that resets the simply thread library.  Closes all existing created threads
@@ -488,7 +436,46 @@ void m_simply_thread_sleep_ms(unsigned long ms)
     }
 }
 
+/**
+ * Sleep Task Worker Function
+ * @param arg
+ */
+static void *sleep_thread_start_maint(void *arg)
+{
+    unsigned int *i_ptr;
+    unsigned int i;
+    struct simply_thread_task_s *task;
 
+    i_ptr = arg;
+    assert(NULL != i_ptr);
+    i = i_ptr[0];
+    free(i_ptr);
+    assert(true == m_module_data.sleep.sleep_list[i].in_use);
+    while(true == m_module_data.sleep.sleep_list[i].in_use)
+    {
+        simply_thread_sleep_ns(ST_NS_PER_MS);
+        m_module_data.sleep.sleep_list[i].sleep_data.current_ms++;
+        if(m_module_data.sleep.sleep_list[i].sleep_data.current_ms >= m_module_data.sleep.sleep_list[i].sleep_data.ms)
+        {
+            MUTEX_GET();
+            task = m_module_data.sleep.sleep_list[i].sleep_data.task_adjust;
+            // m_module_data.sleep.sleep_list[i].in_use = false;
+            // m_module_data.sleep.sleep_list[i].sleep_data.task_adjust = NULL;
+            if(SIMPLY_THREAD_TASK_SUSPENDED == task->state)
+            {
+                struct simply_thread_scheduler_data_s sched_data;
+                // simply_thread_set_task_state_from_locked(task, SIMPLY_THREAD_TASK_READY);
+                task->state = SIMPLY_THREAD_TASK_READY;
+                sched_data.sleeprequired = true;
+                MUTEX_RELEASE();
+                simply_thread_run(&sched_data);
+                return NULL;
+            }
+            MUTEX_RELEASE();
+        }
+    }
+    return NULL;
+}
 
 /**
  * @brief Function that sleeps for the specified number of milliseconds
@@ -500,6 +487,7 @@ void simply_thread_sleep_ms(unsigned long ms)
     struct simply_thread_task_s *ptr_task;
     bool index_found;
     unsigned int index = 500;
+    unsigned int *i_ptr;
     MUTEX_GET();
     ptr_task = simply_thread_get_ex_task();
     if(NULL == ptr_task)
@@ -517,12 +505,17 @@ void simply_thread_sleep_ms(unsigned long ms)
         {
             if(false == m_module_data.sleep.sleep_list[i].in_use)
             {
+                pthread_t w_thread;
                 index_found = true;
                 m_module_data.sleep.sleep_list[i].sleep_data.current_ms = 0;
                 m_module_data.sleep.sleep_list[i].sleep_data.ms = ms;
                 m_module_data.sleep.sleep_list[i].sleep_data.task_adjust = ptr_task;
                 m_module_data.sleep.sleep_list[i].in_use = true;
                 index = i;
+                i_ptr = malloc(sizeof(unsigned int));
+                assert(NULL != i_ptr);
+                i_ptr[0] = i;
+                assert(0 == pthread_create(&w_thread, NULL, sleep_thread_start_maint, i_ptr));
             }
         }
         assert(index < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list));

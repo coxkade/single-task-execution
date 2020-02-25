@@ -345,8 +345,9 @@ static void mutex_test(void **state)
     assert_true(NULL != task_one);
     assert_true(NULL != task_two);
     PRINT_MSG("\t%s Letting tasks run\r\n", __FUNCTION__);
-    simply_thread_sleep_ms(650);
     PRINT_MSG("\t%s Checking that the tasks ran\r\n", __FUNCTION__);
+    while(false == thread_two_ran) {}
+    while(false == thread_one_ran) {}
     LOCAL_ASSERT(true == thread_one_ran);
     LOCAL_ASSERT(true == thread_two_ran);
     PRINT_MSG("\tStopping the Library");
