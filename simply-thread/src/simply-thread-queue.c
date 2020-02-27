@@ -9,6 +9,7 @@
 #include <simply-thread-queue.h>
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
+#include <simply-thread-scheduler.h>
 #include <simply-thread.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -87,6 +88,12 @@ struct simply_thread_queue_module_data_s
     } block_list[SIMPLE_THREAD_MAX_QUEUE];
 }; //!<structure that holds the data local to the module
 
+struct worker_funct_dat_s
+{
+    unsigned int index;
+    bool control;
+};
+
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
 /***********************************************************************************/
@@ -152,39 +159,6 @@ void simply_thread_queue_cleanup(void)
         m_queue_data.block_list[i].current_count = 0;
         m_queue_data.block_list[i].max_count = 0xFFFFFFFF;
         m_queue_data.block_list[i].task = NULL;
-    }
-}
-
-/**
- * @brief function the systic needs to call
- */
-void simply_thread_queue_maint(void)
-{
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_queue_data.block_list); i++)
-    {
-        if(true == m_queue_data.block_list[i].in_use)
-        {
-            m_queue_data.block_list[i].current_count++;
-        }
-    }
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_queue_data.block_list); i++)
-    {
-        if(true == m_queue_data.block_list[i].in_use)
-        {
-            assert(NULL != m_queue_data.block_list[i].task);
-            if(m_queue_data.block_list[i].current_count >= m_queue_data.block_list[i].max_count)
-            {
-                PRINT_MSG("\ttask: %p\r\n", m_queue_data.block_list[i].task);
-                PRINT_MSG("\t%s %s timed out\r\n", __FUNCTION__, m_queue_data.block_list[i].task->name);
-                if(SIMPLY_THREAD_TASK_BLOCKED == m_queue_data.block_list[i].task->state)
-                {
-                    m_queue_data.block_list[i].result = false;
-                    simply_thread_set_task_state_from_locked(m_queue_data.block_list[i].task, SIMPLY_THREAD_TASK_READY);
-                    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-                }
-            }
-        }
     }
 }
 
@@ -307,6 +281,47 @@ static void simply_thread_add_task_to_queue_blocklist(struct simply_thread_queue
     assert(true == added);
 }
 
+void *queue_maint_func(void *arg)
+{
+    unsigned int i;
+    struct worker_funct_dat_s *d_ptr;
+    bool check_val;
+    struct simply_thread_scheduler_data_s sched_data;
+    d_ptr = arg;
+    assert(NULL != d_ptr);
+    struct simply_thread_task_s *task;
+    i = d_ptr->index;
+    check_val = m_queue_data.block_list[i].in_use;
+    assert(true == check_val);
+    task = m_queue_data.block_list[i].task;
+    assert(NULL != task);
+    while(true == m_queue_data.block_list[i].in_use && true == d_ptr->control)
+    {
+        simply_thread_sleep_ns(ST_NS_PER_MS);
+        if(d_ptr->control == false)
+        {
+            return NULL;
+        }
+        m_queue_data.block_list[i].current_count++;
+        assert(NULL != task);
+        if(m_queue_data.block_list[i].current_count >= m_queue_data.block_list[i].max_count)
+        {
+            MUTEX_GET();
+            if(SIMPLY_THREAD_TASK_BLOCKED == task->state && true == d_ptr->control)
+            {
+                m_queue_data.block_list[i].result = false;
+                task->state = SIMPLY_THREAD_TASK_READY;
+                sched_data.sleeprequired = true;
+                MUTEX_RELEASE();
+                simply_thread_run(&sched_data);
+                return NULL;
+            }
+            MUTEX_RELEASE();
+        }
+    }
+    return NULL;
+}
+
 /**
  * @brief Function that adds blocked task to the maint block list
  * @param task the task to add
@@ -381,6 +396,8 @@ static bool simply_thread_queue_lockdown(struct simply_thread_queue_data_s *queu
         enum simply_thread_block_reason_e reason)
 {
     bool rv;
+    struct worker_funct_dat_s *d_ptr;
+    pthread_t w_thread;
     unsigned int index_used = 0xFFFFFFFF;
     assert(true == simply_thread_master_mutex_locked()); //We must be locked
     assert(NULL != queue);
@@ -400,12 +417,20 @@ static bool simply_thread_queue_lockdown(struct simply_thread_queue_data_s *queu
     simply_thread_assert_task_not_blocked(task, queue);
     simply_thread_add_task_to_queue_blocklist(queue, task, reason);
     index_used = simply_thread_add_task_to_maint_block_list(task, block_time);
+    d_ptr = malloc(sizeof(struct worker_funct_dat_s));
+    assert(NULL != d_ptr);
+    d_ptr->control = true;
+    d_ptr->index = index_used;
     PRINT_MSG("\t%s task %s waiting %p\r\n", __FUNCTION__, task->name, task);
+    assert(0 == pthread_create(&w_thread, NULL, queue_maint_func, d_ptr));
     simply_thread_set_task_state_from_locked(task, SIMPLY_THREAD_TASK_BLOCKED);
+    rv = m_queue_data.block_list[index_used].result;
+    d_ptr->control = false;
+    pthread_join(w_thread, NULL);
     PRINT_MSG("\t%s task %s finished waiting \r\n", __FUNCTION__, task->name);
     assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    rv = m_queue_data.block_list[index_used].result;
     simply_thread_queue_block_cleanup(queue, task, index_used);
+    free(d_ptr);
     return rv;
 }
 

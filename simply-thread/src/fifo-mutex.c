@@ -67,6 +67,7 @@ struct fifo_mutex_module_data_s
     bool locked;  //!< Tells if we are currently locked
     bool last_run_synced; //!< Debug Value that tells it the last release used a sync
     bool release_in_progress; //!< Debug value that tells if a release is in progress
+    bool mutex_prepped; //!< Tells if the mutex is prepped
 }; //!< Structure for holding the modules local data
 
 struct push_pull_data_s
@@ -93,7 +94,8 @@ static struct fifo_mutex_module_data_s fifo_module_data =
     .init_mutex = PTHREAD_MUTEX_INITIALIZER,
     .initialized = false,
     .last_run_synced = false,
-    .release_in_progress = false
+    .release_in_progress = false,
+    .mutex_prepped = false
 }; //!<Variable that holds the modules local data
 
 /***********************************************************************************/
@@ -224,7 +226,13 @@ static void check_ticket_entry(int ind)
  */
 static void ticket_counter_shift(void)
 {
-    assert(EAGAIN == simply_thread_sem_trywait(&fifo_module_data.ticket_semaphore));
+    int returned;
+    returned = simply_thread_sem_trywait(&fifo_module_data.ticket_semaphore);
+    if(EAGAIN != returned)
+    {
+        ST_LOG_ERROR("simply_thread_sem_trywait returned %i\r\n", returned);
+        assert(EAGAIN == returned);
+    }
     for(int i = 1; i < ARRAY_MAX_COUNT(fifo_module_data.ticket_table); i++)
     {
         check_ticket_entry(i);
@@ -301,11 +309,20 @@ static void fifo_mutex_wait_turn(struct ticket_entry_s *entry)
 void fifo_mutex_release(void)
 {
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    assert(true == fifo_module_data.locked);
     m_init_master_semaphore();
+    assert(true == fifo_module_data.locked);
+    // if(true == fifo_module_data.mutex_prepped)
+    // {
+    //  SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
+    //  return;
+    // }
+    assert(true == fifo_module_data.locked);
     assert(false == fifo_module_data.release_in_progress);
     fifo_module_data.release_in_progress = true;
-    SEM_BLOCK(fifo_module_data.ticket_semaphore);
+    if(false == fifo_module_data.mutex_prepped)
+    {
+        SEM_BLOCK(fifo_module_data.ticket_semaphore);
+    }
     assert(true == fifo_module_data.locked);
     PRINT_MSG("++++++%s has ticket semaphore\r\n", __FUNCTION__);
     fifo_module_data.locked = false;
@@ -359,12 +376,18 @@ bool fifo_mutex_locked(void)
 {
     bool rv = true;
     m_init_master_semaphore();
-    SEM_BLOCK(fifo_module_data.ticket_semaphore);
-    PRINT_MSG("++++++%s has ticket semaphore\r\n", __FUNCTION__);
-    rv = fifo_module_data.locked;
-    PRINT_MSG("------%s releasing ticket semaphore\r\n", __FUNCTION__);
-    SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
-    assert(true == rv);
+    if(false == fifo_module_data.mutex_prepped)
+    {
+        SEM_BLOCK(fifo_module_data.ticket_semaphore);
+        PRINT_MSG("++++++%s has ticket semaphore\r\n", __FUNCTION__);
+        rv = fifo_module_data.locked;
+        PRINT_MSG("------%s releasing ticket semaphore\r\n", __FUNCTION__);
+        SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
+    }
+    else
+    {
+        rv = fifo_module_data.locked;
+    }
     return rv;
 }
 
@@ -375,7 +398,9 @@ static inline void fifo_mutex_wait_clear(void)
 {
     unsigned int used_count;
 
+    PRINT_MSG("Waiting for clear\r\n");
     SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
+    PRINT_MSG("Got ticket semaphore\r\n");
     do
     {
         used_count = 0;
@@ -384,6 +409,15 @@ static inline void fifo_mutex_wait_clear(void)
         {
             if(NULL != fifo_module_data.ticket_table[i].ticket)
             {
+                if(fifo_module_data.ticket_table[i].id != pthread_self())
+                {
+                    PRINT_MSG("killing thread\r\n");
+                    pthread_kill(fifo_module_data.ticket_table[i].id, SIGUSR2);
+                    PRINT_MSG("Joining thread\r\n");
+                    pthread_join(fifo_module_data.ticket_table[i].id, NULL);
+                    PRINT_MSG("joined\r\n");
+                }
+                fifo_module_data.ticket_table[i].ticket = NULL;
                 used_count++;
             }
         }
@@ -400,16 +434,31 @@ static inline void fifo_mutex_wait_clear(void)
  */
 void fifo_mutex_reset(void)
 {
+    int test;
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     if(true == fifo_module_data.initialized)
     {
         fifo_mutex_wait_clear();
     }
     assert(0 == pthread_mutex_lock(&fifo_module_data.init_mutex));
+    PRINT_MSG("\tGot the init mutex\r\n");
     if(true == fifo_module_data.initialized)
     {
+        test = simply_thread_sem_trywait(&fifo_module_data.ticket_semaphore);
+        PRINT_MSG("\tTrywait returned: %i\r\n", test);
+        if(EAGAIN != test)
+        {
+            assert(0 == test);
+        }
+        else
+        {
+            simply_thread_sem_post(&fifo_module_data.ticket_semaphore);
+        }
+        PRINT_MSG("\tdestroying fifo_module_data.ticket_semaphore\r\n");
         simply_thread_sem_destroy(&fifo_module_data.ticket_semaphore);
+        PRINT_MSG("\tdestroying fifo_module_data.sync_semaphore_get\r\n");
         simply_thread_sem_destroy(&fifo_module_data.sync_semaphore_get);
+        PRINT_MSG("\tdestroying fifo_module_data.sync_semaphore_release\r\n");
         simply_thread_sem_destroy(&fifo_module_data.sync_semaphore_release);
         fifo_module_data.initialized = false;
     }
@@ -440,6 +489,7 @@ static void m_init_master_semaphore(void)
             fifo_module_data.initialized = true;
             fifo_module_data.locked = false;
             fifo_module_data.release_in_progress = false;
+            fifo_module_data.mutex_prepped = false;
         }
         pthread_mutex_unlock(&fifo_module_data.init_mutex);
     }
@@ -481,12 +531,14 @@ static void squash_gaps(void)
 fifo_mutex_entry_t fifo_mutex_pull(void)
 {
     pthread_t id;
+    int check_result;
     struct ticket_entry_s *existing;
     struct push_pull_data_s *save_data;
     save_data = NULL;
     id = pthread_self();
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    assert(EAGAIN == simply_thread_sem_trywait(&fifo_module_data.ticket_semaphore));
+    check_result = simply_thread_sem_trywait(&fifo_module_data.ticket_semaphore);
+    assert(EAGAIN == check_result);
     PRINT_MSG("++++++%s has ticket semaphore\r\n", __FUNCTION__);
     existing = process_entry(id);
     if(NULL != existing)
@@ -555,5 +607,15 @@ void fifo_mutex_prep_signal(void)
 {
     SEM_BLOCK(fifo_module_data.ticket_semaphore);
     PRINT_MSG("++++++%s has ticket semaphore\r\n", __FUNCTION__);
+    fifo_module_data.mutex_prepped = true;
 }
+
+/**
+ * Function That clears the prep flags
+ */
+void fifo_mutex_clear_prep_signal(void)
+{
+    fifo_module_data.mutex_prepped = false;
+}
+
 
