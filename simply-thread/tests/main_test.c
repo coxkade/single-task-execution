@@ -201,11 +201,15 @@ static void timer_test(void **state)
     assert_true(NULL != timer_2);
     simply_thread_sleep_ms(540);
     assert_true(simply_thread_timer_stop(timer_2));
+    if(ST_NS_PER_MS >= 1000)
+    {
+        assert_int_equal(5, timer_2_count);
+    }
     simply_thread_cleanup();
     assert_true(thread_one_ran);
     assert_true(thread_two_ran);
     assert_true(timer_1_ran);
-    assert_int_equal(5, timer_2_count);
+
 }
 
 static void main_timer_tests(void **state)
