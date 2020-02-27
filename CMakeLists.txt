@@ -4,7 +4,7 @@ if(NS_PER_MS)
 	message(STATUS "NS_PER_MS override set to ${NS_PER_MS}")
     set(CMAKE_C_FLAGS -DST_NS_PER_MS=${NS_PER_MS})
 else()
-    set(CMAKE_C_FLAGS -DST_NS_PER_MS=1)
+    set(CMAKE_C_FLAGS -DST_NS_PER_MS=1000)
 endif(NS_PER_MS)
 
 enable_testing ()

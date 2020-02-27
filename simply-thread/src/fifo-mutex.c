@@ -39,8 +39,6 @@
 #define MAX_LIST_SIZE 250
 #endif //MAX_LIST_SIZE
 
-//#define DEBUG_FIFO
-
 #ifdef DEBUG_FIFO
 #define PRINT_MSG(...) simply_thread_log(COLOR_SKY_BLUE, __VA_ARGS__)
 #else

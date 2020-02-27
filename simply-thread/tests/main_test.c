@@ -25,8 +25,7 @@
 
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) printf(__VA_ARGS__)
-#define PRINT_TASK_STATE()
-// #define PRINT_TASK_STATE() simply_thread_print_tcb()
+#define PRINT_TASK_STATE() simply_thread_print_tcb()
 #ifndef USE_SPIN_ASSERT
 #define USE_SPIN_ASSERT
 #endif //USE_SPIN_ASSERT

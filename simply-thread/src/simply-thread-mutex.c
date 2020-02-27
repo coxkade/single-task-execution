@@ -457,6 +457,10 @@ static void simply_thread_add_task_blocked(struct mutex_data_s *mux, struct simp
     assert((task_count + 1) == mutex_get_wait_task_count(mux));
 }
 
+/**
+ * @brief the worker function that causes mutexes to time out
+ * @param arg
+ */
 static void *simply_thread_mutex_timeout_worker(void *arg)
 {
     struct mutex_block_list_service_element_s *typed;
@@ -594,34 +598,3 @@ bool simply_thread_mutex_lock(simply_thread_mutex_t mux, unsigned int wait_time)
     return rv;
 }
 
-///**
-// * @brief function the systic needs to call
-// */
-//void simply_thread_mutex_maint(void)
-//{
-//    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-//    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_mutex_module_data.block_list);  i++)
-//    {
-//        if(true == m_mutex_module_data.block_list[i].in_use)
-//        {
-//            m_mutex_module_data.block_list[i].task_data.current_count++;
-//        }
-//    }
-//    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_mutex_module_data.block_list);  i++)
-//    {
-//        if(true == m_mutex_module_data.block_list[i].in_use)
-//        {
-//            assert(NULL != m_mutex_module_data.block_list[i].task_data.task);
-//            if(m_mutex_module_data.block_list[i].task_data.max_count <= m_mutex_module_data.block_list[i].task_data.current_count)
-//            {
-//                if(SIMPLY_THREAD_TASK_BLOCKED == m_mutex_module_data.block_list[i].task_data.task->state)
-//                {
-//                    PRINT_MSG("%s Mutex Timed out\r\n", m_mutex_module_data.block_list[i].task_data.mutex->name);
-//                    m_mutex_module_data.block_list[i].task_data.result = false;
-//                    simply_thread_set_task_state_from_locked(m_mutex_module_data.block_list[i].task_data.task, SIMPLY_THREAD_TASK_READY);
-//                    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-//                }
-//            }
-//        }
-//    }
-//}
