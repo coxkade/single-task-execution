@@ -44,5 +44,9 @@ void fifo_mutex_push(fifo_mutex_entry_t entry);
  */
 void fifo_mutex_prep_signal(void);
 
+/**
+ * Function That clears the prep flags
+ */
+void fifo_mutex_clear_prep_signal(void);
 
 #endif //#ifndef FIFO_MUTEX_H_

@@ -89,20 +89,6 @@ static struct simply_thread_lib_data_s m_module_data =
 
 
 /**
- * @brief system maintenance timer
- * @param timer_handle
- */
-static void m_maint_timer(simply_thread_timer_t timer_handle)
-{
-    MUTEX_GET();
-    //trigger the mutex maintenance
-    simply_thread_mutex_maint();
-    //trigger the queue maintenance
-    simply_thread_queue_maint();
-    MUTEX_RELEASE();
-}
-
-/**
  * @brief Function that spins until a task is set to the running state
  * @param task
  */
@@ -130,12 +116,10 @@ struct simply_thread_task_s *simply_thread_get_ex_task(void)
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list)  && NULL == rv; i++)
     {
         rv = &m_module_data.tcb_list[i];
-        if(NULL != rv)
+        assert(NULL != rv);
+        if(pthread != rv->thread || NULL == rv->name)
         {
-            if(pthread != rv->thread)
-            {
-                rv = NULL;
-            }
+            rv = NULL;
         }
     }
     return rv;
@@ -221,21 +205,14 @@ static void m_usr1_catch(int signo)
  */
 static void m_usr2_catch(int signo)
 {
-    fifo_mutex_entry_t m_entry;
     struct simply_thread_task_s *ptr_task;
     assert(SIGUSR2 == signo);
-    m_entry = fifo_mutex_pull();
-
-    MUTEX_GET();
     ptr_task = simply_thread_get_ex_task();
-    if(NULL != m_entry)
+    if(NULL != ptr_task)
     {
-        fifo_mutex_push(m_entry);
+        PRINT_MSG("\tForce Closing %s\r\n", ptr_task->name);
+        simply_thread_sem_destroy(&ptr_task->sem);
     }
-    MUTEX_RELEASE();
-    assert(NULL != ptr_task);
-    PRINT_MSG("\tForce Closing %s\r\n", ptr_task->name);
-    simply_thread_sem_destroy(&ptr_task->sem);
     pthread_exit(NULL);
 }
 
@@ -266,10 +243,12 @@ static void m_intern_cleanup(void)
     m_module_data.cleaning_up = true;
     if(false == first_time)
     {
+        //Kill all the running tasks
         MUTEX_RELEASE();
         simply_thread_scheduler_kill();
         simply_thread_timers_destroy();
         MUTEX_GET();
+        fifo_mutex_prep_signal();
         for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
         {
             m_module_data.sleep.sleep_list[i].in_use = false;
@@ -278,23 +257,30 @@ static void m_intern_cleanup(void)
         {
             if(NULL != m_module_data.tcb_list[i].name)
             {
-                fifo_mutex_prep_signal();
+                PRINT_MSG("Killing task %s\r\n", m_module_data.tcb_list[i].name);
                 assert(0 == pthread_kill(m_module_data.tcb_list[i].thread, SIGUSR2));
-                MUTEX_RELEASE();
                 pthread_join(m_module_data.tcb_list[i].thread, NULL);
-                MUTEX_GET();
+                PRINT_MSG("Task %s Killed\r\n", m_module_data.tcb_list[i].name);
                 m_module_data.tcb_list[i].name = NULL;
                 m_module_data.tcb_list[i].state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
             }
         }
+        PRINT_MSG("Starting Mutex Cleanup\r\n");
         simply_thread_mutex_cleanup();
+        PRINT_MSG("Starting Queue Cleanup\r\n");
         simply_thread_queue_cleanup();
+        // MUTEX_RELEASE();
+        PRINT_MSG("Resetting fifo mutex\r\n");
+        fifo_mutex_reset();
+        PRINT_MSG("%s Getting the mutex\r\n", __FUNCTION__);
+        MUTEX_GET();
+        PRINT_MSG("%s Got the Mutex\r\n", __FUNCTION__);
     }
+
+
     m_module_data.cleaning_up = false;
     first_time = false;
-    MUTEX_RELEASE();
-    fifo_mutex_reset();
-    MUTEX_GET();
+    PRINT_MSG("%s Finished\r\n", __FUNCTION__);
 }
 
 
@@ -330,7 +316,6 @@ void simply_thread_reset(void)
         m_module_data.tcb_list[i].state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
     }
     simply_thread_scheduler_init();
-    assert(NULL != simply_thread_create_timer(m_maint_timer, "SYSTEM Timer", 1, SIMPLY_THREAD_TIMER_REPEAT, true));
     MUTEX_RELEASE();
 }
 
@@ -459,12 +444,9 @@ static void *sleep_thread_start_maint(void *arg)
         {
             MUTEX_GET();
             task = m_module_data.sleep.sleep_list[i].sleep_data.task_adjust;
-            // m_module_data.sleep.sleep_list[i].in_use = false;
-            // m_module_data.sleep.sleep_list[i].sleep_data.task_adjust = NULL;
-            if(SIMPLY_THREAD_TASK_SUSPENDED == task->state)
+            if(SIMPLY_THREAD_TASK_SUSPENDED == task->state && true == m_module_data.sleep.sleep_list[i].in_use)
             {
                 struct simply_thread_scheduler_data_s sched_data;
-                // simply_thread_set_task_state_from_locked(task, SIMPLY_THREAD_TASK_READY);
                 task->state = SIMPLY_THREAD_TASK_READY;
                 sched_data.sleeprequired = true;
                 MUTEX_RELEASE();
@@ -488,6 +470,7 @@ void simply_thread_sleep_ms(unsigned long ms)
     bool index_found;
     unsigned int index = 500;
     unsigned int *i_ptr;
+    pthread_t w_thread;
     MUTEX_GET();
     ptr_task = simply_thread_get_ex_task();
     if(NULL == ptr_task)
@@ -505,7 +488,6 @@ void simply_thread_sleep_ms(unsigned long ms)
         {
             if(false == m_module_data.sleep.sleep_list[i].in_use)
             {
-                pthread_t w_thread;
                 index_found = true;
                 m_module_data.sleep.sleep_list[i].sleep_data.current_ms = 0;
                 m_module_data.sleep.sleep_list[i].sleep_data.ms = ms;
@@ -518,6 +500,7 @@ void simply_thread_sleep_ms(unsigned long ms)
                 assert(0 == pthread_create(&w_thread, NULL, sleep_thread_start_maint, i_ptr));
             }
         }
+        assert(true == index_found);
         assert(index < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list));
         simply_thread_set_task_state_from_locked(ptr_task, SIMPLY_THREAD_TASK_SUSPENDED);
         assert(true == m_module_data.sleep.sleep_list[index].in_use);

@@ -192,11 +192,14 @@ void simply_thread_sem_destroy(simply_thread_sem_t *sem)
     assert(NULL != sem->sem);
     typed = sem->data;
     assert(NULL != typed);
+    PRINT_MSG("Closing: %p %s\r\n", sem->sem, typed->sem_name);
+    sem_trywait(sem->sem);
     if(0 != sem_close(sem->sem))
     {
         ST_LOG_ERROR("ERROR! %u Failed to close semaphore %s\r\n", errno, typed->sem_name);
         assert(false);
     }
+    PRINT_MSG("%s Calling unlink_sem_by_name\r\n", __FUNCTION__);
     unlink_sem_by_name(typed->sem_name);
     PRINT_MSG("Closed: %p %s\r\n", sem->sem, typed->sem_name);
     memcpy(typed->sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE);
@@ -222,7 +225,11 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
         {
             ST_LOG_ERROR("Bad File Descriptor: %s\r\n", simply_thread_sem_get_filename(sem));
         }
-        if(EINTR != eval)
+        if(EAGAIN == eval)
+        {
+            ST_LOG_ERROR("Error EAGAIN: %s\r\n", simply_thread_sem_get_filename(sem));
+        }
+        if(EINTR != eval && EAGAIN != eval)
         {
             ST_LOG_ERROR("Unsupported error %u\r\n", eval);
             assert(false);

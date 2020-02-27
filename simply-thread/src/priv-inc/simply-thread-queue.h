@@ -23,9 +23,5 @@ void simply_thread_queue_init(void);
  */
 void simply_thread_queue_cleanup(void);
 
-/**
- * @brief function the systic needs to call
- */
-void simply_thread_queue_maint(void);
 
 #endif /* SIMPLY_THREAD_QUEUE_H_ */

@@ -23,9 +23,5 @@ void simply_thread_mutex_init(void);
  */
 void simply_thread_mutex_cleanup(void);
 
-/**
- * @brief function the systic needs to call
- */
-void simply_thread_mutex_maint(void);
 
 #endif /* SIMPLY_THREAD_MUTEX_H_ */
