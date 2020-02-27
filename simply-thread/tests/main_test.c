@@ -404,18 +404,22 @@ static void first_queue_task(void *data, uint16_t data_size)
 
     unsigned int val = 1;
     //Test the timeout condition
+    tasks_started[0] = true;
     PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 0);
     LOCAL_ASSERT(false == simply_thread_queue_send(queue_handles[0], &val, 15));
     PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 1);
-    LOCAL_ASSERT(true == simply_thread_queue_rcv(queue_handles[1], &val, 1000));
+    LOCAL_ASSERT(true == simply_thread_queue_rcv(queue_handles[1], &val, 0xFFFFFFFF));
     PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
     PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 0);
     assert_true(simply_thread_queue_rcv(queue_handles[0], &val, 500));
     PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
     LOCAL_ASSERT(7 == val);
     val = 1;
-    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[2], &val, 10000));
-    assert_true(simply_thread_queue_rcv(queue_handles[2], &val, 10000));
+    PRINT_MSG("%s sending 2\r\n", __FUNCTION__);
+    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 2);
+    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[2], &val, 0xFFFFFFFF));
+    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 2);
+    assert_true(simply_thread_queue_rcv(queue_handles[2], &val, 0xFFFFFFFF));
     LOCAL_ASSERT(1 == val);
     while(1)
     {
@@ -423,18 +427,22 @@ static void first_queue_task(void *data, uint16_t data_size)
         val = 1;
         PRINT_MSG("%s sending 1\r\n", __FUNCTION__);
         PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
-        assert_true(simply_thread_queue_send(queue_handles[1], &val, 500));
+        assert_true(simply_thread_queue_send(queue_handles[1], &val, 0xFFFFFFFF));
     }
 }
 
 static void second_queue_task(void *data, uint16_t data_size)
 {
     PRINT_MSG("%s Started\r\n", __FUNCTION__);
+    tasks_started[1] = true;
     simply_thread_sleep_ms(300);
     unsigned int val = 2;
 
-    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[2], &val, 10000));
-    assert_true(simply_thread_queue_rcv(queue_handles[2], &val, 10000));
+    PRINT_MSG("%s sending 2\r\n", __FUNCTION__);
+    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 2);
+    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[2], &val, 0xFFFFFFFF));
+    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 2);
+    assert_true(simply_thread_queue_rcv(queue_handles[2], &val, 0xFFFFFFFF));
     LOCAL_ASSERT(2 == val);
     while(1)
     {
@@ -451,6 +459,8 @@ static void queue_test(void **state)
     unsigned int val = 7;
     thread_one_ran = false;
     thread_two_ran = false;
+    tasks_started[0] = false;
+    tasks_started[1] = false;
     simply_thread_reset();
 
     assert_true(NULL == simply_thread_queue_create(NULL, 1, sizeof(unsigned int)));
@@ -482,8 +492,11 @@ static void queue_test(void **state)
 
     assert_true(NULL != simply_thread_new_thread("TASK1", first_queue_task, 4, NULL, 0));
     assert_true(NULL != simply_thread_new_thread("TASK2", second_queue_task, 3, NULL, 0));
+    while(tasks_started[0] == false || tasks_started[1] == false)
+    {
+        simply_thread_sleep_ms(1000);
+    }
     val = 6;
-    simply_thread_sleep_ms(100);
     PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
     LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[1], &val, 0));
     simply_thread_sleep_ms(1000);
@@ -491,7 +504,13 @@ static void queue_test(void **state)
     assert_int_equal(7, val);
     PRINT_MSG("Waiting for Cleanup\r\n");
     simply_thread_sleep_ms(2000);
-    PRINT_MSG("%s shutting down test\r\n", __FUNCTION__);
+    while(false == thread_one_ran)
+    {
+    }
+    while(false == thread_two_ran)
+    {
+    }
+    PRINT_MSG("%s Shutting down test\r\n", __FUNCTION__);
     simply_thread_cleanup();
     assert_true(thread_one_ran);
     assert_true(thread_two_ran);
@@ -521,8 +540,8 @@ int main(void)
         cmocka_unit_test(second_timer_tests),
         cmocka_unit_test(first_mutex_test_tests),
         cmocka_unit_test(second_mutex_test_tests),
-//        cmocka_unit_test(first_queue_test_tests),
-//        cmocka_unit_test(second_queue_test_tests),
+        cmocka_unit_test(first_queue_test_tests),
+        cmocka_unit_test(second_queue_test_tests),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

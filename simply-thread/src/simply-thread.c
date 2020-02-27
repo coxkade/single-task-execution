@@ -116,12 +116,10 @@ struct simply_thread_task_s *simply_thread_get_ex_task(void)
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list)  && NULL == rv; i++)
     {
         rv = &m_module_data.tcb_list[i];
-        if(NULL != rv)
+        assert(NULL != rv);
+        if(pthread != rv->thread || NULL == rv->name)
         {
-            if(pthread != rv->thread)
-            {
-                rv = NULL;
-            }
+            rv = NULL;
         }
     }
     return rv;

@@ -39,6 +39,8 @@
 #define MAX_LIST_SIZE 250
 #endif //MAX_LIST_SIZE
 
+//#define DEBUG_FIFO
+
 #ifdef DEBUG_FIFO
 #define PRINT_MSG(...) simply_thread_log(COLOR_SKY_BLUE, __VA_ARGS__)
 #else
@@ -311,16 +313,11 @@ void fifo_mutex_release(void)
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     m_init_master_semaphore();
     assert(true == fifo_module_data.locked);
-    // if(true == fifo_module_data.mutex_prepped)
-    // {
-    //  SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
-    //  return;
-    // }
-    assert(true == fifo_module_data.locked);
     assert(false == fifo_module_data.release_in_progress);
     fifo_module_data.release_in_progress = true;
     if(false == fifo_module_data.mutex_prepped)
     {
+        PRINT_MSG("******%s Fetching the ticket semaphore\r\n", __FUNCTION__);
         SEM_BLOCK(fifo_module_data.ticket_semaphore);
     }
     assert(true == fifo_module_data.locked);
@@ -345,6 +342,7 @@ void fifo_mutex_release(void)
                       fifo_module_data.ticket_table[0].ticket->sem,
                       simply_thread_sem_get_filename(fifo_module_data.ticket_table[0].ticket));
             SEM_UNBLOCK(fifo_module_data.ticket_table[0].ticket[0]);
+            PRINT_MSG("\t%s Handling sync\r\n", __FUNCTION__);
             SEM_BLOCK(fifo_module_data.sync_semaphore_release);
             SEM_UNBLOCK(fifo_module_data.sync_semaphore_get);
         }

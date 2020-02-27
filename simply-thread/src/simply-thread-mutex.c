@@ -245,8 +245,6 @@ static void simply_thread_mutex_unblock_next_task(struct mutex_data_s *mux)
     run_task = mux->block_list[0].task;
     if(NULL != run_task)
     {
-//        mux->block_list[0].task = NULL;
-//        simply_thread_mutex_list_cleanup(mux);
         simply_thread_remove_task_blocked(mux, run_task);
         assert(mutex_get_wait_task_count(mux) == (waiting_tasks - 1));
         if(SIMPLY_THREAD_TASK_BLOCKED == run_task->state)
