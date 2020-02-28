@@ -248,10 +248,9 @@ static void m_intern_cleanup(void)
 {
     static bool first_time = true;
     m_module_data.cleaning_up = true;
-
+    printf("---- m_intern_cleanup Running\r\n");
     if(false == first_time)
     {
-        printf("---- m_intern_cleanup Running\r\n");
         //Kill all the running tasks
         MUTEX_RELEASE();
         simply_thread_scheduler_kill();
@@ -291,6 +290,7 @@ static void m_intern_cleanup(void)
     m_module_data.cleaning_up = false;
     first_time = false;
     PRINT_MSG("%s Finished\r\n", __FUNCTION__);
+    printf("---- m_intern_cleanup Finishing\r\n");
 }
 
 

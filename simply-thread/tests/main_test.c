@@ -23,6 +23,8 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
+#define DEBUG_TESTS
+
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) printf(__VA_ARGS__)
 #define PRINT_TASK_STATE() simply_thread_print_tcb()
@@ -169,18 +171,22 @@ static void task_non_null_data_test(void **state)
 
 static void first_timer_worker(simply_thread_timer_t timer)
 {
+	PRINT_MSG("%s running\r\n", __FUNCTION__);
     assert_true(timer_1 == timer);
     timer_1_ran = true;
 }
 
 static void second_timer_worker(simply_thread_timer_t timer)
 {
+	PRINT_MSG("%s running\r\n", __FUNCTION__);
     timer_2_count++;
 }
 
 static void timer_test(void **state)
 {
+	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     simply_thread_reset();
+    PRINT_MSG("\tperforming task tests\r\n");
     task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
     task_two = simply_thread_new_thread("TASK2", thread_two_worker, 3, NULL, 0);
 
@@ -189,23 +195,29 @@ static void timer_test(void **state)
     assert_false(simply_thread_task_suspend(NULL));
     assert_false(simply_thread_task_resume(NULL));
 
+    PRINT_MSG("\tCreating timer 1\r\n");
     assert_true(NULL == simply_thread_create_timer(NULL, "Hello", 5, SIMPLY_THREAD_TIMER_ONE_SHOT, true));
     timer_1 = simply_thread_create_timer(first_timer_worker, "Timer One", 100, SIMPLY_THREAD_TIMER_ONE_SHOT, true);
     assert_true(NULL != timer_1);
+    PRINT_MSG("\tTesting timer start and stop\r\n");
     assert_true(simply_thread_timer_stop(timer_1));
     assert_false(simply_thread_timer_start(NULL));
     assert_false(simply_thread_timer_stop(NULL));
     assert_true(simply_thread_timer_start(timer_1));
+    PRINT_MSG("\tCreating timer 2\r\n");
     timer_2 = simply_thread_create_timer(second_timer_worker, "Timer two", 100, SIMPLY_THREAD_TIMER_REPEAT, true);
     assert_true(NULL != timer_2);
+    PRINT_MSG("\tSleeping main test task\r\n");
     simply_thread_sleep_ms(540);
+    PRINT_MSG("\tStopping timer 2\r\n");
     assert_true(simply_thread_timer_stop(timer_2));
+    PRINT_MSG("\tTimer 2 stopped\r\n");
     assert_int_equal(5, timer_2_count);
     simply_thread_cleanup();
     assert_true(thread_one_ran);
     assert_true(thread_two_ran);
     assert_true(timer_1_ran);
-
+    PRINT_MSG("%s finnished\r\n", __FUNCTION__);
 }
 
 static void main_timer_tests(void **state)
@@ -534,10 +546,10 @@ int main(void)
 {
     const struct CMUnitTest tests[] =
     {
-        cmocka_unit_test(task_test_success),
-        cmocka_unit_test(task_non_null_data_test),
-//        cmocka_unit_test(main_timer_tests),
-        // cmocka_unit_test(second_timer_tests),
+//        cmocka_unit_test(task_test_success),
+//        cmocka_unit_test(task_non_null_data_test),
+         cmocka_unit_test(main_timer_tests),
+          cmocka_unit_test(second_timer_tests),
         // cmocka_unit_test(first_mutex_test_tests),
         // cmocka_unit_test(second_mutex_test_tests),
         // cmocka_unit_test(first_queue_test_tests),

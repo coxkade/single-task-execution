@@ -7,6 +7,7 @@
  */
 
 #include <simply_thread_system_clock.h>
+#include <fifo-mutex.h>
 #include <priv-simply-thread.h>
 #include <stdbool.h>
 #include <assert.h>
@@ -105,7 +106,6 @@ static void *sys_clock_worker(void *arg)
         }
     }
     clock_module_data.clock_running = false;
-    printf("%s Exiting\r\n", __FUNCTION__);
     return NULL;
 }
 
@@ -227,4 +227,18 @@ void simply_thead_system_clock_deregister_on_tick(sys_clock_on_tick_handle_t han
     typed->cb = NULL;
     typed->args = NULL;
     clock_module_data.pause_clock = false;
+}
+
+/**
+ * Function that tells if it is safe to interrupt a task.  Must be called from a locked context
+ * @return true if safe.
+ */
+bool simply_thead_system_clock_safe_to_interrupt(void)
+{
+	assert(true == fifo_mutex_locked());
+	if(clock_module_data.pause_clock == true)
+	{
+		return false;
+	}
+	return true;
 }

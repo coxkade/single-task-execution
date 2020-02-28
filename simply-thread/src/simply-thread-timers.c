@@ -10,6 +10,7 @@
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
 #include <simply-thread-linked-list.h>
+#include <simply_thread_system_clock.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
@@ -51,6 +52,8 @@ struct single_timer_data_s
     bool kill; //!< Boolean value to tell the timer to bail
     pthread_t thread; //!< The pthread executing this timer
     simply_thread_timer_t handle; //!< The handle to this timer
+    unsigned int count; //!< The Current timer count
+    simply_thread_sem_t sem; //!< Sync semaphore for the timer
     bool running; //!< Boolean that tells if the timer is running
 };
 
@@ -78,24 +81,22 @@ static struct timer_module_data_s module_data =
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
-
 /**
- * @brief the timer worker for the simply thread timer
+ * @brief the on tick timer worker function
+ * @param handle
+ * @param new_tick
  * @param data
  */
-static void *priv_simply_thread_timer_worker(void *data)
+static void priv_simply_thread_on_tick(sys_clock_on_tick_handle_t handle, uint64_t new_tick, void *data)
 {
-    assert(NULL != data);
-    unsigned int count = 0;
-    simply_thread_timer_cb runner;
-    PRINT_MSG("%s for timer %s starting\r\n", __FUNCTION__, TIMER_DATA(data)->name);
-    while(false == TIMER_DATA(data)->kill)
-    {
-        runner = NULL;
-        assert(0 == pthread_mutex_lock(&TIMER_DATA(data)->timer_mutex));
-        if(true == TIMER_DATA(data)->running)
+	simply_thread_timer_cb runner;
+	if(false == TIMER_DATA(data)->kill)
+	{
+		runner = NULL;
+		assert(0 == pthread_mutex_lock(&TIMER_DATA(data)->timer_mutex));
+		if(true == TIMER_DATA(data)->running)
         {
-            if(count >= TIMER_DATA(data)->period)
+            if(TIMER_DATA(data)->count >= TIMER_DATA(data)->period)
             {
                 runner = TIMER_DATA(data)->callback;
                 if(TIMER_DATA(data)->mode == SIMPLY_THREAD_TIMER_ONE_SHOT)
@@ -105,16 +106,67 @@ static void *priv_simply_thread_timer_worker(void *data)
             }
         }
         assert(0 == pthread_mutex_unlock(&TIMER_DATA(data)->timer_mutex));
-        count++;
+        TIMER_DATA(data)->count++;
         if(NULL != runner)
         {
-            count = 0;
+        	TIMER_DATA(data)->count = 0;
             runner(TIMER_DATA(data)->handle);
         }
-        simply_thread_sleep_ns(ST_NS_PER_MS);
-    }
-    PRINT_MSG("%s for timer %s returning\r\n", __FUNCTION__, TIMER_DATA(data)->name);
-    return NULL;
+	}
+	else
+	{
+		assert(0 == simply_thread_sem_post(&TIMER_DATA(data)->sem));
+	}
+}
+
+/**
+ * @brief the timer worker for the simply thread timer
+ * @param data
+ */
+static void *priv_simply_thread_timer_worker(void *data)
+{
+	TIMER_DATA(data)->count = 0;
+	sys_clock_on_tick_handle_t handle;
+	handle = simply_thead_system_clock_register_on_tick(priv_simply_thread_on_tick, data);
+	simply_thread_sem_init(&TIMER_DATA(data)->sem);
+	assert(0 == simply_thread_sem_trywait(&TIMER_DATA(data)->sem));
+	while(false == TIMER_DATA(data)->kill)
+	{
+		while(0 != simply_thread_sem_wait(&TIMER_DATA(data)->sem)) {};
+	}
+	simply_thead_system_clock_deregister_on_tick(handle);
+	simply_thread_sem_destroy(&TIMER_DATA(data)->sem);
+	return NULL;
+//    assert(NULL != data);
+//    unsigned int count = 0;
+//    simply_thread_timer_cb runner;
+//    PRINT_MSG("%s for timer %s starting\r\n", __FUNCTION__, TIMER_DATA(data)->name);
+//    while(false == TIMER_DATA(data)->kill)
+//    {
+//        runner = NULL;
+//        assert(0 == pthread_mutex_lock(&TIMER_DATA(data)->timer_mutex));
+//        if(true == TIMER_DATA(data)->running)
+//        {
+//            if(count >= TIMER_DATA(data)->period)
+//            {
+//                runner = TIMER_DATA(data)->callback;
+//                if(TIMER_DATA(data)->mode == SIMPLY_THREAD_TIMER_ONE_SHOT)
+//                {
+//                    TIMER_DATA(data)->running = false;
+//                }
+//            }
+//        }
+//        assert(0 == pthread_mutex_unlock(&TIMER_DATA(data)->timer_mutex));
+//        count++;
+//        if(NULL != runner)
+//        {
+//            count = 0;
+//            runner(TIMER_DATA(data)->handle);
+//        }
+//        simply_thread_sleep_ns(ST_NS_PER_MS);
+//    }
+//    PRINT_MSG("%s for timer %s returning\r\n", __FUNCTION__, TIMER_DATA(data)->name);
+//    return NULL;
 }
 
 /**

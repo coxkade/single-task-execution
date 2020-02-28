@@ -7,6 +7,7 @@
  */
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifndef SIMPLY_THREAD_SRC_PRIV_INC_SIMPLY_THREAD_SYSTEM_CLOCK_H_
 #define SIMPLY_THREAD_SRC_PRIV_INC_SIMPLY_THREAD_SYSTEM_CLOCK_H_
@@ -35,5 +36,11 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
  * @param handle the handle to deregister
  */
 void simply_thead_system_clock_deregister_on_tick(sys_clock_on_tick_handle_t handle);
+
+/**
+ * Function that tells if it is safe to interrupt a task.  Must be called from a locked context
+ * @return true if safe.
+ */
+bool simply_thead_system_clock_safe_to_interrupt(void);
 
 #endif /* SIMPLY_THREAD_SRC_PRIV_INC_SIMPLY_THREAD_SYSTEM_CLOCK_H_ */
