@@ -200,10 +200,7 @@ static void timer_test(void **state)
     assert_true(NULL != timer_2);
     simply_thread_sleep_ms(540);
     assert_true(simply_thread_timer_stop(timer_2));
-    if(ST_NS_PER_MS >= 1000)
-    {
-        assert_int_equal(5, timer_2_count);
-    }
+    assert_int_equal(5, timer_2_count);
     simply_thread_cleanup();
     assert_true(thread_one_ran);
     assert_true(thread_two_ran);
@@ -539,12 +536,12 @@ int main(void)
     {
         cmocka_unit_test(task_test_success),
         cmocka_unit_test(task_non_null_data_test),
-        cmocka_unit_test(main_timer_tests),
-        cmocka_unit_test(second_timer_tests),
-        cmocka_unit_test(first_mutex_test_tests),
-        cmocka_unit_test(second_mutex_test_tests),
-        cmocka_unit_test(first_queue_test_tests),
-        cmocka_unit_test(second_queue_test_tests),
+//        cmocka_unit_test(main_timer_tests),
+        // cmocka_unit_test(second_timer_tests),
+        // cmocka_unit_test(first_mutex_test_tests),
+        // cmocka_unit_test(second_mutex_test_tests),
+        // cmocka_unit_test(first_queue_test_tests),
+        // cmocka_unit_test(second_queue_test_tests),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

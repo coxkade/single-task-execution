@@ -60,6 +60,7 @@ struct simply_thread_sleeper_data_s
     struct simply_thread_task_s *task_adjust; //!< The sleeping task
     unsigned int ms; //!< How long the task should sleep
     unsigned int current_ms; //!< How long the task has slept
+    bool finished; //!< Tells if the sleep finished
 }; //!< Structure used by the sleeper task to keep track of how long a task has been asleep
 
 struct simply_thread_sleep_data_s

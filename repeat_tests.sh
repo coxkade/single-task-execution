@@ -9,5 +9,5 @@ make -C build/ -j12 all
 
 make semaphore-clean
 clear
-python3 ~/workspace/Random_Python_Tools/run_ex.py 500 build/simply-thread/simply-thread-test-ex
+python3 ~/workspace/Random_Python_Tools/run_ex.py 1000 build/simply-thread/simply-thread-test-ex
 make semaphore-clean
