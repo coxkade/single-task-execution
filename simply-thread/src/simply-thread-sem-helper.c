@@ -23,6 +23,7 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+
 #ifndef MAX_SEM_NAME_SIZE
 #define MAX_SEM_NAME_SIZE 50
 #endif //MAX_SEM_NAME_SIZE
@@ -232,6 +233,7 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
         if(EINTR != eval && EAGAIN != eval)
         {
             ST_LOG_ERROR("Unsupported error %u\r\n", eval);
+            while(1) {}
             assert(false);
         }
     }
@@ -258,6 +260,7 @@ int simply_thread_sem_trywait(simply_thread_sem_t *sem)
     {
         rv = errno;
     }
+    PRINT_MSG("%s returning %i with sem %s\r\n", __FUNCTION__, rv, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
     return rv;
 }
 

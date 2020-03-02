@@ -6,7 +6,6 @@
  * A single fifo mutex
  */
 
-#include <fifo-mutex.h>
 #include <simply-thread-log.h>
 #include <simply-thread-sem-helper.h>
 #include <pthread.h>
@@ -20,6 +19,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <sys/time.h>
+#include "priv-inc/master-mutex.h"
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -306,7 +306,7 @@ static void fifo_mutex_wait_turn(struct ticket_entry_s *entry)
 /**
  * @brief release the fifo mutex
  */
-void fifo_mutex_release(void)
+void master_mutex_release(void)
 {
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     m_init_master_semaphore();
@@ -354,7 +354,7 @@ void fifo_mutex_release(void)
  * @brief fetch the mutex
  * @return true on success
  */
-bool fifo_mutex_get(void)
+bool master_mutex_get(void)
 {
     struct ticket_entry_s entry;
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
@@ -368,7 +368,7 @@ bool fifo_mutex_get(void)
  * @brief tells if the fifo mutex is locked
  * @return true if the mutex is currently locked
  */
-bool fifo_mutex_locked(void)
+bool master_mutex_locked(void)
 {
     bool rv = true;
     m_init_master_semaphore();
@@ -428,7 +428,7 @@ static inline void fifo_mutex_wait_clear(void)
 /**
  * @brief Reset the fifo mutex module
  */
-void fifo_mutex_reset(void)
+void master_mutex_reset(void)
 {
     int test;
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
@@ -524,7 +524,7 @@ static void squash_gaps(void)
  * Pull the fifo entry off of the fifo queue for the current task
  * @return NULL if entry does not exist.
  */
-fifo_mutex_entry_t fifo_mutex_pull(void)
+master_mutex_entry_t master_mutex_pull(void)
 {
     pthread_t id;
     int check_result;
@@ -553,14 +553,14 @@ fifo_mutex_entry_t fifo_mutex_pull(void)
     PRINT_MSG("------%s releasing ticket semaphore\r\n", __FUNCTION__);
     PRINT_MSG("%s Ending\r\n", __FUNCTION__);
     SEM_UNBLOCK(fifo_module_data.ticket_semaphore);
-    return (fifo_mutex_entry_t)save_data;
+    return (master_mutex_entry_t)save_data;
 }
 
 /**
  * @brief push a previously pulled entry back onto the fifo
  * @param entry
  */
-void fifo_mutex_push(fifo_mutex_entry_t entry)
+void master_mutex_push(master_mutex_entry_t entry)
 {
     pthread_t id;
     struct push_pull_data_s *typed;
@@ -599,7 +599,7 @@ void fifo_mutex_push(fifo_mutex_entry_t entry)
 /**
  * Function that makes the fifo mutex safe to be interrupted
  */
-void fifo_mutex_prep_signal(void)
+void master_mutex_prep_signal(void)
 {
     SEM_BLOCK(fifo_module_data.ticket_semaphore);
     PRINT_MSG("++++++%s has ticket semaphore\r\n", __FUNCTION__);
@@ -609,7 +609,7 @@ void fifo_mutex_prep_signal(void)
 /**
  * Function That clears the prep flags
  */
-void fifo_mutex_clear_prep_signal(void)
+void master_mutex_clear_prep_signal(void)
 {
     fifo_module_data.mutex_prepped = false;
 }

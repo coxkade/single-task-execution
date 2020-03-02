@@ -15,7 +15,6 @@
 #include <simply-thread-timers.h>
 #include <simply-thread-mutex.h>
 #include <simply_thread_system_clock.h>
-#include <fifo-mutex.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
@@ -27,6 +26,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <stdarg.h>
+#include "priv-inc/master-mutex.h"
 
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_MAGENTA, __VA_ARGS__)
@@ -153,13 +153,13 @@ static void m_usr1_catch(int signo)
 {
     struct simply_thread_task_s *ptr_task;
     bool wait_required;
-    fifo_mutex_entry_t m_entry;
+    master_mutex_entry_t m_entry;
     bool keep_going = true;
     int rv;
     int error_val;
     assert(SIGUSR1 == signo);
 
-    m_entry = fifo_mutex_pull();
+    m_entry = master_mutex_pull();
 
     MUTEX_GET();
     wait_required = false;
@@ -201,7 +201,7 @@ static void m_usr1_catch(int signo)
     if(NULL != m_entry)
     {
         MUTEX_GET();
-        fifo_mutex_push(m_entry);
+        master_mutex_push(m_entry);
         MUTEX_RELEASE();
     }
 }
@@ -248,7 +248,7 @@ static void m_intern_cleanup(void)
 {
     static bool first_time = true;
     m_module_data.cleaning_up = true;
-    printf("---- m_intern_cleanup Running\r\n");
+    PRINT_MSG("---- m_intern_cleanup Running\r\n");
     if(false == first_time)
     {
         //Kill all the running tasks
@@ -256,7 +256,8 @@ static void m_intern_cleanup(void)
         simply_thread_scheduler_kill();
         simply_thread_timers_destroy();
         MUTEX_GET();
-        fifo_mutex_prep_signal();
+        simply_thead_system_clock_reset();
+        master_mutex_prep_signal();
         for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
         {
             m_module_data.sleep.sleep_list[i].in_use = false;
@@ -279,7 +280,7 @@ static void m_intern_cleanup(void)
         simply_thread_queue_cleanup();
         // MUTEX_RELEASE();
         PRINT_MSG("Resetting fifo mutex\r\n");
-        fifo_mutex_reset();
+        master_mutex_reset();
         PRINT_MSG("%s Getting the mutex\r\n", __FUNCTION__);
         MUTEX_GET();
         PRINT_MSG("%s Got the Mutex\r\n", __FUNCTION__);
@@ -290,7 +291,7 @@ static void m_intern_cleanup(void)
     m_module_data.cleaning_up = false;
     first_time = false;
     PRINT_MSG("%s Finished\r\n", __FUNCTION__);
-    printf("---- m_intern_cleanup Finishing\r\n");
+    PRINT_MSG("---- m_intern_cleanup Finishing\r\n");
 }
 
 
@@ -851,7 +852,7 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void)
  */
 bool simply_thread_get_master_mutex(void)
 {
-    return fifo_mutex_get();
+    return master_mutex_get();
 }
 
 /**
@@ -859,7 +860,7 @@ bool simply_thread_get_master_mutex(void)
  */
 void simply_thread_release_master_mutex(void)
 {
-    fifo_mutex_release();
+    master_mutex_release();
 }
 
 /**
@@ -868,7 +869,7 @@ void simply_thread_release_master_mutex(void)
  */
 bool simply_thread_master_mutex_locked(void)
 {
-    return fifo_mutex_locked();
+    return master_mutex_locked();
 }
 
 
