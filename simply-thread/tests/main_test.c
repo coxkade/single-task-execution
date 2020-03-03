@@ -11,6 +11,7 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include <simply-thread.h>
+#include <pthread.h>
 #include <unistd.h>
 #include <assert.h>
 #include <string.h>
@@ -536,6 +537,66 @@ static void second_queue_test_tests(void **state)
     queue_test(state);
 }
 
+/*********************************************************************
+ *************** Central Mutex Test Items ****************************
+ ********************************************************************/
+#ifndef CENTRAL_MUTEX_THREAD_COUNT
+#define CENTRAL_MUTEX_THREAD_COUNT 50
+#endif //CENTRAL_MUTEX_THREAD_COUNT
+
+struct cm_thread_data_s
+{
+    bool go;
+    unsigned int count;
+    pthread_t id;
+};
+
+void *central_mutex_worker(void *args)
+{
+    struct cm_thread_data_s *typed;
+    typed = args;
+    assert(NULL != args);
+    while(true == typed->go)
+    {
+        assert(true == master_mutex_get());
+        typed->count++;
+        master_mutex_release();
+    }
+    return NULL;
+}
+
+static void central_mutex_test(void **state)
+{
+    struct cm_thread_data_s task_list[CENTRAL_MUTEX_THREAD_COUNT];
+    unsigned int gate = 0;
+    master_mutex_reset();
+    assert(true == master_mutex_get());
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(task_list); i++)
+    {
+        task_list[i].go = true;
+        task_list[i].count = 0;
+        assert(0 == pthread_create(&task_list[i].id, NULL, central_mutex_worker, &task_list[i]));
+    }
+    master_mutex_release();
+    while(gate < 102)
+    {
+        gate = task_list[CENTRAL_MUTEX_THREAD_COUNT - 1].count;
+    }
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(task_list); i++)
+    {
+        task_list[i].go = false;
+    }
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(task_list); i++)
+    {
+        pthread_join(task_list[i].id, NULL);
+    }
+    master_mutex_reset();
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(task_list); i++)
+    {
+        assert(100 < task_list[i].count);
+    }
+}
+
 /**
  * @brief the main function
  * @return
@@ -544,14 +605,15 @@ int main(void)
 {
     const struct CMUnitTest tests[] =
     {
-        cmocka_unit_test(task_test_success),
-        cmocka_unit_test(task_non_null_data_test),
-        cmocka_unit_test(main_timer_tests),
-        cmocka_unit_test(second_timer_tests),
-        cmocka_unit_test(first_mutex_test_tests),
-        cmocka_unit_test(second_mutex_test_tests),
-        cmocka_unit_test(first_queue_test_tests),
-        cmocka_unit_test(second_queue_test_tests),
+//        cmocka_unit_test(task_test_success),
+//        cmocka_unit_test(task_non_null_data_test),
+//        cmocka_unit_test(main_timer_tests),
+//        cmocka_unit_test(second_timer_tests),
+//        cmocka_unit_test(first_mutex_test_tests),
+//        cmocka_unit_test(second_mutex_test_tests),
+//        cmocka_unit_test(first_queue_test_tests),
+//        cmocka_unit_test(second_queue_test_tests),
+        cmocka_unit_test(central_mutex_test)
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
