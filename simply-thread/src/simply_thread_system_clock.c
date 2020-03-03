@@ -219,11 +219,12 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
  */
 void simply_thead_system_clock_disable_on_tick_from_handler(sys_clock_on_tick_handle_t handle)
 {
-    struct sysclock_on_tick_registry_element_s *typed;
-    typed = handle;
+    struct sysclock_on_tick_registry_element_s worker;
+    assert(NULL != handle);
     assert(true == clock_module_data.clock_running);
-    assert(NULL != typed);
-    typed->enabled = false;
+    memcpy(&worker, handle, sizeof(worker));
+    worker.enabled = false;
+    memcpy(handle, &worker, sizeof(worker));
 }
 
 /**
