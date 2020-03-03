@@ -23,8 +23,6 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-#define DEBUG_TESTS
-
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) printf(__VA_ARGS__)
 #define PRINT_TASK_STATE() simply_thread_print_tcb()
@@ -171,20 +169,20 @@ static void task_non_null_data_test(void **state)
 
 static void first_timer_worker(simply_thread_timer_t timer)
 {
-	PRINT_MSG("%s running\r\n", __FUNCTION__);
+    PRINT_MSG("%s running\r\n", __FUNCTION__);
     assert_true(timer_1 == timer);
     timer_1_ran = true;
 }
 
 static void second_timer_worker(simply_thread_timer_t timer)
 {
-	PRINT_MSG("%s running\r\n", __FUNCTION__);
+    PRINT_MSG("%s running\r\n", __FUNCTION__);
     timer_2_count++;
 }
 
 static void timer_test(void **state)
 {
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     simply_thread_reset();
     PRINT_MSG("\tperforming task tests\r\n");
     task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
@@ -546,14 +544,14 @@ int main(void)
 {
     const struct CMUnitTest tests[] =
     {
-//        cmocka_unit_test(task_test_success),
-//        cmocka_unit_test(task_non_null_data_test),
-         cmocka_unit_test(main_timer_tests),
-          cmocka_unit_test(second_timer_tests),
-        // cmocka_unit_test(first_mutex_test_tests),
-        // cmocka_unit_test(second_mutex_test_tests),
-        // cmocka_unit_test(first_queue_test_tests),
-        // cmocka_unit_test(second_queue_test_tests),
+        cmocka_unit_test(task_test_success),
+        cmocka_unit_test(task_non_null_data_test),
+        cmocka_unit_test(main_timer_tests),
+        cmocka_unit_test(second_timer_tests),
+        cmocka_unit_test(first_mutex_test_tests),
+        cmocka_unit_test(second_mutex_test_tests),
+        cmocka_unit_test(first_queue_test_tests),
+        cmocka_unit_test(second_queue_test_tests),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -41,6 +41,7 @@ struct sysclock_on_tick_registry_element_s
 {
     on_reg_cb cb;
     void *args;
+    bool enabled;
 }; //!< Structure that holds the registry elements.
 
 struct system_clock_data_s
@@ -74,6 +75,9 @@ static struct system_clock_data_s clock_module_data =
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
+/**
+ * @brief function that tells the worker to pause when required
+ */
 static void worker_wait_if_needed(void)
 {
     if(true == clock_module_data.pause_clock)
@@ -105,7 +109,7 @@ static void *sys_clock_worker(void *arg)
             worker_wait_if_needed();
             worker_handle = &clock_module_data.tick_reg[i];
             memcpy(&worker, &clock_module_data.tick_reg[i], sizeof(worker));
-            if(NULL != worker.cb)
+            if(NULL != worker.cb && true == worker.enabled)
             {
                 //Call the callback here
                 worker.cb(worker_handle, clock_module_data.current_ticks, worker.args);
@@ -199,6 +203,7 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
         {
             clock_module_data.tick_reg[i].cb = on_tick;
             clock_module_data.tick_reg[i].args = args;
+            clock_module_data.tick_reg[i].enabled = true;
             rv = &clock_module_data.tick_reg[i];
         }
     }
@@ -206,6 +211,19 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
     clock_module_data.pause_clock = false; //Tell the clock to resume
     assert(NULL != rv);
     return rv;
+}
+
+/**
+ * Function used to disable the on tick from the on tick handler
+ * @param handle the handle of the handler
+ */
+void simply_thead_system_clock_disable_on_tick_from_handler(sys_clock_on_tick_handle_t handle)
+{
+    struct sysclock_on_tick_registry_element_s *typed;
+    typed = handle;
+    assert(true == clock_module_data.clock_running);
+    assert(NULL != typed);
+    typed->enabled = false;
 }
 
 /**
@@ -238,51 +256,11 @@ void simply_thead_system_clock_deregister_on_tick(sys_clock_on_tick_handle_t han
     while(true == clock_module_data.clock_running) {} //Wait for the clock not to be running
     typed->cb = NULL;
     typed->args = NULL;
+    typed->enabled = false;
     PRINT_MSG("\t%s Setting pause_clock to false\r\n", __FUNCTION__);
     clock_module_data.pause_clock = false;
 }
 
-/**
- * @brief Function the deregisters a function on tick
- * @param handle the handle to deregister
- */
-//void simply_thead_system_clock_deregister_on_tick_from_locked(sys_clock_on_tick_handle_t handle)
-//{
-//    bool wait = true;
-//    struct sysclock_on_tick_registry_element_s *typed;
-//    typed = handle;
-//    assert(NULL != typed);
-//    PRINT_MSG("Running %s\r\n", __FUNCTION__);
-//    if(false != clock_module_data.pause_clock)
-//    {
-//      MUTEX_RELEASE();
-//      do
-//      {
-//          MUTEX_GET();
-//          if(false == clock_module_data.pause_clock)
-//          {
-//              clock_module_data.pause_clock = true;
-//              wait = false;
-//          }
-//          else
-//          {
-//              wait = true;
-//          }
-//          if(true == wait)
-//          {
-//              MUTEX_RELEASE();
-//          }
-//      }while(wait == true);
-//    }
-//    assert(true == master_mutex_locked());
-//    assert(true == clock_module_data.pause_clock);
-//
-//    while(true == clock_module_data.clock_running) {} //Wait for the clock not to be running
-//    typed->cb = NULL;
-//    typed->args = NULL;
-//    PRINT_MSG("\t%s Setting pause_clock to false\r\n", __FUNCTION__);
-//    clock_module_data.pause_clock = false;
-//}
 
 /**
  * Function that tells if it is safe to interrupt a task.  Must be called from a locked context

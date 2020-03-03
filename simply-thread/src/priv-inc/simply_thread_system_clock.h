@@ -38,6 +38,12 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
 void simply_thead_system_clock_deregister_on_tick(sys_clock_on_tick_handle_t handle);
 
 /**
+ * Function used to disable the on tick from the on tick handler
+ * @param handle the handle of the handler
+ */
+void simply_thead_system_clock_disable_on_tick_from_handler(sys_clock_on_tick_handle_t handle);
+
+/**
  * @brief Function the deregisters a function on tick
  * @param handle the handle to deregister
  */

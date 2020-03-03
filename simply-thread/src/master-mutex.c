@@ -39,12 +39,12 @@
 struct master_mutex_data_s
 {
     pthread_mutex_t init_mutex; //!< The mutex to protect the module initialization
-    bool initialized;
-    bool locked;
-    bool alloc_allowed;
-    simply_thread_sem_t sem;
-    pthread_t locking_thread;
-    simply_thread_sem_t localsem;
+    bool initialized; //!< Tells if the module is initialized
+    bool locked; //!< Tells if the master mutex is currently locked
+    bool alloc_allowed; //!< Tells if allocation is allowed
+    simply_thread_sem_t sem; //!< Main master semaphore
+    pthread_t locking_thread; //!< The thread that locked the semaphore
+    simply_thread_sem_t localsem; //!< Local semaphore for mutual exclusion
 };
 
 /***********************************************************************************/
@@ -60,12 +60,15 @@ static struct master_mutex_data_s m_master_mutex_data =
     .initialized = false,
     .init_mutex = PTHREAD_MUTEX_INITIALIZER,
     .alloc_allowed = false
-};
+}; //!< Variable that holds this modules data
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
+/**
+ * @brief Function that initializes this module as needed.
+ */
 static void initialize_if_required(void)
 {
     if(false == m_master_mutex_data.initialized)

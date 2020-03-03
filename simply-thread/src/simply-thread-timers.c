@@ -57,13 +57,13 @@ struct simply_thread_timer_entry_s
     simply_thread_timer_cb cb;
     const char *name;
     simply_thread_timer_type_e mode;
-};
+}; //!< Structure that contains the data used by the timer registry.
 
 struct simply_thread_timer_module_data_s
 {
     bool initialized;
     struct simply_thread_timer_entry_s timer_registry[SIMPLE_THREAD_MAX_TIMERS];
-};
+};//!< Structure that holds the data for this module
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
@@ -76,7 +76,7 @@ struct simply_thread_timer_module_data_s
 static struct simply_thread_timer_module_data_s m_timer_data =
 {
     .initialized = false
-};
+}; //!< Variable that holds this modules local data
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
@@ -150,7 +150,6 @@ void simply_thread_timers_destroy(void)
         {
             if(NULL != m_timer_data.timer_registry[i].tick_handle)
             {
-//              simply_thead_system_clock_deregister_on_tick_from_locked(m_timer_data.timer_registry[i].tick_handle);
                 m_timer_data.timer_registry[i].tick_handle = NULL;
             }
         }

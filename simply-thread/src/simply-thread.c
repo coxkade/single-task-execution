@@ -433,44 +433,6 @@ void m_simply_thread_sleep_ms(unsigned long ms)
 }
 
 /**
- * Sleep Task Worker Function
- * @param arg
- */
-//static void *sleep_thread_start_maint(void *arg)
-//{
-//    unsigned int *i_ptr;
-//    unsigned int i;
-//    struct simply_thread_task_s *task;
-//
-//    i_ptr = arg;
-//    assert(NULL != i_ptr);
-//    i = i_ptr[0];
-//    free(i_ptr);
-//    assert(true == m_module_data.sleep.sleep_list[i].in_use);
-//    while(true == m_module_data.sleep.sleep_list[i].in_use)
-//    {
-//        simply_thread_sleep_ns(ST_NS_PER_MS);
-//        m_module_data.sleep.sleep_list[i].sleep_data.current_ms++;
-//        if(m_module_data.sleep.sleep_list[i].sleep_data.current_ms >= m_module_data.sleep.sleep_list[i].sleep_data.ms)
-//        {
-//            MUTEX_GET();
-//            task = m_module_data.sleep.sleep_list[i].sleep_data.task_adjust;
-//            if(SIMPLY_THREAD_TASK_SUSPENDED == task->state && true == m_module_data.sleep.sleep_list[i].in_use)
-//            {
-//                struct simply_thread_scheduler_data_s sched_data;
-//                task->state = SIMPLY_THREAD_TASK_READY;
-//                sched_data.sleeprequired = true;
-//                MUTEX_RELEASE();
-//                simply_thread_run(&sched_data);
-//                return NULL;
-//            }
-//            MUTEX_RELEASE();
-//        }
-//    }
-//    return NULL;
-//}
-
-/**
  * @brief Function that handles sleep data on tick events
  * @param handle
  * @param new_tick
@@ -509,6 +471,7 @@ static void sleep_on_tick_worker(sys_clock_on_tick_handle_t handle, uint64_t new
             && false == m_module_data.sleep.sleep_list[i].sleep_data.finished
             && true == m_module_data.sleep.sleep_list[i].in_use)
     {
+        simply_thead_system_clock_disable_on_tick_from_handler(handle);
         MUTEX_GET();
         assert(true == m_module_data.sleep.sleep_list[i].in_use);
         task = m_module_data.sleep.sleep_list[i].sleep_data.task_adjust;
@@ -516,13 +479,6 @@ static void sleep_on_tick_worker(sys_clock_on_tick_handle_t handle, uint64_t new
         {
             m_module_data.sleep.sleep_list[i].sleep_data.finished = true;
             simply_thread_set_task_state_from_locked(task, SIMPLY_THREAD_TASK_READY);
-//                struct simply_thread_scheduler_data_s sched_data;
-//                task->state = SIMPLY_THREAD_TASK_READY;
-//                sched_data.sleeprequired = true;
-//                m_module_data.sleep.sleep_list[i].sleep_data.finished = true;
-//                MUTEX_RELEASE();
-//                simply_thread_run(&sched_data);
-//                return;
         }
         MUTEX_RELEASE();
     }
