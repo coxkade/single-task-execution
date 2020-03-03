@@ -125,8 +125,10 @@ static inline void m_sleep_all_tasks(void)
                 m_sched_exit_if_kill();
                 m_wait_till_clock_safe();
                 master_mutex_prep_signal();
+                simply_thread_prep_condition(&MODULE_DATA.sleepcondition);
                 assert(0 == pthread_kill(TASK_LIST[i].thread, SIGUSR1));
                 master_mutex_clear_prep_signal();
+                simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
                 MUTEX_RELEASE();
                 simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
                 MUTEX_GET();

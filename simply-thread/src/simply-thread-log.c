@@ -39,18 +39,6 @@
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
-static void *simply_thread_log_task(void *data)
-{
-    char *message;
-    message = (char *) data;
-    assert(NULL != message);
-    assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->print_mutex));
-    printf("%s", message);
-    pthread_mutex_unlock(&simply_thread_lib_data()->print_mutex);
-    return NULL;
-}
-
-
 /**
  * @brief Function that  prints a message in color
  * @param fmt Standard printf format
@@ -64,10 +52,8 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     va_list args;
     char *print_buffer = NULL;
     unsigned int buffer_size;
-    pthread_t thread;
 
     //Setup the time message string
-
     t = time(NULL);
     tm = *localtime(&t);
     snprintf(time_buffer, ARRAY_MAX_COUNT(time_buffer), "%d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec);
@@ -80,5 +66,6 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     print_buffer = malloc(buffer_size);
     assert(NULL != print_buffer);
     snprintf(print_buffer, buffer_size, "%s%s%s%s", color, time_buffer, final_buffer, COLOR_RESET);
-    assert(0 == pthread_create(&thread, NULL, simply_thread_log_task, (void *) print_buffer));
+    printf("%s", print_buffer);
+    free(print_buffer);
 }

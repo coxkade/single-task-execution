@@ -22,11 +22,11 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-#ifdef DEBUG_FIFO
+#ifdef DEBUG_MUTEX
 #define PRINT_MSG(...) simply_thread_log(COLOR_SKY_BLUE, __VA_ARGS__)
 #else
 #define PRINT_MSG(...)
-#endif //DEBUG_FIFO
+#endif //DEBUG_MUTEX
 
 #define SEM_WAIT(s) while(0 != simply_thread_sem_wait(s)){}
 

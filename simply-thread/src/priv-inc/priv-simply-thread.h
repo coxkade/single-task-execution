@@ -89,6 +89,12 @@ void simply_thread_init_condition(struct simply_thread_condition_s *cond);
 void simply_thread_dest_condition(struct simply_thread_condition_s *cond);
 
 /**
+ * @brief Functuin that ensures a condition will block on the receive
+ * @param cond
+ */
+void simply_thread_prep_condition(struct simply_thread_condition_s *cond);
+
+/**
  * @brief send a condition
  * @param cond
  */

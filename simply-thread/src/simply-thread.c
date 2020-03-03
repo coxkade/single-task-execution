@@ -157,13 +157,18 @@ static void m_usr1_catch(int signo)
     bool keep_going = true;
     int rv;
     int error_val;
+    //triggers from a locked context
     assert(SIGUSR1 == signo);
-
+    assert(true == master_mutex_locked());
     m_entry = master_mutex_pull();
+    ptr_task = simply_thread_get_ex_task();
+    assert(NULL != ptr_task);
+    simply_thread_tell_sched_task_sleeping(ptr_task);
 
     MUTEX_GET();
     wait_required = false;
     ptr_task = simply_thread_get_ex_task();
+    assert(NULL != ptr_task);
     if(NULL != ptr_task)
     {
         if(SIMPLY_THREAD_TASK_READY != ptr_task->state)
@@ -768,6 +773,20 @@ void simply_thread_dest_condition(struct simply_thread_condition_s *cond)
     PRINT_MSG("%s\r\n", __FUNCTION__);
     simply_thread_sem_destroy(&cond->sig_sem);
     PRINT_MSG("\tCondition %p destroyed\r\n", cond);
+}
+
+
+/**
+ * @brief Functuin that ensures a condition will block on the receive
+ * @param cond
+ */
+void simply_thread_prep_condition(struct simply_thread_condition_s *cond)
+{
+    int result;
+    assert(NULL != cond);
+    PRINT_MSG("%s: %p\r\n", __FUNCTION__, cond);
+    result = simply_thread_sem_trywait(&cond->sig_sem);
+    assert(0 == result || EAGAIN == result);
 }
 
 /**

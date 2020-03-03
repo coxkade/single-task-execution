@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <master-mutex.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -541,7 +542,7 @@ static void second_queue_test_tests(void **state)
  *************** Central Mutex Test Items ****************************
  ********************************************************************/
 #ifndef CENTRAL_MUTEX_THREAD_COUNT
-#define CENTRAL_MUTEX_THREAD_COUNT 50
+#define CENTRAL_MUTEX_THREAD_COUNT 25
 #endif //CENTRAL_MUTEX_THREAD_COUNT
 
 struct cm_thread_data_s
@@ -569,7 +570,9 @@ static void central_mutex_test(void **state)
 {
     struct cm_thread_data_s task_list[CENTRAL_MUTEX_THREAD_COUNT];
     unsigned int gate = 0;
-    master_mutex_reset();
+    simply_thread_reset();
+    assert(true == master_mutex_get());
+    master_mutex_release();
     assert(true == master_mutex_get());
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(task_list); i++)
     {
@@ -578,9 +581,9 @@ static void central_mutex_test(void **state)
         assert(0 == pthread_create(&task_list[i].id, NULL, central_mutex_worker, &task_list[i]));
     }
     master_mutex_release();
-    while(gate < 102)
+    while(100 > task_list[CENTRAL_MUTEX_THREAD_COUNT-1].count)
     {
-        gate = task_list[CENTRAL_MUTEX_THREAD_COUNT - 1].count;
+    	simply_thread_sleep_ms(200);
     }
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(task_list); i++)
     {
@@ -590,7 +593,7 @@ static void central_mutex_test(void **state)
     {
         pthread_join(task_list[i].id, NULL);
     }
-    master_mutex_reset();
+    simply_thread_cleanup();
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(task_list); i++)
     {
         assert(100 < task_list[i].count);
@@ -605,15 +608,15 @@ int main(void)
 {
     const struct CMUnitTest tests[] =
     {
-//        cmocka_unit_test(task_test_success),
-//        cmocka_unit_test(task_non_null_data_test),
-//        cmocka_unit_test(main_timer_tests),
-//        cmocka_unit_test(second_timer_tests),
-//        cmocka_unit_test(first_mutex_test_tests),
+        cmocka_unit_test(task_test_success),
+        cmocka_unit_test(task_non_null_data_test),
+        cmocka_unit_test(main_timer_tests),
+        cmocka_unit_test(second_timer_tests),
+        cmocka_unit_test(first_mutex_test_tests),
 //        cmocka_unit_test(second_mutex_test_tests),
 //        cmocka_unit_test(first_queue_test_tests),
 //        cmocka_unit_test(second_queue_test_tests),
-        cmocka_unit_test(central_mutex_test)
+//        cmocka_unit_test(central_mutex_test)
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
