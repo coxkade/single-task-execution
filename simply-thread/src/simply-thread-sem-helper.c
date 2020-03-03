@@ -233,7 +233,6 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
         if(EINTR != eval && EAGAIN != eval)
         {
             ST_LOG_ERROR("Unsupported error %u\r\n", eval);
-            while(1) {}
             assert(false);
         }
     }

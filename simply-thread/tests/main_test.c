@@ -171,20 +171,22 @@ static void task_non_null_data_test(void **state)
 
 static void first_timer_worker(simply_thread_timer_t timer)
 {
-	PRINT_MSG("%s running\r\n", __FUNCTION__);
+    PRINT_MSG("%s running\r\n", __FUNCTION__);
+    PRINT_MSG("Comparing the timer %p %p\r\n", timer_1, timer);
     assert_true(timer_1 == timer);
+    PRINT_MSG("Setting timer_1_ran to true\r\n");
     timer_1_ran = true;
 }
 
 static void second_timer_worker(simply_thread_timer_t timer)
 {
-	PRINT_MSG("%s running\r\n", __FUNCTION__);
+    PRINT_MSG("%s running\r\n", __FUNCTION__);
     timer_2_count++;
 }
 
 static void timer_test(void **state)
 {
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     simply_thread_reset();
     PRINT_MSG("\tperforming task tests\r\n");
     task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
@@ -198,6 +200,7 @@ static void timer_test(void **state)
     PRINT_MSG("\tCreating timer 1\r\n");
     assert_true(NULL == simply_thread_create_timer(NULL, "Hello", 5, SIMPLY_THREAD_TIMER_ONE_SHOT, true));
     timer_1 = simply_thread_create_timer(first_timer_worker, "Timer One", 100, SIMPLY_THREAD_TIMER_ONE_SHOT, true);
+    PRINT_MSG("timer_1: %p\r\n", timer_1);
     assert_true(NULL != timer_1);
     PRINT_MSG("\tTesting timer start and stop\r\n");
     assert_true(simply_thread_timer_stop(timer_1));
@@ -206,6 +209,7 @@ static void timer_test(void **state)
     assert_true(simply_thread_timer_start(timer_1));
     PRINT_MSG("\tCreating timer 2\r\n");
     timer_2 = simply_thread_create_timer(second_timer_worker, "Timer two", 100, SIMPLY_THREAD_TIMER_REPEAT, true);
+    PRINT_MSG("timer_2: %p\r\n", timer_2);
     assert_true(NULL != timer_2);
     PRINT_MSG("\tSleeping main test task\r\n");
     simply_thread_sleep_ms(540);
@@ -546,14 +550,14 @@ int main(void)
 {
     const struct CMUnitTest tests[] =
     {
-//        cmocka_unit_test(task_test_success),
-//        cmocka_unit_test(task_non_null_data_test),
-         cmocka_unit_test(main_timer_tests),
-          cmocka_unit_test(second_timer_tests),
-        // cmocka_unit_test(first_mutex_test_tests),
-        // cmocka_unit_test(second_mutex_test_tests),
-        // cmocka_unit_test(first_queue_test_tests),
-        // cmocka_unit_test(second_queue_test_tests),
+        cmocka_unit_test(task_test_success),
+        cmocka_unit_test(task_non_null_data_test),
+        cmocka_unit_test(main_timer_tests),
+        cmocka_unit_test(second_timer_tests),
+        cmocka_unit_test(first_mutex_test_tests),
+        cmocka_unit_test(second_mutex_test_tests),
+//        cmocka_unit_test(first_queue_test_tests),
+//        cmocka_unit_test(second_queue_test_tests),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

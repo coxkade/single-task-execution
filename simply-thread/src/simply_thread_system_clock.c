@@ -19,6 +19,8 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+//#define DEBUG_SIMPLY_THREAD
+
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 //Macro that sets the registry size
@@ -161,6 +163,30 @@ void simply_thead_system_clock_reset(void)
     clock_module_data.initialized = false;
 }
 
+static void simply_thead_system_clock_wait_turn(void)
+{
+	bool wait;
+    do
+    {
+        MUTEX_GET();
+        if(false == clock_module_data.pause_clock)
+        {
+            clock_module_data.pause_clock = true;
+            wait = false;
+            MUTEX_RELEASE();
+        }
+        else
+        {
+            wait = true;
+            MUTEX_RELEASE();
+        }
+    }
+    while(wait == true);
+    while(true == clock_module_data.clock_running) {} //Wait for the clock not to be running
+    MUTEX_GET();
+    assert(false == clock_module_data.clock_running);
+}
+
 /**
  * @brief Function that registers a function to be called on a tick
  * @param on_tick pointer to the function to call on tick
@@ -171,28 +197,12 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
         void *args), void *args)
 {
     sys_clock_on_tick_handle_t rv;
-    bool wait = true;
     init_if_needed();
     rv = NULL;
     PRINT_MSG("Running %s\r\n", __FUNCTION__);
-    do
-    {
-        MUTEX_GET();
-        if(false == clock_module_data.pause_clock)
-        {
-            clock_module_data.pause_clock = true;
-            wait = false;
-        }
-        else
-        {
-            wait = true;
-        }
-        MUTEX_RELEASE();
-    }
-    while(wait == true);
-    assert(true == clock_module_data.pause_clock);
-    while(true == clock_module_data.clock_running) {} //Wait for the clock not to be running
-    assert(false == clock_module_data.clock_running);
+
+    simply_thead_system_clock_wait_turn();
+
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(clock_module_data.tick_reg) && NULL == rv; i++)
     {
         if(NULL == clock_module_data.tick_reg[i].cb)
@@ -205,6 +215,7 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
     PRINT_MSG("\t%s Setting pause_clock to false\r\n", __FUNCTION__);
     clock_module_data.pause_clock = false; //Tell the clock to resume
     assert(NULL != rv);
+    MUTEX_RELEASE();
     return rv;
 }
 
@@ -214,75 +225,18 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
  */
 void simply_thead_system_clock_deregister_on_tick(sys_clock_on_tick_handle_t handle)
 {
-    bool wait = true;
     struct sysclock_on_tick_registry_element_s *typed;
     typed = handle;
     assert(NULL != typed);
     PRINT_MSG("Running %s\r\n", __FUNCTION__);
-    do
-    {
-        MUTEX_GET();
-        if(false == clock_module_data.pause_clock)
-        {
-            clock_module_data.pause_clock = true;
-            wait = false;
-        }
-        else
-        {
-            wait = true;
-        }
-        MUTEX_RELEASE();
-    }
-    while(wait == true);
-    assert(true == clock_module_data.pause_clock);
-    while(true == clock_module_data.clock_running) {} //Wait for the clock not to be running
+    simply_thead_system_clock_wait_turn();
     typed->cb = NULL;
     typed->args = NULL;
     PRINT_MSG("\t%s Setting pause_clock to false\r\n", __FUNCTION__);
     clock_module_data.pause_clock = false;
+    MUTEX_RELEASE();
 }
 
-/**
- * @brief Function the deregisters a function on tick
- * @param handle the handle to deregister
- */
-//void simply_thead_system_clock_deregister_on_tick_from_locked(sys_clock_on_tick_handle_t handle)
-//{
-//    bool wait = true;
-//    struct sysclock_on_tick_registry_element_s *typed;
-//    typed = handle;
-//    assert(NULL != typed);
-//    PRINT_MSG("Running %s\r\n", __FUNCTION__);
-//    if(false != clock_module_data.pause_clock)
-//    {
-//      MUTEX_RELEASE();
-//      do
-//      {
-//          MUTEX_GET();
-//          if(false == clock_module_data.pause_clock)
-//          {
-//              clock_module_data.pause_clock = true;
-//              wait = false;
-//          }
-//          else
-//          {
-//              wait = true;
-//          }
-//          if(true == wait)
-//          {
-//              MUTEX_RELEASE();
-//          }
-//      }while(wait == true);
-//    }
-//    assert(true == master_mutex_locked());
-//    assert(true == clock_module_data.pause_clock);
-//
-//    while(true == clock_module_data.clock_running) {} //Wait for the clock not to be running
-//    typed->cb = NULL;
-//    typed->args = NULL;
-//    PRINT_MSG("\t%s Setting pause_clock to false\r\n", __FUNCTION__);
-//    clock_module_data.pause_clock = false;
-//}
 
 /**
  * Function that tells if it is safe to interrupt a task.  Must be called from a locked context

@@ -28,6 +28,12 @@ void master_mutex_reset(void);
 bool master_mutex_locked(void);
 
 /**
+ * Try and lock the master mutex
+ * @return true if locked
+ */
+bool master_mutex_trylock(void);
+
+/**
  * Pull the fifo entry off of the fifo queue for the current task
  * @return NULL if entry does not exist.
  */

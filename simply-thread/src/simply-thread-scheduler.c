@@ -105,6 +105,7 @@ static inline void m_wait_till_clock_safe(void)
         if(false == safe)
         {
             MUTEX_RELEASE();
+            simply_thread_sleep_ns(7);
             MUTEX_GET();
         }
     }
@@ -201,6 +202,7 @@ static void *m_run_sched(void *data)
                 {
                     m_sched_exit_if_kill();
                     MUTEX_RELEASE();
+                    simply_thread_sleep_ns(7);
                     MUTEX_GET();
                 }
             }
@@ -256,6 +258,7 @@ void simply_thread_scheduler_kill(void)
             if(true == sched_running)
             {
                 MUTEX_RELEASE();
+                simply_thread_sleep_ns(7);
                 MUTEX_GET();
             }
         }
@@ -294,6 +297,7 @@ void simply_thread_run(struct simply_thread_scheduler_data_s *thread_data)
         if(true == sched_running)
         {
             MUTEX_RELEASE();
+            simply_thread_sleep_ns(7);
             MUTEX_GET();
             if(false == MODULE_DATA.threadlaunched)
             {

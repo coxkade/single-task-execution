@@ -241,6 +241,19 @@ static void *m_task_wrapper(void *data)
     return NULL;
 }
 
+static unsigned int tcb_count(void)
+{
+	unsigned int rv = 0;
+	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.tcb_list); i++)
+	{
+		if(NULL != m_module_data.tcb_list[i].name)
+		{
+			rv++;
+		}
+	}
+	return rv;
+}
+
 /**
  * @brief Internal cleanup function
  */
@@ -274,6 +287,7 @@ static void m_intern_cleanup(void)
                 m_module_data.tcb_list[i].state = SIMPLY_THREAD_TASK_UNKNOWN_STATE;
             }
         }
+        assert(0 == tcb_count());
         PRINT_MSG("Starting Mutex Cleanup\r\n");
         simply_thread_mutex_cleanup();
         PRINT_MSG("Starting Queue Cleanup\r\n");

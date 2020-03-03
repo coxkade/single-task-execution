@@ -25,6 +25,7 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+#define DEBUG_FIFO
 
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
