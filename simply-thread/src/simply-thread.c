@@ -14,7 +14,7 @@
 #include <simply-thread-scheduler.h>
 #include <simply-thread-timers.h>
 #include <simply-thread-mutex.h>
-#include <fifo-mutex.h>
+#include <simply_thread_system_clock.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
@@ -26,6 +26,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <stdarg.h>
+#include "priv-inc/master-mutex.h"
 
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_MAGENTA, __VA_ARGS__)
@@ -54,7 +55,13 @@
 /***************************** Type Defs *******************************************/
 /***********************************************************************************/
 
-
+struct sleep_tick_data_s
+{
+    uint64_t count;
+    uint64_t max_count;
+    bool posted;
+    simply_thread_sem_t sem;
+}; //!< Structure to help with the sleep on tick handler
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
@@ -146,13 +153,13 @@ static void m_usr1_catch(int signo)
 {
     struct simply_thread_task_s *ptr_task;
     bool wait_required;
-    fifo_mutex_entry_t m_entry;
+    master_mutex_entry_t m_entry;
     bool keep_going = true;
     int rv;
     int error_val;
     assert(SIGUSR1 == signo);
 
-    m_entry = fifo_mutex_pull();
+    m_entry = master_mutex_pull();
 
     MUTEX_GET();
     wait_required = false;
@@ -194,7 +201,7 @@ static void m_usr1_catch(int signo)
     if(NULL != m_entry)
     {
         MUTEX_GET();
-        fifo_mutex_push(m_entry);
+        master_mutex_push(m_entry);
         MUTEX_RELEASE();
     }
 }
@@ -241,6 +248,7 @@ static void m_intern_cleanup(void)
 {
     static bool first_time = true;
     m_module_data.cleaning_up = true;
+    PRINT_MSG("---- m_intern_cleanup Running\r\n");
     if(false == first_time)
     {
         //Kill all the running tasks
@@ -248,7 +256,8 @@ static void m_intern_cleanup(void)
         simply_thread_scheduler_kill();
         simply_thread_timers_destroy();
         MUTEX_GET();
-        fifo_mutex_prep_signal();
+        simply_thead_system_clock_reset();
+        master_mutex_prep_signal();
         for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
         {
             m_module_data.sleep.sleep_list[i].in_use = false;
@@ -271,16 +280,18 @@ static void m_intern_cleanup(void)
         simply_thread_queue_cleanup();
         // MUTEX_RELEASE();
         PRINT_MSG("Resetting fifo mutex\r\n");
-        fifo_mutex_reset();
+        master_mutex_reset();
         PRINT_MSG("%s Getting the mutex\r\n", __FUNCTION__);
         MUTEX_GET();
         PRINT_MSG("%s Got the Mutex\r\n", __FUNCTION__);
+        simply_thead_system_clock_reset();
     }
 
 
     m_module_data.cleaning_up = false;
     first_time = false;
     PRINT_MSG("%s Finished\r\n", __FUNCTION__);
+    PRINT_MSG("---- m_intern_cleanup Finishing\r\n");
 }
 
 
@@ -422,41 +433,55 @@ void m_simply_thread_sleep_ms(unsigned long ms)
 }
 
 /**
- * Sleep Task Worker Function
- * @param arg
+ * @brief Function that handles sleep data on tick events
+ * @param handle
+ * @param new_tick
+ * @param args
  */
-static void *sleep_thread_start_maint(void *arg)
+static void interrupt_sleep_on_tick_worker(sys_clock_on_tick_handle_t handle, uint64_t new_tick, void *args)
+{
+    struct sleep_tick_data_s *typed;
+    typed = args;
+    assert(NULL != typed && NULL != handle);
+    typed->count++;
+    if(typed->count >= typed->max_count && false == typed->posted)
+    {
+        simply_thread_sem_post(&typed->sem);
+        typed->posted = true;
+    }
+}
+
+/**
+ * @brief The sleep on tick worker function
+ * @param handle
+ * @param new_tick
+ * @param args
+ */
+static void sleep_on_tick_worker(sys_clock_on_tick_handle_t handle, uint64_t new_tick, void *args)
 {
     unsigned int *i_ptr;
     unsigned int i;
     struct simply_thread_task_s *task;
 
-    i_ptr = arg;
+    i_ptr = args;
     assert(NULL != i_ptr);
     i = i_ptr[0];
-    free(i_ptr);
-    assert(true == m_module_data.sleep.sleep_list[i].in_use);
-    while(true == m_module_data.sleep.sleep_list[i].in_use)
+    m_module_data.sleep.sleep_list[i].sleep_data.current_ms++;
+    if(m_module_data.sleep.sleep_list[i].sleep_data.current_ms >= m_module_data.sleep.sleep_list[i].sleep_data.ms
+            && false == m_module_data.sleep.sleep_list[i].sleep_data.finished
+            && true == m_module_data.sleep.sleep_list[i].in_use)
     {
-        simply_thread_sleep_ns(ST_NS_PER_MS);
-        m_module_data.sleep.sleep_list[i].sleep_data.current_ms++;
-        if(m_module_data.sleep.sleep_list[i].sleep_data.current_ms >= m_module_data.sleep.sleep_list[i].sleep_data.ms)
+        simply_thead_system_clock_disable_on_tick_from_handler(handle);
+        MUTEX_GET();
+        assert(true == m_module_data.sleep.sleep_list[i].in_use);
+        task = m_module_data.sleep.sleep_list[i].sleep_data.task_adjust;
+        if(SIMPLY_THREAD_TASK_SUSPENDED == task->state && true == m_module_data.sleep.sleep_list[i].in_use)
         {
-            MUTEX_GET();
-            task = m_module_data.sleep.sleep_list[i].sleep_data.task_adjust;
-            if(SIMPLY_THREAD_TASK_SUSPENDED == task->state && true == m_module_data.sleep.sleep_list[i].in_use)
-            {
-                struct simply_thread_scheduler_data_s sched_data;
-                task->state = SIMPLY_THREAD_TASK_READY;
-                sched_data.sleeprequired = true;
-                MUTEX_RELEASE();
-                simply_thread_run(&sched_data);
-                return NULL;
-            }
-            MUTEX_RELEASE();
+            m_module_data.sleep.sleep_list[i].sleep_data.finished = true;
+            simply_thread_set_task_state_from_locked(task, SIMPLY_THREAD_TASK_READY);
         }
+        MUTEX_RELEASE();
     }
-    return NULL;
 }
 
 /**
@@ -470,14 +495,26 @@ void simply_thread_sleep_ms(unsigned long ms)
     bool index_found;
     unsigned int index = 500;
     unsigned int *i_ptr;
-    pthread_t w_thread;
+    struct sleep_tick_data_s *sleep_data;
+    sys_clock_on_tick_handle_t on_tick_handle;
     MUTEX_GET();
     ptr_task = simply_thread_get_ex_task();
     if(NULL == ptr_task)
     {
         ROOT_PRINT("\tptr_task is NULL\r\n");
+        sleep_data = malloc(sizeof(struct sleep_tick_data_s));
+        assert(NULL != sleep_data);
+        sleep_data->count = 0;
+        sleep_data->max_count = (uint64_t)ms;
+        sleep_data->posted = false;
+        simply_thread_sem_init(&sleep_data->sem);
+        assert(0 == simply_thread_sem_trywait(&sleep_data->sem));
         MUTEX_RELEASE();
-        m_simply_thread_sleep_ms(ms);
+        on_tick_handle = simply_thead_system_clock_register_on_tick(interrupt_sleep_on_tick_worker, sleep_data);
+        simply_thread_sem_wait(&sleep_data->sem);
+        simply_thead_system_clock_deregister_on_tick(on_tick_handle);
+        simply_thread_sem_destroy(&sleep_data->sem);
+        free(sleep_data);
     }
     else
     {
@@ -492,17 +529,22 @@ void simply_thread_sleep_ms(unsigned long ms)
                 m_module_data.sleep.sleep_list[i].sleep_data.current_ms = 0;
                 m_module_data.sleep.sleep_list[i].sleep_data.ms = ms;
                 m_module_data.sleep.sleep_list[i].sleep_data.task_adjust = ptr_task;
+                m_module_data.sleep.sleep_list[i].sleep_data.finished = false;
                 m_module_data.sleep.sleep_list[i].in_use = true;
                 index = i;
                 i_ptr = malloc(sizeof(unsigned int));
                 assert(NULL != i_ptr);
                 i_ptr[0] = i;
-                assert(0 == pthread_create(&w_thread, NULL, sleep_thread_start_maint, i_ptr));
             }
         }
         assert(true == index_found);
         assert(index < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list));
-        simply_thread_set_task_state_from_locked(ptr_task, SIMPLY_THREAD_TASK_SUSPENDED);
+        MUTEX_RELEASE();
+        on_tick_handle = simply_thead_system_clock_register_on_tick(sleep_on_tick_worker, i_ptr);
+        simply_thread_set_task_state(ptr_task, SIMPLY_THREAD_TASK_SUSPENDED);
+        simply_thead_system_clock_deregister_on_tick(on_tick_handle);
+        MUTEX_GET();
+        free(i_ptr);
         assert(true == m_module_data.sleep.sleep_list[index].in_use);
         m_module_data.sleep.sleep_list[index].in_use = false;
         MUTEX_RELEASE();
@@ -766,7 +808,7 @@ struct simply_thread_lib_data_s *simply_thread_lib_data(void)
  */
 bool simply_thread_get_master_mutex(void)
 {
-    return fifo_mutex_get();
+    return master_mutex_get();
 }
 
 /**
@@ -774,7 +816,7 @@ bool simply_thread_get_master_mutex(void)
  */
 void simply_thread_release_master_mutex(void)
 {
-    fifo_mutex_release();
+    master_mutex_release();
 }
 
 /**
@@ -783,7 +825,7 @@ void simply_thread_release_master_mutex(void)
  */
 bool simply_thread_master_mutex_locked(void)
 {
-    return fifo_mutex_locked();
+    return master_mutex_locked();
 }
 
 

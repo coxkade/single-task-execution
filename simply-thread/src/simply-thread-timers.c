@@ -10,6 +10,7 @@
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
 #include <simply-thread-linked-list.h>
+#include <simply_thread_system_clock.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
@@ -20,6 +21,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <sys/time.h>
+#include "priv-inc/master-mutex.h"
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -32,33 +34,36 @@
 #define TIMER_DATA(x) ((struct single_timer_data_s *)x)
 
 #ifdef DEBUG_SIMPLY_THREAD
-#define PRINT_MSG(...) simply_thread_log(COLOR_WHITE, __VA_ARGS__)
+#define PRINT_MSG(...) simply_thread_log(COLOR_EARTH_GREEN, __VA_ARGS__)
 #else
 #define PRINT_MSG(...)
 #endif //DEBUG_SIMPLY_THREAD
+
+//The maximum number of supported timers
+#ifndef SIMPLE_THREAD_MAX_TIMERS
+#define SIMPLE_THREAD_MAX_TIMERS (250)
+#endif //SIMPLE_THREAD_MAX_TIMERS
 
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
 /***********************************************************************************/
 
-struct single_timer_data_s
+struct simply_thread_timer_entry_s
 {
-    pthread_mutex_t timer_mutex; //!<< Mutex that protects the timer
-    simply_thread_timer_cb callback; //!< Callback function to trigger with the timer
-    const char *name;  //!< The name of the timer
-    unsigned int period; //!< The timer period in milliseconds
-    simply_thread_timer_type_e mode; //!< The Timers runtime mode
-    bool kill; //!< Boolean value to tell the timer to bail
-    pthread_t thread; //!< The pthread executing this timer
-    simply_thread_timer_t handle; //!< The handle to this timer
-    bool running; //!< Boolean that tells if the timer is running
-};
+    sys_clock_on_tick_handle_t tick_handle;
+    bool running;
+    uint64_t count;
+    uint64_t max_count;
+    simply_thread_timer_cb cb;
+    const char *name;
+    simply_thread_timer_type_e mode;
+}; //!< Structure that contains the data used by the timer registry.
 
-struct timer_module_data_s
+struct simply_thread_timer_module_data_s
 {
-    simply_thread_linked_list_t timer_list; //!< Handle that contains the list of timer handles
-    pthread_mutex_t mutex; //!< mutex to protect the list data
-};
+    bool initialized;
+    struct simply_thread_timer_entry_s timer_registry[SIMPLE_THREAD_MAX_TIMERS];
+};//!< Structure that holds the data for this module
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
@@ -68,53 +73,47 @@ struct timer_module_data_s
 /***************************** Static Variables ************************************/
 /***********************************************************************************/
 
-static struct timer_module_data_s module_data =
+static struct simply_thread_timer_module_data_s m_timer_data =
 {
-    .timer_list = NULL,
-    .mutex = PTHREAD_MUTEX_INITIALIZER
-}; //!< Local module data
+    .initialized = false
+}; //!< Variable that holds this modules local data
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
-
 /**
- * @brief the timer worker for the simply thread timer
- * @param data
+ * @brief On tick worker function for the module;
+ * @param handle
+ * @param tickval
+ * @param args
  */
-static void *priv_simply_thread_timer_worker(void *data)
+static void simply_thread_timers_worker(sys_clock_on_tick_handle_t handle, uint64_t tickval, void *args)
 {
-    assert(NULL != data);
-    unsigned int count = 0;
-    simply_thread_timer_cb runner;
-    PRINT_MSG("%s for timer %s starting\r\n", __FUNCTION__, TIMER_DATA(data)->name);
-    while(false == TIMER_DATA(data)->kill)
+    struct simply_thread_timer_entry_s *typed;
+    struct simply_thread_timer_entry_s worker;
+    typed = args;
+    assert(NULL != typed);
+    memcpy(&worker, typed, sizeof(worker));
+    assert(NULL != worker.cb);
+    if(true == worker.running && NULL != worker.tick_handle)
     {
-        runner = NULL;
-        assert(0 == pthread_mutex_lock(&TIMER_DATA(data)->timer_mutex));
-        if(true == TIMER_DATA(data)->running)
+        worker.count++;
+        if(worker.count >= worker.max_count)
         {
-            if(count >= TIMER_DATA(data)->period)
+            PRINT_MSG("\tTriggering Timer: %s\r\n", worker.name);
+            worker.count = 0;
+            worker.cb(typed);
+            PRINT_MSG("\tTimer Triggered\r\n");
+            if(SIMPLY_THREAD_TIMER_ONE_SHOT == worker.mode)
             {
-                runner = TIMER_DATA(data)->callback;
-                if(TIMER_DATA(data)->mode == SIMPLY_THREAD_TIMER_ONE_SHOT)
-                {
-                    TIMER_DATA(data)->running = false;
-                }
+                PRINT_MSG("\t%s setting running to false\r\n");
+                worker.running = false;
             }
         }
-        assert(0 == pthread_mutex_unlock(&TIMER_DATA(data)->timer_mutex));
-        count++;
-        if(NULL != runner)
-        {
-            count = 0;
-            runner(TIMER_DATA(data)->handle);
-        }
-        simply_thread_sleep_ns(ST_NS_PER_MS);
+        memcpy(typed, &worker, sizeof(worker));
     }
-    PRINT_MSG("%s for timer %s returning\r\n", __FUNCTION__, TIMER_DATA(data)->name);
-    return NULL;
+
 }
 
 /**
@@ -122,14 +121,20 @@ static void *priv_simply_thread_timer_worker(void *data)
  */
 void simply_thread_timers_init(void)
 {
-    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    assert(0 == pthread_mutex_lock(&module_data.mutex));
-    if(NULL == module_data.timer_list)
+    PRINT_MSG("Running %s\r\n", __FUNCTION__);
+    assert(true == master_mutex_locked());
+    assert(false == m_timer_data.initialized);
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry); i++)
     {
-        module_data.timer_list = simply_thread_new_ll(sizeof(simply_thread_timer_t));
-        assert(NULL != module_data.timer_list);
+        m_timer_data.timer_registry[i].tick_handle = NULL;
+        m_timer_data.timer_registry[i].running = false;
+        m_timer_data.timer_registry[i].name = NULL;
+        m_timer_data.timer_registry[i].count = 0;
+        m_timer_data.timer_registry[i].max_count = 0;
+        m_timer_data.timer_registry[i].cb = NULL;
+        m_timer_data.timer_registry[i].mode = SIMPLY_THREAD_TIMER_ONE_SHOT;
     }
-    assert(0 == pthread_mutex_unlock(&module_data.mutex));
+    m_timer_data.initialized = true;
 }
 
 /**
@@ -137,26 +142,20 @@ void simply_thread_timers_init(void)
  */
 void simply_thread_timers_destroy(void)
 {
-    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    assert(0 == pthread_mutex_lock(&module_data.mutex));
-    simply_thread_timer_t *timer_handle;
-    if(NULL != module_data.timer_list)
+    PRINT_MSG("Running %s\r\n", __FUNCTION__);
+    if(true == m_timer_data.initialized)
     {
-        for(unsigned int i = 0; i < simply_thread_ll_count(module_data.timer_list); i++)
+        MUTEX_GET();
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry); i++)
         {
-            timer_handle = simply_thread_ll_get(module_data.timer_list, i);
-            assert(NULL != timer_handle);
-            PRINT_MSG("\tHandling timer: %p\r\n", timer_handle[0]);
-            assert(0 == pthread_mutex_lock(&TIMER_DATA(timer_handle[0])->timer_mutex));
-            TIMER_DATA(timer_handle[0])->kill = true;
-            assert(0 == pthread_mutex_unlock(&TIMER_DATA(timer_handle[0])->timer_mutex));
-            pthread_join(TIMER_DATA(timer_handle[0])->thread, NULL);
-            free(TIMER_DATA(timer_handle[0]));
+            if(NULL != m_timer_data.timer_registry[i].tick_handle)
+            {
+                m_timer_data.timer_registry[i].tick_handle = NULL;
+            }
         }
-        simply_thread_ll_destroy(module_data.timer_list);
-        module_data.timer_list = NULL;
+        MUTEX_RELEASE();
     }
-    assert(0 == pthread_mutex_unlock(&module_data.mutex));
+    m_timer_data.initialized = false;
 }
 
 /**
@@ -171,42 +170,41 @@ void simply_thread_timers_destroy(void)
 simply_thread_timer_t simply_thread_create_timer(simply_thread_timer_cb cb, const char *name, unsigned int period_ms, simply_thread_timer_type_e mode,
         bool run_now)
 {
-    simply_thread_timer_t rv = NULL;
-    pthread_mutexattr_t attr;
-    struct single_timer_data_s *new_timer;
-    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    assert(0 == pthread_mutex_lock(&module_data.mutex));
-    if(NULL == module_data.timer_list || NULL == cb || NULL == name || 0 == period_ms)
+    PRINT_MSG("Running %s\r\n", __FUNCTION__);
+    simply_thread_timer_t rv;
+    rv = NULL;
+    if(NULL == cb || NULL == name || 0 >= period_ms)
     {
-        assert(0 == pthread_mutex_unlock(&module_data.mutex));
-        return rv;
+        return NULL;
     }
-    new_timer = malloc(sizeof(struct single_timer_data_s));
-    assert(NULL != new_timer);
-    rv = new_timer;
-    new_timer->callback = cb;
-    new_timer->name = name;
-    new_timer->period = period_ms;
-    new_timer->handle = rv;
-    new_timer->mode = mode;
-    new_timer->kill = false;
-    new_timer->running = false;
-
-    //Initialize and lock the mutex
-    assert(0 == pthread_mutexattr_init(&attr));
-    assert(0 == pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK));
-    assert(0 == pthread_mutex_init(&new_timer->timer_mutex, &attr));
-    assert(0 == pthread_mutex_lock(&new_timer->timer_mutex));
-
-    //Initialize the timers thread
-    assert(0 == pthread_create(&new_timer->thread, NULL, priv_simply_thread_timer_worker, (void *)rv));
-    simply_thread_ll_append(module_data.timer_list, &rv);
-    PRINT_MSG("\tCreated Timer: %p\r\n", rv);
-    assert(0 == pthread_mutex_unlock(&module_data.mutex));
-    assert(0 == pthread_mutex_unlock(&new_timer->timer_mutex));
-    if(true == run_now)
+    assert(SIMPLY_THREAD_TIMER_ONE_SHOT == mode || SIMPLY_THREAD_TIMER_REPEAT == mode);
+    PRINT_MSG("\tFetching Mutex\r\n");
+    MUTEX_GET();
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry) && NULL == rv; i++)
     {
-        assert(true == simply_thread_timer_start(rv));
+        PRINT_MSG("\tindex %u\r\n", i);
+        if(m_timer_data.timer_registry[i].tick_handle == NULL)
+        {
+            rv = &m_timer_data.timer_registry[i];
+            m_timer_data.timer_registry[i].cb = cb;
+            m_timer_data.timer_registry[i].name = name;
+            m_timer_data.timer_registry[i].max_count = period_ms;
+            m_timer_data.timer_registry[i].count = 0;
+            m_timer_data.timer_registry[i].running = false;
+            m_timer_data.timer_registry[i].tick_handle = NULL;
+            m_timer_data.timer_registry[i].mode = mode;
+            MUTEX_RELEASE();
+            PRINT_MSG("\tCreated timer at index %u\r\n", i);
+            m_timer_data.timer_registry[i].tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_timers_worker, rv);
+        }
+    }
+    if(NULL == rv)
+    {
+        MUTEX_RELEASE();
+    }
+    if(true == run_now && NULL != rv)
+    {
+        simply_thread_timer_start(rv);
     }
     return rv;
 }
@@ -218,16 +216,17 @@ simply_thread_timer_t simply_thread_create_timer(simply_thread_timer_cb cb, cons
  */
 bool simply_thread_timer_start(simply_thread_timer_t timer)
 {
-    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    PRINT_MSG("Running %s\r\n", __FUNCTION__);
+    struct simply_thread_timer_entry_s worker;
     if(NULL == timer)
     {
         return false;
     }
-    assert(0 == pthread_mutex_lock(&module_data.mutex));
-    assert(0 == pthread_mutex_lock(&TIMER_DATA(timer)->timer_mutex));
-    TIMER_DATA(timer)->running = true;
-    assert(0 == pthread_mutex_unlock(&TIMER_DATA(timer)->timer_mutex));
-    assert(0 == pthread_mutex_unlock(&module_data.mutex));
+    memcpy(&worker, timer, sizeof(worker));
+    assert(NULL != worker.cb && NULL != worker.name);
+    worker.count = 0;
+    worker.running = true;
+    memcpy(timer, &worker, sizeof(worker));
     return true;
 }
 
@@ -238,15 +237,15 @@ bool simply_thread_timer_start(simply_thread_timer_t timer)
  */
 bool simply_thread_timer_stop(simply_thread_timer_t timer)
 {
-    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    PRINT_MSG("Running %s\r\n", __FUNCTION__);
+    struct simply_thread_timer_entry_s  worker;
     if(NULL == timer)
     {
         return false;
     }
-    assert(0 == pthread_mutex_lock(&module_data.mutex));
-    assert(0 == pthread_mutex_lock(&TIMER_DATA(timer)->timer_mutex));
-    TIMER_DATA(timer)->running = false;
-    assert(0 == pthread_mutex_unlock(&TIMER_DATA(timer)->timer_mutex));
-    assert(0 == pthread_mutex_unlock(&module_data.mutex));
+    memcpy(&worker, timer, sizeof(worker));
+    worker.running = false;
+    memcpy(timer, &worker, sizeof(worker));
     return true;
 }
+

@@ -80,7 +80,8 @@ LIST(APPEND simply-thread-sources
     src/simply-thread-timers.c
 	src/simply-thread-mutex.c
 	src/simply-thread-queue.c
-	src/fifo-mutex.c)
+	src/simply_thread_system_clock.c
+	src/master-mutex.c)
 
 #project for the simply thread tests
 project(simply-thread-tests)

@@ -10,7 +10,8 @@
 #include <simply-thread-scheduler.h>
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
-#include <fifo-mutex.h>
+#include <simply_thread_system_clock.h>
+#include "priv-inc/master-mutex.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
@@ -93,6 +94,24 @@ static inline void m_sched_exit_if_kill(void)
 }
 
 /**
+ * Function  that waits till it is safe to block the clock
+ */
+static inline void m_wait_till_clock_safe(void)
+{
+    bool safe = false;
+    do
+    {
+        safe = simply_thead_system_clock_safe_to_interrupt();
+        if(false == safe)
+        {
+            MUTEX_RELEASE();
+            MUTEX_GET();
+        }
+    }
+    while(false == safe);
+}
+
+/**
  * @brief Function that sleeps all running tasks
  */
 static inline void m_sleep_all_tasks(void)
@@ -104,9 +123,10 @@ static inline void m_sleep_all_tasks(void)
             if(SIMPLY_THREAD_TASK_RUNNING == TASK_LIST[i].state)
             {
                 m_sched_exit_if_kill();
-                fifo_mutex_prep_signal();
+                m_wait_till_clock_safe();
+                master_mutex_prep_signal();
                 assert(0 == pthread_kill(TASK_LIST[i].thread, SIGUSR1));
-                fifo_mutex_clear_prep_signal();
+                master_mutex_clear_prep_signal();
                 MUTEX_RELEASE();
                 simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
                 MUTEX_GET();
