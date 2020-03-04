@@ -26,6 +26,8 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+//#define DEBUG_MUTEX
+
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
@@ -365,7 +367,7 @@ master_mutex_entry_t master_mutex_pull(void)
     struct fifo_registry_s *worker;
     rv = NULL;
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    MASTER_WAIT;
+    assert(true == master_mutex_locked());
     id = pthread_self();
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_fifo_data.registry) && NULL == rv; i++)
     {
@@ -384,7 +386,6 @@ master_mutex_entry_t master_mutex_pull(void)
         m_fifo_data.wait_count--;
         PRINT_MSG("************ %i wait_count set to %i\r\n", __LINE__, m_fifo_data.wait_count);
     }
-    MASTER_POST;
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
     return rv;
 }

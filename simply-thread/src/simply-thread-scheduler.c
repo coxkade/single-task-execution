@@ -122,6 +122,7 @@ static inline void m_sleep_all_tasks(void)
         {
             if(SIMPLY_THREAD_TASK_RUNNING == TASK_LIST[i].state)
             {
+            	PRINT_MSG("Attempting to sleep task %s\r\n", TASK_LIST[i].name);
                 m_sched_exit_if_kill();
                 m_wait_till_clock_safe();
                 master_mutex_prep_signal();

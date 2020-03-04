@@ -26,6 +26,9 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+#define DISABLE_TIME_OUT //TODO Delete
+#define DEBUG_TESTS  //TODO Delete
+
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
@@ -82,6 +85,33 @@ static bool tasks_started[10]; //array of task started flags
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
+/**
+ * Internal function for sleeping ns
+ * @param ns
+ */
+static inline void test_sleep_ns(unsigned int ns)
+{
+	struct timespec time_data =
+	{
+		.tv_sec = 0,
+		.tv_nsec = 0
+	};
+	time_data.tv_nsec = ns;
+	while(0 != nanosleep(&time_data, &time_data)) {}
+}
+
+/**
+ * Internal function for sleeping ms
+ * @param ms
+ */
+static void test_sleep_ms(unsigned int ms)
+{
+	for(unsigned int i=0; i<ms; i++)
+	{
+		test_sleep_ns(ST_NS_PER_MS);
+	}
+}
+
 
 /**
  * @brief the task function for the second task
@@ -90,7 +120,9 @@ static bool tasks_started[10]; //array of task started flags
  */
 static void thread_two_worker(void *data, uint16_t data_size)
 {
+	PRINT_MSG("%s Started\r\n", __FUNCTION__);
     simply_thread_sleep_ms(100);
+    PRINT_MSG("%s Resumed\r\n", __FUNCTION__);
     while(1)
     {
         assert_true(true == simply_thread_task_suspend(NULL));
@@ -105,7 +137,9 @@ static void thread_two_worker(void *data, uint16_t data_size)
  */
 static void thread_one_worker(void *data, uint16_t data_size)
 {
+	PRINT_MSG("%s Started\r\n", __FUNCTION__);
     simply_thread_sleep_ms(100);
+    PRINT_MSG("%s Resumed\r\n", __FUNCTION__);
     while(1)
     {
         assert_true(true == simply_thread_task_resume(task_two));
@@ -119,14 +153,21 @@ static void thread_one_worker(void *data, uint16_t data_size)
 static void task_test_success(void **state)
 {
     simply_thread_reset();
+    PRINT_MSG("Creating Task1\r\n");
     task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
+    PRINT_MSG("Creating Task2\r\n");
     task_two = simply_thread_new_thread("TASK2", thread_two_worker, 3, NULL, 0);
 
     assert_true(NULL != task_one);
     assert_true(NULL != task_two);
+    test_sleep_ms(1000);
+    PRINT_MSG("Testing invalid suspend\r\n");
     assert_false(simply_thread_task_suspend(NULL));
+    PRINT_MSG("Testing invalid resume\r\n");
     assert_false(simply_thread_task_resume(NULL));
-    simply_thread_sleep_ms(1000);
+    PRINT_MSG("Going to sleep\r\n");
+    test_sleep_ms(1000);
+    PRINT_MSG("Starting Cleanup\r\n");
     simply_thread_cleanup();
     assert_true(thread_one_ran);
     assert_true(thread_two_ran);
@@ -587,7 +628,7 @@ static void central_mutex_test(void **state)
         assert(0 == pthread_create(&task_list[i].id, NULL, central_mutex_worker, &task_list[i]));
     }
     master_mutex_release();
-    while(100 > task_list[CENTRAL_MUTEX_THREAD_COUNT - 1].count)
+    while(103 > task_list[CENTRAL_MUTEX_THREAD_COUNT - 1].count)
     {
         simply_thread_sleep_ms(200);
     }
@@ -662,14 +703,14 @@ int main(void)
 #endif //DISABLE_TIME_OUT
     const struct CMUnitTest tests[] =
     {
-        cmocka_unit_test(task_test_success),
-        cmocka_unit_test(task_non_null_data_test),
-        cmocka_unit_test(main_timer_tests),
-        cmocka_unit_test(second_timer_tests),
+//        cmocka_unit_test(task_test_success),
+//        cmocka_unit_test(task_non_null_data_test),
+//        cmocka_unit_test(main_timer_tests),
+//        cmocka_unit_test(second_timer_tests),
         cmocka_unit_test(first_mutex_test_tests),
-        cmocka_unit_test(second_mutex_test_tests),
-        cmocka_unit_test(first_queue_test_tests),
-        cmocka_unit_test(second_queue_test_tests),
+//        cmocka_unit_test(second_mutex_test_tests),
+//        cmocka_unit_test(first_queue_test_tests),
+//        cmocka_unit_test(second_queue_test_tests),
 //        cmocka_unit_test(central_mutex_test)
     };
     signal(SIGSEGV, segfault_catch);

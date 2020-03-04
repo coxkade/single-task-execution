@@ -23,6 +23,7 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+#define SIMPLY_THREAD_MUTEX_DEBUG
 
 #ifndef SIMPLY_THREAD_MUTEX_DEBUG
 #ifdef DEBUG_SIMPLY_THREAD
