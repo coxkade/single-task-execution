@@ -11,12 +11,14 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include <simply-thread.h>
-#include <pthread.h>
+#include <simply-thread-log.h>
 #include <unistd.h>
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include <master-mutex.h>
+#include <time.h>
+#include <pthread.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -569,7 +571,6 @@ void *central_mutex_worker(void *args)
 static void central_mutex_test(void **state)
 {
     struct cm_thread_data_s task_list[CENTRAL_MUTEX_THREAD_COUNT];
-    unsigned int gate = 0;
     simply_thread_reset();
     assert(true == master_mutex_get());
     master_mutex_release();
@@ -581,9 +582,9 @@ static void central_mutex_test(void **state)
         assert(0 == pthread_create(&task_list[i].id, NULL, central_mutex_worker, &task_list[i]));
     }
     master_mutex_release();
-    while(100 > task_list[CENTRAL_MUTEX_THREAD_COUNT-1].count)
+    while(100 > task_list[CENTRAL_MUTEX_THREAD_COUNT - 1].count)
     {
-    	simply_thread_sleep_ms(200);
+        simply_thread_sleep_ms(200);
     }
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(task_list); i++)
     {
@@ -600,24 +601,58 @@ static void central_mutex_test(void **state)
     }
 }
 
+#ifndef DISABLE_TIME_OUT
+/**
+ * @brief Timeout task that allows the unit tests to exit in the event of a lockup
+ * @param arg
+ */
+void *timeout_worker(void *arg)
+{
+    unsigned int *typed;
+    struct timespec time_data =
+    {
+        .tv_sec = 0,
+        .tv_nsec = 0
+    };
+    typed = arg;
+    assert(NULL != typed);
+    time_data.tv_sec = typed[0];
+    while(0 != nanosleep(&time_data, &time_data)) {}
+    time_data.tv_nsec = 1000;
+    time_data.tv_sec = 0;
+    //If we got this far then we timed out.
+    ST_LOG_ERROR("Error Tests have timed out\r\n");
+    while(0 != nanosleep(&time_data, &time_data)) {}
+    assert(false == true);
+    return NULL;
+}
+#endif //DISABLE_TIME_OUT
+
 /**
  * @brief the main function
  * @return
  */
 int main(void)
 {
+#ifndef DISABLE_TIME_OUT
+    pthread_t thread;
+    unsigned int timeout_seconds = 30;
+#endif //DISABLE_TIME_OUT
     const struct CMUnitTest tests[] =
     {
         cmocka_unit_test(task_test_success),
         cmocka_unit_test(task_non_null_data_test),
         cmocka_unit_test(main_timer_tests),
         cmocka_unit_test(second_timer_tests),
-        cmocka_unit_test(first_mutex_test_tests),
+//        cmocka_unit_test(first_mutex_test_tests),
 //        cmocka_unit_test(second_mutex_test_tests),
 //        cmocka_unit_test(first_queue_test_tests),
 //        cmocka_unit_test(second_queue_test_tests),
 //        cmocka_unit_test(central_mutex_test)
     };
+#ifndef DISABLE_TIME_OUT
+    assert(0 == pthread_create(&thread, NULL, timeout_worker, &timeout_seconds));
+#endif //DISABLE_TIME_OUT
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
 
