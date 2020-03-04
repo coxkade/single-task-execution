@@ -15,6 +15,8 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
+#include <pthread.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -536,12 +538,41 @@ static void second_queue_test_tests(void **state)
     queue_test(state);
 }
 
+#ifndef DISABLE_TIME_OUT
+/**
+ * @brief Timeout task that allows the unit tests to exit in the event of a lockup
+ * @param arg
+ */
+void *timeout_worker(void *arg)
+{
+    unsigned int *typed;
+    struct timespec time_data =
+    {
+        .tv_sec = 0,
+        .tv_nsec = 0
+    };
+    typed = arg;
+    assert(NULL != typed);
+    time_data.tv_sec = typed[0];
+    while(0 != nanosleep(&time_data, &time_data))
+    {
+    }
+    //If we got this far then we timed out.
+    assert(false == true);
+    return NULL;
+}
+#endif //DISABLE_TIME_OUT
+
 /**
  * @brief the main function
  * @return
  */
 int main(void)
 {
+#ifndef DISABLE_TIME_OUT
+    pthread_t thread;
+    unsigned int timeout_seconds = 30;
+#endif //DISABLE_TIME_OUT
     const struct CMUnitTest tests[] =
     {
         cmocka_unit_test(task_test_success),
@@ -553,6 +584,9 @@ int main(void)
         cmocka_unit_test(first_queue_test_tests),
         cmocka_unit_test(second_queue_test_tests),
     };
+#ifndef DISABLE_TIME_OUT
+    assert(0 == pthread_create(&thread, NULL, timeout_worker, &timeout_seconds));
+#endif //DISABLE_TIME_OUT
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
 
