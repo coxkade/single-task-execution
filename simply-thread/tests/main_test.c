@@ -11,6 +11,7 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include <simply-thread.h>
+#include <simply-thread-log.h>
 #include <unistd.h>
 #include <assert.h>
 #include <string.h>
@@ -554,10 +555,12 @@ void *timeout_worker(void *arg)
     typed = arg;
     assert(NULL != typed);
     time_data.tv_sec = typed[0];
-    while(0 != nanosleep(&time_data, &time_data))
-    {
-    }
+    while(0 != nanosleep(&time_data, &time_data)) {}
+    time_data.tv_nsec = 1000;
+    time_data.tv_sec = 0;
     //If we got this far then we timed out.
+    ST_LOG_ERROR("Error Tests have timed out\r\n");
+    while(0 != nanosleep(&time_data, &time_data)) {}
     assert(false == true);
     return NULL;
 }
