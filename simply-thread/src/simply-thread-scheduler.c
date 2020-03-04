@@ -126,9 +126,10 @@ static inline void m_sleep_all_tasks(void)
                 m_wait_till_clock_safe();
                 master_mutex_prep_signal();
                 simply_thread_prep_condition(&MODULE_DATA.sleepcondition);
+                simply_thread_prep_condition(&MODULE_DATA.sigcondition);
                 assert(0 == pthread_kill(TASK_LIST[i].thread, SIGUSR1));
+                simply_thread_wait_condition(&MODULE_DATA.sigcondition);
                 master_mutex_clear_prep_signal();
-                simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
                 MUTEX_RELEASE();
                 simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
                 MUTEX_GET();
@@ -232,8 +233,10 @@ void simply_thread_scheduler_init(void)
     PRINT_MSG("%s\r\n", __FUNCTION__);
     simply_thread_init_condition(&MODULE_DATA.condition);
     simply_thread_init_condition(&MODULE_DATA.sleepcondition);
+    simply_thread_init_condition(&MODULE_DATA.sigcondition);
     PRINT_MSG("\tSched Condition: %p\r\n", &MODULE_DATA.condition);
     PRINT_MSG("\tSleep Condition: %p\r\n", &MODULE_DATA.sleepcondition);
+    PRINT_MSG("\tSignal Condition: %p\r\n", &MODULE_DATA.sigcondition);
     MODULE_DATA.sched_data.staged = false;
     MODULE_DATA.sched_data.kill = false;
     //Launch the scheduler thread
@@ -271,6 +274,7 @@ void simply_thread_scheduler_kill(void)
         MUTEX_GET();
         simply_thread_dest_condition(&MODULE_DATA.condition);
         simply_thread_dest_condition(&MODULE_DATA.sleepcondition);
+        simply_thread_dest_condition(&MODULE_DATA.sigcondition);
         MODULE_DATA.threadlaunched = false;
     }
     MUTEX_RELEASE();
@@ -323,4 +327,13 @@ void simply_thread_tell_sched_task_sleeping(struct simply_thread_task_s *ptr_tas
 {
     PRINT_MSG("%s\r\n", __FUNCTION__);
     simply_thread_send_condition(&MODULE_DATA.sleepcondition);
+}
+
+/**
+ * @brief tell the scheduler that a task has been scheduled
+ */
+void simply_thread_tell_sched_task_signaled(void)
+{
+    PRINT_MSG("%s\r\n", __FUNCTION__);
+    simply_thread_send_condition(&MODULE_DATA.sigcondition);
 }

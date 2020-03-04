@@ -34,4 +34,9 @@ void simply_thread_run(struct simply_thread_scheduler_data_s *thread_data);
  * @param ptr_task
  */
 void simply_thread_tell_sched_task_sleeping(struct simply_thread_task_s *ptr_task);
+
+/**
+ * @brief tell the scheduler that a task has been scheduled
+ */
+void simply_thread_tell_sched_task_signaled(void);
 #endif /* SIMPLY_THREAD_SCHEDULER_H_ */

@@ -77,6 +77,7 @@ struct simply_thread_scheduler_task_data_s
 {
     struct simply_thread_condition_s condition; //!< Structure with elements to trigger the scheduler
     struct simply_thread_condition_s sleepcondition; //!< Structure for the sleep condition
+    struct simply_thread_condition_s sigcondition; //!< Structure for the signal condition
     struct
     {
         struct simply_thread_scheduler_data_s work_data; //!< The data to work off of

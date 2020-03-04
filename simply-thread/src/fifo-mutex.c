@@ -36,12 +36,12 @@
 #define SEM_POST(S) assert(0 == simply_thread_sem_post(S))
 
 #define MASTER_WAIT \
-	SEM_WAIT(&m_fifo_data.main_sem); \
-	m_fifo_data.lock_line = __LINE__
+    SEM_WAIT(&m_fifo_data.main_sem); \
+    m_fifo_data.lock_line = __LINE__
 
 #define MASTER_POST \
-	m_fifo_data.lock_line = 0;\
-	SEM_POST(&m_fifo_data.main_sem)
+    m_fifo_data.lock_line = 0;\
+    SEM_POST(&m_fifo_data.main_sem)
 
 #ifndef MAX_LIST_SIZE
 #define MAX_LIST_SIZE 500
@@ -329,7 +329,7 @@ void master_mutex_reset(void)
     assert(0 == pthread_mutex_lock(&m_fifo_data.init_mutex));
     if(true == m_fifo_data.initialized)
     {
-    	PRINT_MSG("\tWe are initialized and need to clean stuff up\r\n");
+        PRINT_MSG("\tWe are initialized and need to clean stuff up\r\n");
         for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_fifo_data.registry); i++)
         {
             if(NULL != m_fifo_data.registry[i].sem)
@@ -362,7 +362,7 @@ master_mutex_entry_t master_mutex_pull(void)
 {
     pthread_t id;
     master_mutex_entry_t rv;
-    struct fifo_registry_s * worker;
+    struct fifo_registry_s *worker;
     rv = NULL;
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     MASTER_WAIT;
@@ -371,18 +371,18 @@ master_mutex_entry_t master_mutex_pull(void)
     {
         if(NULL != m_fifo_data.registry[i].sem && id == m_fifo_data.registry[i].id)
         {
-        	worker = malloc(sizeof(struct fifo_registry_s));
-        	assert(NULL != worker);
-        	rv = worker;
+            worker = malloc(sizeof(struct fifo_registry_s));
+            assert(NULL != worker);
+            rv = worker;
             m_fifo_data.registry[i].enabled = false;
             memcpy(worker, &m_fifo_data.registry[i], sizeof(m_fifo_data.registry[i]));
         }
     }
     if(NULL != rv)
     {
-    	assert(0<m_fifo_data.wait_count);
-    	m_fifo_data.wait_count--;
-    	PRINT_MSG("************ %i wait_count set to %i\r\n", __LINE__, m_fifo_data.wait_count);
+        assert(0 < m_fifo_data.wait_count);
+        m_fifo_data.wait_count--;
+        PRINT_MSG("************ %i wait_count set to %i\r\n", __LINE__, m_fifo_data.wait_count);
     }
     MASTER_POST;
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
@@ -404,12 +404,12 @@ void master_mutex_push(master_mutex_entry_t entry)
     assert(false == typed->enabled);
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_fifo_data.registry) && false == typed->enabled; i++)
     {
-    	if(typed->id == m_fifo_data.registry[i].id && typed->sem == m_fifo_data.registry[i].sem)
-    	{
-    		assert(false == m_fifo_data.registry[i].enabled);
-    		typed->enabled = true;
-    		m_fifo_data.registry[i].enabled = true;
-    	}
+        if(typed->id == m_fifo_data.registry[i].id && typed->sem == m_fifo_data.registry[i].sem)
+        {
+            assert(false == m_fifo_data.registry[i].enabled);
+            typed->enabled = true;
+            m_fifo_data.registry[i].enabled = true;
+        }
     }
     m_fifo_data.wait_count++;
     PRINT_MSG("************ %i wait_count set to %i\r\n", __LINE__, m_fifo_data.wait_count);
@@ -424,7 +424,7 @@ void master_mutex_push(master_mutex_entry_t entry)
 void master_mutex_prep_signal(void)
 {
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-   MASTER_WAIT;
+    MASTER_WAIT;
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
@@ -433,9 +433,9 @@ void master_mutex_prep_signal(void)
  */
 void master_mutex_clear_prep_signal(void)
 {
-   PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-   MASTER_POST;
-   PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    MASTER_POST;
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
 

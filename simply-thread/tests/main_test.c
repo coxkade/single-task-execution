@@ -19,6 +19,8 @@
 #include <master-mutex.h>
 #include <time.h>
 #include <pthread.h>
+#include <signal.h>
+#include <stdlib.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -48,6 +50,9 @@
 #define LOCAL_ASSERT(...) assert(__VA_ARGS__)
 #endif //USE_SPIN_ASSERT
 
+#ifndef ST_NS_PER_MS
+#define ST_NS_PER_MS 1000000
+#endif //ST_NS_PER_MS
 
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
@@ -623,10 +628,22 @@ void *timeout_worker(void *arg)
     //If we got this far then we timed out.
     ST_LOG_ERROR("Error Tests have timed out\r\n");
     while(0 != nanosleep(&time_data, &time_data)) {}
-    assert(false == true);
+    assert(false);
     return NULL;
 }
 #endif //DISABLE_TIME_OUT
+
+/**
+ * @brief Function to use do catch segfaults.
+ * It spins so that I can attach to the process. remove before merge
+ * @param signo
+ */
+static void segfault_catch(int signo)
+{
+    ST_LOG_ERROR("Error Segfault\r\n");
+    while(1) {}
+    exit(-1);
+}
 
 /**
  * @brief the main function
@@ -634,9 +651,14 @@ void *timeout_worker(void *arg)
  */
 int main(void)
 {
+    int rv;
 #ifndef DISABLE_TIME_OUT
     pthread_t thread;
     unsigned int timeout_seconds = 30;
+    if(ST_NS_PER_MS < 100000)
+    {
+        timeout_seconds = 5;
+    }
 #endif //DISABLE_TIME_OUT
     const struct CMUnitTest tests[] =
     {
@@ -644,15 +666,18 @@ int main(void)
         cmocka_unit_test(task_non_null_data_test),
         cmocka_unit_test(main_timer_tests),
         cmocka_unit_test(second_timer_tests),
-//        cmocka_unit_test(first_mutex_test_tests),
-//        cmocka_unit_test(second_mutex_test_tests),
-//        cmocka_unit_test(first_queue_test_tests),
-//        cmocka_unit_test(second_queue_test_tests),
+        cmocka_unit_test(first_mutex_test_tests),
+        cmocka_unit_test(second_mutex_test_tests),
+        cmocka_unit_test(first_queue_test_tests),
+        cmocka_unit_test(second_queue_test_tests),
 //        cmocka_unit_test(central_mutex_test)
     };
+    signal(SIGSEGV, segfault_catch);
 #ifndef DISABLE_TIME_OUT
     assert(0 == pthread_create(&thread, NULL, timeout_worker, &timeout_seconds));
 #endif //DISABLE_TIME_OUT
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    rv = cmocka_run_group_tests(tests, NULL, NULL);
+    assert(rv <= ARRAY_MAX_COUNT(tests));
+    return rv;
 }
 

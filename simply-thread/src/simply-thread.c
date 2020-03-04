@@ -163,8 +163,8 @@ static void m_usr1_catch(int signo)
     m_entry = master_mutex_pull();
     ptr_task = simply_thread_get_ex_task();
     assert(NULL != ptr_task);
-    simply_thread_tell_sched_task_sleeping(ptr_task);
 
+    simply_thread_tell_sched_task_signaled();
     MUTEX_GET();
     wait_required = false;
     ptr_task = simply_thread_get_ex_task();
