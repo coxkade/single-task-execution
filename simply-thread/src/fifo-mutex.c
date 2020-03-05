@@ -38,19 +38,19 @@
 #define SEM_POST(S) assert(0 == simply_thread_sem_post(S))
 
 #define MASTER_WAIT \
-    SEM_WAIT(&m_fifo_data.main_sem); \
+    assert(0 == pthread_mutex_lock(&m_fifo_data.init_mutex)); \
     m_fifo_data.lock_line = __LINE__
 
 #define MASTER_POST \
     m_fifo_data.lock_line = 0;\
-    SEM_POST(&m_fifo_data.main_sem)
+    pthread_mutex_unlock(&m_fifo_data.init_mutex)
 
 #ifndef MAX_LIST_SIZE
 #define MAX_LIST_SIZE 500
 #endif //MAX_LIST_SIZE
 
 #ifdef DEBUG_MUTEX
-#define PRINT_MSG(...) fifo_mutex_printf(__VA_ARGS__)
+#define PRINT_MSG(...) simply_thread_log(COLOR_ORANGE, __VA_ARGS__)
 #else
 #define PRINT_MSG(...)
 #endif //DEBUG_MUTEX
@@ -69,7 +69,7 @@ struct fifo_registry_s
 
 struct fifo_master_mutex_data_s
 {
-    simply_thread_sem_t main_sem; //!< The main semaphore to keep everything safe
+//    simply_thread_sem_t main_sem; //!< The main semaphore to keep everything safe
     struct fifo_registry_s registry[MAX_LIST_SIZE]; //!< The registery data
     bool locked; //!< Tells if we are currently locked
     bool initialized; //!< Tells if the module has been initialized
@@ -98,25 +98,6 @@ static struct fifo_master_mutex_data_s m_fifo_data =
 /***********************************************************************************/
 
 
-#ifdef DEBUG_MUTEX
-/**
- * @brief Internal print message that tags the thread printing the message
- * @param fmt
- */
-static void fifo_mutex_printf(const char *fmt, ...)
-{
-    int rc;
-    char buffer[500];
-    va_list args;
-    va_start(args, fmt);
-    rc = vsnprintf(buffer, ARRAY_MAX_COUNT(buffer), fmt, args);
-    assert(0 < rc);
-    va_end(args);
-
-    simply_thread_log(COLOR_ORANGE, "%p: %s", pthread_self(), buffer);
-}
-#endif //DEBUG_MUTEX
-
 /**
  * @brief Function that initializes this module as needed
  */
@@ -124,7 +105,8 @@ static void fifo_mutex_init_if_needed(void)
 {
     if(false == m_fifo_data.initialized)
     {
-        assert(0 == pthread_mutex_lock(&m_fifo_data.init_mutex));
+//        assert(0 == pthread_mutex_lock(&m_fifo_data.init_mutex));
+    	MASTER_WAIT;
         if(false == m_fifo_data.initialized)
         {
             for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_fifo_data.registry); i++)
@@ -133,12 +115,13 @@ static void fifo_mutex_init_if_needed(void)
                 m_fifo_data.registry[i].sem = NULL;
             }
             m_fifo_data.locked = false;
-            simply_thread_sem_init(&m_fifo_data.main_sem);
+//            simply_thread_sem_init(&m_fifo_data.main_sem);
             m_fifo_data.initialized = true;
             m_fifo_data.wait_count = 0;
             PRINT_MSG("************ %i wait_count set to %i\r\n", __LINE__, m_fifo_data.wait_count);
         }
-        pthread_mutex_unlock(&m_fifo_data.init_mutex);
+//        pthread_mutex_unlock(&m_fifo_data.init_mutex);
+        MASTER_POST;
     }
 }
 
@@ -328,7 +311,8 @@ void master_mutex_release(void)
 void master_mutex_reset(void)
 {
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    assert(0 == pthread_mutex_lock(&m_fifo_data.init_mutex));
+//    assert(0 == pthread_mutex_lock(&m_fifo_data.init_mutex));
+    MASTER_WAIT;
     if(true == m_fifo_data.initialized)
     {
         PRINT_MSG("\tWe are initialized and need to clean stuff up\r\n");
@@ -340,9 +324,10 @@ void master_mutex_reset(void)
             }
         }
         m_fifo_data.initialized = false;
-        simply_thread_sem_destroy(&m_fifo_data.main_sem);
+//        simply_thread_sem_destroy(&m_fifo_data.main_sem);
     }
-    pthread_mutex_unlock(&m_fifo_data.init_mutex);
+//    pthread_mutex_unlock(&m_fifo_data.init_mutex);
+    MASTER_POST;
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
@@ -366,7 +351,7 @@ master_mutex_entry_t master_mutex_pull(void)
     master_mutex_entry_t rv;
     struct fifo_registry_s *worker;
     rv = NULL;
-    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    ST_LOG_ERROR("%s Starting\r\n", __FUNCTION__);
     assert(true == master_mutex_locked());
     id = pthread_self();
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_fifo_data.registry) && NULL == rv; i++)
@@ -397,7 +382,7 @@ master_mutex_entry_t master_mutex_pull(void)
 void master_mutex_push(master_mutex_entry_t entry)
 {
     struct fifo_registry_s *typed;
-    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    ST_LOG_ERROR("%s Starting\r\n", __FUNCTION__);
     MASTER_WAIT;
     typed = entry;
     assert(NULL != typed);

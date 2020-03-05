@@ -30,7 +30,6 @@
 
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_MAGENTA, __VA_ARGS__)
-#define ROOT_PRINT(...) simply_thread_log(COLOR_YELLOW, __VA_ARGS__)
 #else
 #define PRINT_MSG(...)
 #define ROOT_PRINT(...)
@@ -159,8 +158,11 @@ static void m_usr1_catch(int signo)
     int error_val;
     //triggers from a locked context
     assert(SIGUSR1 == signo);
+    simply_thread_log_unlock();
+
     assert(true == master_mutex_locked());
     m_entry = master_mutex_pull();
+    master_mutex_clear_prep_signal();
     ptr_task = simply_thread_get_ex_task();
     assert(NULL != ptr_task);
 
@@ -219,6 +221,8 @@ static void m_usr2_catch(int signo)
 {
     struct simply_thread_task_s *ptr_task;
     assert(SIGUSR2 == signo);
+    simply_thread_log_unlock();
+    master_mutex_clear_prep_signal();
     ptr_task = simply_thread_get_ex_task();
     if(NULL != ptr_task)
     {
@@ -262,7 +266,7 @@ static void m_intern_cleanup(void)
         simply_thread_timers_destroy();
         MUTEX_GET();
         simply_thead_system_clock_reset();
-        master_mutex_prep_signal();
+        // master_mutex_prep_signal();
         for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_module_data.sleep.sleep_list); i++)
         {
             m_module_data.sleep.sleep_list[i].in_use = false;
@@ -272,6 +276,8 @@ static void m_intern_cleanup(void)
             if(NULL != m_module_data.tcb_list[i].name)
             {
                 PRINT_MSG("Killing task %s\r\n", m_module_data.tcb_list[i].name);
+                simply_thread_log_lock();
+                master_mutex_prep_signal();
                 assert(0 == pthread_kill(m_module_data.tcb_list[i].thread, SIGUSR2));
                 pthread_join(m_module_data.tcb_list[i].thread, NULL);
                 PRINT_MSG("Task %s Killed\r\n", m_module_data.tcb_list[i].name);
@@ -471,12 +477,22 @@ static void sleep_on_tick_worker(sys_clock_on_tick_handle_t handle, uint64_t new
     i_ptr = args;
     assert(NULL != i_ptr);
     i = i_ptr[0];
+    //Make sure the state gets set to suspended befor incrementing the counter
+    if(SIMPLY_THREAD_TASK_SUSPENDED == m_module_data.sleep.sleep_list[i].sleep_data.task_adjust->state
+    		&& false == m_module_data.sleep.sleep_list[i].sleep_data.suspended)
+    {
+    	m_module_data.sleep.sleep_list[i].sleep_data.suspended = true;
+    }
+    if(false == m_module_data.sleep.sleep_list[i].sleep_data.suspended)
+    {
+    	return;
+    }
     m_module_data.sleep.sleep_list[i].sleep_data.current_ms++;
     if(m_module_data.sleep.sleep_list[i].sleep_data.current_ms >= m_module_data.sleep.sleep_list[i].sleep_data.ms
             && false == m_module_data.sleep.sleep_list[i].sleep_data.finished
             && true == m_module_data.sleep.sleep_list[i].in_use)
     {
-        simply_thead_system_clock_disable_on_tick_from_handler(handle);
+        
         MUTEX_GET();
         assert(true == m_module_data.sleep.sleep_list[i].in_use);
         task = m_module_data.sleep.sleep_list[i].sleep_data.task_adjust;
@@ -485,7 +501,22 @@ static void sleep_on_tick_worker(sys_clock_on_tick_handle_t handle, uint64_t new
             m_module_data.sleep.sleep_list[i].sleep_data.finished = true;
             simply_thread_set_task_state_from_locked(task, SIMPLY_THREAD_TASK_READY);
         }
+        else
+        {
+        	assert(NULL != task->name);
+            printf("%s State not set for %s\r\n", __FUNCTION__, task->name);
+            printf("\tState: 0x%02X\r\n", task->state);
+            if(true == m_module_data.sleep.sleep_list[i].in_use)
+            {
+            	printf("\tEntry is in use\r\n");
+            }
+            else
+            {
+            	printf("\tEntry is not in use\r\n");
+            }
+        }
         MUTEX_RELEASE();
+        simply_thead_system_clock_disable_on_tick_from_handler(handle);
     }
 }
 
@@ -535,6 +566,7 @@ void simply_thread_sleep_ms(unsigned long ms)
                 m_module_data.sleep.sleep_list[i].sleep_data.ms = ms;
                 m_module_data.sleep.sleep_list[i].sleep_data.task_adjust = ptr_task;
                 m_module_data.sleep.sleep_list[i].sleep_data.finished = false;
+                m_module_data.sleep.sleep_list[i].sleep_data.suspended = false;
                 m_module_data.sleep.sleep_list[i].in_use = true;
                 index = i;
                 i_ptr = malloc(sizeof(unsigned int));

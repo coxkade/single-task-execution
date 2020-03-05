@@ -75,6 +75,15 @@ static struct system_clock_data_s clock_module_data =
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
+static void wait_on_clock_running(void)
+{
+	bool wait = true;
+	while(true == wait)
+	{
+		wait = clock_module_data.clock_running;
+	}
+}
+
 /**
  * @brief function that tells the worker to pause when required
  */
@@ -165,6 +174,7 @@ void simply_thead_system_clock_reset(void)
     clock_module_data.initialized = false;
 }
 
+
 /**
  * @brief Function that registers a function to be called on a tick
  * @param on_tick pointer to the function to call on tick
@@ -195,8 +205,12 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
     }
     while(wait == true);
     assert(true == clock_module_data.pause_clock);
-    while(true == clock_module_data.clock_running) {} //Wait for the clock not to be running
-    assert(false == clock_module_data.clock_running);
+//    while(true == clock_module_data.clock_running) {} //Wait for the clock not to be running
+    wait_on_clock_running();
+    if(false == clock_module_data.kill_worker)
+    {
+    	assert(false == clock_module_data.clock_running);
+    }
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(clock_module_data.tick_reg) && NULL == rv; i++)
     {
         if(NULL == clock_module_data.tick_reg[i].cb)
@@ -207,8 +221,10 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
             rv = &clock_module_data.tick_reg[i];
         }
     }
+    MUTEX_GET();
     PRINT_MSG("\t%s Setting pause_clock to false\r\n", __FUNCTION__);
     clock_module_data.pause_clock = false; //Tell the clock to resume
+    MUTEX_RELEASE();
     assert(NULL != rv);
     return rv;
 }
@@ -254,7 +270,8 @@ void simply_thead_system_clock_deregister_on_tick(sys_clock_on_tick_handle_t han
     }
     while(wait == true);
     assert(true == clock_module_data.pause_clock);
-    while(true == clock_module_data.clock_running) {} //Wait for the clock not to be running
+    wait_on_clock_running();
+//    while(true == clock_module_data.clock_running) {} //Wait for the clock not to be running
     typed->cb = NULL;
     typed->args = NULL;
     typed->enabled = false;

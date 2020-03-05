@@ -17,6 +17,7 @@
 #define COLOR_BLACK "\x1b[30m"
 #define COLOR_CYAN "\x1b[36m"
 #define COLOR_WHITE "\x1b[37m"
+#define COLOR_GREEN "\x1b[32m"
 #define COLOR_LIGHT_GREEN "\x001b[38;5;154m"
 #define COLOR_PURPLE "\x001b[38;5;93m"
 #define COLOR_EARTH_GREEN "\x001b[38;5;64m"
@@ -32,6 +33,16 @@
  * @param fmt Standard printf format
  */
 void simply_thread_log(const char *color, const char *fmt, ...);
+
+/**
+ * @brief Block any pending writes
+ */
+void simply_thread_log_lock(void);
+
+/**
+ * @brief Unblock any pending writes
+ */
+void simply_thread_log_unlock(void);
 
 
 #endif /* SIMPLY_THREAD_LOG_H_ */

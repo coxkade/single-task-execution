@@ -27,6 +27,8 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
+//#define DEBUG_SIMPLY_THREAD
+
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
@@ -128,9 +130,10 @@ static inline void m_sleep_all_tasks(void)
                 master_mutex_prep_signal();
                 simply_thread_prep_condition(&MODULE_DATA.sleepcondition);
                 simply_thread_prep_condition(&MODULE_DATA.sigcondition);
+                simply_thread_log_lock();
                 assert(0 == pthread_kill(TASK_LIST[i].thread, SIGUSR1));
                 simply_thread_wait_condition(&MODULE_DATA.sigcondition);
-                master_mutex_clear_prep_signal();
+//                master_mutex_clear_prep_signal();
                 MUTEX_RELEASE();
                 simply_thread_wait_condition(&MODULE_DATA.sleepcondition);
                 MUTEX_GET();

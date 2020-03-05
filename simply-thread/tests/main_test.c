@@ -27,21 +27,25 @@
 /***********************************************************************************/
 
 #define DISABLE_TIME_OUT //TODO Delete
-#define DEBUG_TESTS  //TODO Delete
+//#define DEBUG_TESTS  //TODO Delete
 
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
 #ifdef DEBUG_TESTS
-#define PRINT_MSG(...) printf(__VA_ARGS__)
-#define PRINT_TASK_STATE() simply_thread_print_tcb()
+#define PRINT_MSG(...) simply_thread_log(NULL, __VA_ARGS__)
 #ifndef USE_SPIN_ASSERT
 #define USE_SPIN_ASSERT
 #endif //USE_SPIN_ASSERT
 #else
 #define PRINT_MSG(...)
-#define PRINT_TASK_STATE()
 #endif //DEBUG_TESTS
+
+#ifdef DEBUG_STATE
+#define PRINT_TASK_STATE() simply_thread_print_tcb()
+#else
+#define PRINT_TASK_STATE()
+#endif //DEBUG_STATE
 
 //Macro to help debug asserts
 #ifdef USE_SPIN_ASSERT
@@ -703,11 +707,11 @@ int main(void)
 #endif //DISABLE_TIME_OUT
     const struct CMUnitTest tests[] =
     {
-//        cmocka_unit_test(task_test_success),
-//        cmocka_unit_test(task_non_null_data_test),
-//        cmocka_unit_test(main_timer_tests),
-//        cmocka_unit_test(second_timer_tests),
-        cmocka_unit_test(first_mutex_test_tests),
+        cmocka_unit_test(task_test_success),
+        cmocka_unit_test(task_non_null_data_test),
+        cmocka_unit_test(main_timer_tests),
+        cmocka_unit_test(second_timer_tests),
+//        cmocka_unit_test(first_mutex_test_tests),
 //        cmocka_unit_test(second_mutex_test_tests),
 //        cmocka_unit_test(first_queue_test_tests),
 //        cmocka_unit_test(second_queue_test_tests),
