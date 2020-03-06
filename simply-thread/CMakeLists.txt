@@ -81,7 +81,9 @@ LIST(APPEND simply-thread-sources
 	src/simply-thread-mutex.c
 	src/simply-thread-queue.c
 	src/simply_thread_system_clock.c
-	src/master-mutex.c)
+	src/master-mutex.c
+	src/Task-Helper/Message-Helper.c
+	)
 
 #project for the simply thread tests
 project(simply-thread-tests)
@@ -89,7 +91,7 @@ project(simply-thread-tests)
 	add_executable(simply-thread-test-ex tests/main_test.c ${simply-thread-sources})
 	simply_thred_test_prep()
 	set_test_cmake_flags(simply-thread-test-ex)
-	target_include_directories(simply-thread-test-ex PRIVATE ${MOCKA_PATH} inc src/priv-inc)
+	target_include_directories(simply-thread-test-ex PRIVATE ${MOCKA_PATH} inc src/priv-inc src/Task-Helper)
 	target_link_libraries(simply-thread-test-ex ${MOCKA_LIB} ${CMAKE_THREAD_LIBS_INIT} -fprofile-arcs -ftest-coverage)
 	add_test(NAME simply-thread-test 
 		COMMAND simply-thread-test-ex
@@ -118,7 +120,7 @@ project(simply-thread)
    	set_lib_cmake_flags(simply-thread)
 	#SET_TARGET_PROPERTIES(simply-thread PROPERTIES COMPILE_FLAGS ${MAIN_CFLAGS})
 	target_include_directories(simply-thread PUBLIC inc)
-	target_include_directories(simply-thread PRIVATE src/priv-inc)
+	target_include_directories(simply-thread PRIVATE src/priv-inc src/Task-Helper)
 
 
 project(sem-clean-tool)
