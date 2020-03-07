@@ -88,10 +88,10 @@ LIST(APPEND simply-thread-sources
 #project for the simply thread tests
 project(simply-thread-tests)
 	set(ENV{CMOCKA_TEST_ABORT} 1)
-	add_executable(simply-thread-test-ex tests/main_test.c ${simply-thread-sources})
+	add_executable(simply-thread-test-ex tests/main_test.c tests/Task-Helper-Tests.c ${simply-thread-sources})
 	simply_thred_test_prep()
 	set_test_cmake_flags(simply-thread-test-ex)
-	target_include_directories(simply-thread-test-ex PRIVATE ${MOCKA_PATH} inc src/priv-inc src/Task-Helper)
+	target_include_directories(simply-thread-test-ex PRIVATE ${MOCKA_PATH} inc src/priv-inc src/Task-Helper tests)
 	target_link_libraries(simply-thread-test-ex ${MOCKA_LIB} ${CMAKE_THREAD_LIBS_INIT} -fprofile-arcs -ftest-coverage)
 	add_test(NAME simply-thread-test 
 		COMMAND simply-thread-test-ex
