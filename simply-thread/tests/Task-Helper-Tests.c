@@ -18,6 +18,14 @@
 #include <pthread.h>
 #include <Message-Helper.h>
 #include <Thread-Helper.h>
+#include <TCB.h>
+
+
+#ifdef DEBUG_TESTS
+#define PRINT_MSG(...) printf(__VA_ARGS__)
+#else
+#define PRINT_MSG(...)
+#endif //DEBUG_TESTS
 
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
@@ -107,6 +115,7 @@ static void basic_thread_helper_test(void **state)
     while(count_data.target_count != count_data.count) {}
     assert_int_equal(count_data.target_count, count_data.count);
     assert_true(thread_helper_thread_running(test_thread));
+    assert_true(thread_helper_get_id(test_thread) != pthread_self());
     thread_helper_pause_thread(test_thread);
     assert_false(thread_helper_thread_running(test_thread));
     count_data.target_count = 1000;
@@ -119,6 +128,93 @@ static void basic_thread_helper_test(void **state)
     thread_helper_thread_destroy(test_thread);
 }
 
+
+/*********************************************************************
+ ************************* TCB Test Items ****************************
+ ********************************************************************/
+
+static tcb_task_t * tcb_task_one;
+static tcb_task_t * tcb_task_two;
+static unsigned int tcb_one_count;
+static unsigned int tcb_two_count;
+
+static void tcb_worker_two(void *data, uint16_t data_size)
+{
+	while(NULL == tcb_task_two){}
+	assert_true(NULL == data);
+	assert_true(0 == data_size);
+	while(1)
+	{
+		PRINT_MSG("%s Setting task one to ready\r\n", __FUNCTION__);
+		tcb_set_task_state(SIMPLY_THREAD_TASK_READY, tcb_task_one);
+		tcb_two_count++;
+	}
+}
+
+static void tcb_worker_one(void *data, uint16_t data_size)
+{
+	unsigned int * typed;
+    tcb_task_t * task_ptr;
+	typed = data;
+
+	while(NULL == tcb_task_one){}
+
+	assert(sizeof(unsigned int) == data_size);
+	assert(NULL != typed);
+	assert(200 == typed[0]);
+
+    task_ptr = tcb_task_self();
+
+	assert(NULL != task_ptr);
+
+	PRINT_MSG("%s Creating Task Two\r\n", __FUNCTION__);
+	assert_null(tcb_task_two);
+	tcb_task_two = tcb_create_task("TASK TWO", tcb_worker_two, 1, NULL, 0);
+	assert_non_null(tcb_task_two);
+	while(1)
+	{
+		PRINT_MSG("%s suspending task 1\r\n", __FUNCTION__);
+		tcb_set_task_state(SIMPLY_THREAD_TASK_SUSPENDED, tcb_task_one);
+		tcb_one_count++;
+	}
+}
+
+
+
+static void basic_TCB_test(void **state)
+{
+
+	unsigned int value = 200;
+
+	tcb_task_one = NULL;
+	tcb_task_two = NULL;
+	tcb_one_count = 0;
+	tcb_two_count = 0;
+
+	tcb_reset();
+	//Create tcb worker one
+	PRINT_MSG("Creating Task 1\r\n");
+	tcb_task_one = tcb_create_task("TASK ONE", tcb_worker_one, 2, &value, sizeof(value));
+	PRINT_MSG("Task 1 Created\r\n");
+	assert_non_null(tcb_task_one);
+	while(NULL == tcb_task_two) {}
+	assert_null(tcb_task_self());
+	PRINT_MSG("Finishing up the Tests\r\n");
+	while(500 > tcb_two_count){}
+	assert(500 <= tcb_two_count);
+	assert(500 <= tcb_one_count);
+	tcb_reset();
+}
+
+static void TCB_Test_One(void **state)
+{
+	basic_TCB_test(state);
+}
+
+static void TCB_Test_Two(void **state)
+{
+	basic_TCB_test(state);
+}
 /**
  * @brief run the task helper tests
  */
@@ -128,7 +224,9 @@ int run_task_helper_tests(void)
     const struct CMUnitTest message_helper_tests[] =
     {
         cmocka_unit_test(basic_message_helper_test),
-        cmocka_unit_test(basic_thread_helper_test)
+        cmocka_unit_test(basic_thread_helper_test),
+		cmocka_unit_test(TCB_Test_One),
+		cmocka_unit_test(TCB_Test_Two)
     };
     rv = cmocka_run_group_tests(message_helper_tests, NULL, NULL);
     assert(0 <= rv);

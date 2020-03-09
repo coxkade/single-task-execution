@@ -149,79 +149,79 @@ void *simply_thread_current_task_handle(void)
  * Function that causes a task to spin until its state is set to running
  * @param signo
  */
-static void m_usr1_catch(int signo)
-{
-    struct simply_thread_task_s *ptr_task;
-    bool wait_required;
-    master_mutex_entry_t m_entry;
-    bool keep_going = true;
-    int rv;
-    int error_val;
-    assert(SIGUSR1 == signo);
-
-    m_entry = master_mutex_pull();
-
-    MUTEX_GET();
-    wait_required = false;
-    ptr_task = simply_thread_get_ex_task();
-    if(NULL != ptr_task)
-    {
-        if(SIMPLY_THREAD_TASK_READY != ptr_task->state)
-        {
-            ptr_task->state = SIMPLY_THREAD_TASK_READY;
-            do
-            {
-                rv = simply_thread_sem_trywait(&ptr_task->sem);
-                error_val = errno;
-                if(0 == rv)
-                {
-                    keep_going = false;
-                }
-                else if(EAGAIN == error_val)
-                {
-                    keep_going = false;
-                }
-                else
-                {
-                    assert(false);
-                }
-
-            }
-            while(true == keep_going);
-            simply_thread_tell_sched_task_sleeping(ptr_task);
-            wait_required = true;
-        }
-    }
-    MUTEX_RELEASE();
-    if(true == wait_required)
-    {
-        m_task_wait_running(ptr_task);
-    }
-
-    if(NULL != m_entry)
-    {
-        MUTEX_GET();
-        master_mutex_push(m_entry);
-        MUTEX_RELEASE();
-    }
-}
+//static void m_usr1_catch(int signo)
+//{
+//    struct simply_thread_task_s *ptr_task;
+//    bool wait_required;
+//    master_mutex_entry_t m_entry;
+//    bool keep_going = true;
+//    int rv;
+//    int error_val;
+//    assert(SIGUSR1 == signo);
+//
+//    m_entry = master_mutex_pull();
+//
+//    MUTEX_GET();
+//    wait_required = false;
+//    ptr_task = simply_thread_get_ex_task();
+//    if(NULL != ptr_task)
+//    {
+//        if(SIMPLY_THREAD_TASK_READY != ptr_task->state)
+//        {
+//            ptr_task->state = SIMPLY_THREAD_TASK_READY;
+//            do
+//            {
+//                rv = simply_thread_sem_trywait(&ptr_task->sem);
+//                error_val = errno;
+//                if(0 == rv)
+//                {
+//                    keep_going = false;
+//                }
+//                else if(EAGAIN == error_val)
+//                {
+//                    keep_going = false;
+//                }
+//                else
+//                {
+//                    assert(false);
+//                }
+//
+//            }
+//            while(true == keep_going);
+//            simply_thread_tell_sched_task_sleeping(ptr_task);
+//            wait_required = true;
+//        }
+//    }
+//    MUTEX_RELEASE();
+//    if(true == wait_required)
+//    {
+//        m_task_wait_running(ptr_task);
+//    }
+//
+//    if(NULL != m_entry)
+//    {
+//        MUTEX_GET();
+//        master_mutex_push(m_entry);
+//        MUTEX_RELEASE();
+//    }
+//}
 
 /**
  * Function that causes a task to return NULL
  * @param signo
  */
-static void m_usr2_catch(int signo)
-{
-    struct simply_thread_task_s *ptr_task;
-    assert(SIGUSR2 == signo);
-    ptr_task = simply_thread_get_ex_task();
-    if(NULL != ptr_task)
-    {
-        PRINT_MSG("\tForce Closing %s\r\n", ptr_task->name);
-        simply_thread_sem_destroy(&ptr_task->sem);
-    }
-    pthread_exit(NULL);
-}
+//static void m_usr2_catch(int signo)
+//{
+//    struct simply_thread_task_s *ptr_task;
+//    assert(SIGUSR2 == signo);
+//    ptr_task = simply_thread_get_ex_task();
+//    if(NULL != ptr_task)
+//    {
+//        PRINT_MSG("\tForce Closing %s\r\n", ptr_task->name);
+//        simply_thread_sem_destroy(&ptr_task->sem);
+//    }
+//    pthread_exit(NULL);
+//}
 
 
 /**
@@ -305,10 +305,10 @@ void simply_thread_reset(void)
     MUTEX_GET();
     if(false == m_module_data.signals_initialized)
     {
-        signal(SIGUSR1, m_usr1_catch);
-        signal(SIGUSR2, m_usr2_catch);
+//        signal(SIGUSR1, m_usr1_catch);
+//        signal(SIGUSR2, m_usr2_catch);
         m_module_data.signals_initialized = true;
-        atexit(sem_helper_cleanup);
+//        atexit(sem_helper_cleanup);
     }
     m_intern_cleanup();
     //Reinitialize the timers module

@@ -83,6 +83,8 @@ LIST(APPEND simply-thread-sources
 	src/simply_thread_system_clock.c
 	src/master-mutex.c
 	src/Task-Helper/Message-Helper.c
+	src/Task-Helper/Thread-Helper.c
+	src/Task-Helper/TCB.c
 	)
 
 #project for the simply thread tests

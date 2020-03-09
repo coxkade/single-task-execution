@@ -15,10 +15,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <simply-thread-log.h>
 
 #ifndef MAX_MSG_SIZE
-#define MAX_MSG_SIZE 250
+#define MAX_MSG_SIZE 100
 #endif //MAX_MSG_SIZE
+
+#define MSG_QUEUE_KEY IPC_PRIVATE
 
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
@@ -45,7 +48,7 @@ static inline int init_msg_queue(void)
 {
     int error_number;
     int result;
-    result = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0666);
+    result = msgget(MSG_QUEUE_KEY, IPC_CREAT | IPC_EXCL | 0666);
     if(0  > result)
     {
         error_number = errno;
@@ -85,12 +88,13 @@ static void * Message_Helper_Local_Worker(void * args)
 	struct formatted_message_s raw;
 	Message_Helper_Instance_t * typed;
 	int result;
+	static const int result_size = sizeof(result_data);
 	typed = args;
 	assert(NULL != typed);
 	while( false == typed->Kill_Worker)
 	{
 		result = msgrcv(typed->QueueId, &raw, sizeof(struct formatted_message_s), 1, 0);
-		assert(result == sizeof(struct formatted_message_s));
+		assert(result >= result_size);
 		memcpy(&result_data, raw.msg, sizeof(result_data));
 		if(false == result_data.internal)
 		{
@@ -133,8 +137,12 @@ void Remove_Message_Helper(Message_Helper_Instance_t * helper)
 	memcpy(raw.msg, &formatted, sizeof(formatted));
 	raw.type = 1;
 	result = msgsnd(helper->QueueId, &raw, sizeof(formatted), 0);
-	assert(result == sizeof(formatted));
+	assert(result == 0);
 	pthread_join(helper->Worker_Thread, NULL);
+    if (msgctl(helper->QueueId, IPC_RMID, NULL) == -1)
+    {
+    	ST_LOG_ERROR("Failed to delete my message queue\r\n");
+    }
 	free(helper);
 }
 
@@ -152,12 +160,12 @@ void Message_Helper_Send(Message_Helper_Instance_t * helper, void * msg, uint32_
 	assert(NULL != helper);
 	assert(NULL != msg);
 	assert(0 < message_size);
-	assert(ARRAY_MAX_COUNT(formatted.data) <= message_size);
+	assert(ARRAY_MAX_COUNT(formatted.data) >= message_size);
 	formatted.internal = false;
 	formatted.message_size = message_size;
 	memcpy(formatted.data, msg, message_size);
 	memcpy(raw.msg, &formatted, sizeof(formatted));
 	raw.type = 1;
 	result = msgsnd(helper->QueueId, &raw, sizeof(formatted), 0);
-	assert(result == sizeof(formatted));
+	assert(result == 0);
 }

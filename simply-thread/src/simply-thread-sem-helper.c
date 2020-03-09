@@ -331,6 +331,7 @@ static void unlink_sem_by_name(const char *name)
  */
 void sem_helper_cleanup(void)
 {
+	printf("%s\r\n", __FUNCTION__);
     simply_thread_init_registery();
     for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
     {

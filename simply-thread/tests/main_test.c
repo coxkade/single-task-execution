@@ -591,7 +591,7 @@ int main(void)
 #ifndef DISABLE_TIME_OUT
     assert(0 == pthread_create(&thread, NULL, timeout_worker, &timeout_seconds));
 #endif //DISABLE_TIME_OUT
-    run_task_helper_tests();
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    return run_task_helper_tests();
+//    return cmocka_run_group_tests(tests, NULL, NULL);
 }
 

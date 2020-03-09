@@ -183,3 +183,14 @@ void thread_helper_run_thread(helper_thread_t *thread)
     assert(true == thread->thread_running);
     thread_helper_data.current_thread = NULL;
 }
+
+/**
+ * @brief get the id of the worker thread
+ * @param thread
+ * @return the thread id
+ */
+pthread_t thread_helper_get_id(helper_thread_t *thread)
+{
+	assert(NULL != thread);
+	return thread->id;
+}

@@ -59,4 +59,11 @@ void thread_helper_pause_thread(helper_thread_t *thread);
  */
 void thread_helper_run_thread(helper_thread_t *thread);
 
+/**
+ * @brief get the id of the worker thread
+ * @param thread
+ * @return the thread id
+ */
+pthread_t thread_helper_get_id(helper_thread_t *thread);
+
 #endif /* SIMPLY_THREAD_SRC_TASK_HELPER_THREAD_HELPER_H_ */
