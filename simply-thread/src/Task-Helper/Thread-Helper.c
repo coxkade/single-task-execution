@@ -53,11 +53,17 @@ static struct thread_helper_module_data_s thread_helper_data =
  */
 static void m_catch_pause(int signo)
 {
+	printf("%s Started\r\n", __FUNCTION__);
     helper_thread_t *worker = thread_helper_data.current_thread;
+    printf("checking signal\r\n");
     assert(PAUSE_SIGNAL == signo);
+    printf("checking worker\r\n");
     assert(NULL != worker);
+    printf("setting thread running to false\r\n");
     worker->thread_running = false;
+    printf("Calling sem wait\r\n");
     while(0 != simply_thread_sem_wait(&worker->wait_sem)) {}
+    printf("Finished sem wait \r\n");
     worker->thread_running = true;
 }
 
@@ -67,6 +73,7 @@ static void m_catch_pause(int signo)
  */
 static void m_catch_kill(int signo)
 {
+	printf("%s Started\r\n", __FUNCTION__);
     assert(KILL_SIGNAL == signo);
     pthread_exit(NULL);
 }
@@ -78,8 +85,10 @@ static void init_if_required(void)
 {
     if(false == thread_helper_data.signals_initialized)
     {
-        signal(PAUSE_SIGNAL, m_catch_pause);
-        signal(KILL_SIGNAL, m_catch_kill);
+    	assert(SIG_ERR != signal(PAUSE_SIGNAL, SIG_IGN));
+        assert(SIG_ERR != signal(PAUSE_SIGNAL, m_catch_pause));
+        assert(SIG_ERR != signal(KILL_SIGNAL, m_catch_kill));
+        printf("Registered the Signals\r\n");
         atexit(sem_helper_cleanup);
         thread_helper_data.signals_initialized = true;
     }
