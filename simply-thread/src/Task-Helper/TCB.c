@@ -52,7 +52,8 @@ struct tcb_message_data_s
     {
         TCB_SET_STATE,
         TCB_CREATE_TASK,
-        TCB_TASK_SELF
+        TCB_TASK_SELF,
+        TCB_RUNNER
     } msg_type; //!< The type of message being sent
     union
     {
@@ -81,6 +82,11 @@ struct tcb_message_data_s
                 tcb_task_t *tcb_task;
             } result;
         } task_self; //!< Data for the task self command
+        struct
+        {
+            void (*fnct)(void *);
+            void *data;
+        } runner; //!< Data for the tcb function runner
     } msg_data; //!< Union that holds the message data
 }; //!<Structure that holds the data of the message pointer
 
@@ -93,6 +99,7 @@ struct tcb_module_data_s
 {
     struct tcb_entry_s tasks[MAX_TASK_COUNT];
     Message_Helper_Instance_t *msg_helper;
+    pthread_t worker_id;
 }; //!< Structure for the local module data
 
 /***********************************************************************************/
@@ -105,7 +112,8 @@ struct tcb_module_data_s
 
 static struct tcb_module_data_s tcb_module_data =
 {
-    .msg_helper = NULL
+    .msg_helper = NULL,
+    .worker_id = NULL
 };
 
 /***********************************************************************************/
@@ -310,6 +318,16 @@ static void handle_task_self(struct tcb_message_data_s *msg)
 }
 
 /**
+ * Run a function in the tcb context
+ * @param msg
+ */
+static void handle_task_run(struct tcb_message_data_s *msg)
+{
+    assert(TCB_RUNNER == msg->msg_type);
+    msg->msg_data.runner.fnct(msg->msg_data.runner.data);
+}
+
+/**
  * @brief the tcb_message_handler
  * @param message
  * @param message_size
@@ -320,6 +338,7 @@ static void tcb_message_handler(void *message, uint32_t message_size)
     bool sched_required;
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
 
+    tcb_module_data.worker_id = pthread_self();
     typed = message;
     assert(message_size == sizeof(struct tcb_msage_wrapper_s));
     assert(NULL != typed);
@@ -337,6 +356,11 @@ static void tcb_message_handler(void *message, uint32_t message_size)
         case TCB_TASK_SELF:
             PRINT_MSG("\tHandling Task Self\r\n");
             handle_task_self(typed->msg_ptr);
+            sched_required = false;
+            break;
+        case TCB_RUNNER:
+            PRINT_MSG("\tHandling Task Runner\r\n");
+            handle_task_run(typed->msg_ptr);
             sched_required = false;
             break;
         default:
@@ -406,6 +430,7 @@ void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *tas
     struct tcb_msage_wrapper_s msg;
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    assert(tcb_module_data.worker_id != pthread_self());
 
     assert(SIMPLY_THREAD_TASK_RUNNING != state && NULL != task);
     msg.msg_ptr = &local_data;
@@ -437,6 +462,7 @@ tcb_task_t *tcb_create_task(const char *name, simply_thread_task_fnct cb, unsign
     struct tcb_msage_wrapper_s msg;
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    assert(tcb_module_data.worker_id != pthread_self());
     assert(NULL != name && NULL != cb);
     msg.msg_ptr = &local_data;
 
@@ -465,6 +491,7 @@ tcb_task_t *tcb_task_self(void)
     struct tcb_msage_wrapper_s msg;
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    assert(tcb_module_data.worker_id != pthread_self());
 
     msg.msg_ptr = &local_data;
     simply_thread_sem_init(&local_data.wait_sem);
@@ -478,4 +505,31 @@ tcb_task_t *tcb_task_self(void)
     while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
     simply_thread_sem_destroy(&local_data.wait_sem);
     return(local_data.msg_data.task_self.result.tcb_task);
+}
+
+
+/**
+ * @brief Blocking function that runs a function in the task control block context.
+ * @param fnct The function to run
+ * @param data the data for the function
+ */
+void run_in_tcb_context(void (*fnct)(void *), void *data)
+{
+    struct tcb_message_data_s local_data;
+    struct tcb_msage_wrapper_s msg;
+
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    assert(tcb_module_data.worker_id != pthread_self());
+
+    msg.msg_ptr = &local_data;
+    simply_thread_sem_init(&local_data.wait_sem);
+    assert(0 == simply_thread_sem_wait(&local_data.wait_sem));
+
+    local_data.msg_type = TCB_RUNNER;
+    local_data.msg_data.runner.fnct = fnct;
+    local_data.msg_data.runner.data = data;
+
+    Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
+    while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
+    simply_thread_sem_destroy(&local_data.wait_sem);
 }

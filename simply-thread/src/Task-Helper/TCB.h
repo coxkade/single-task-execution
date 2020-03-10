@@ -30,6 +30,7 @@ typedef struct tcb_task_t
     bool continue_on_run;
 } tcb_task_t;
 
+
 /**
  * reset the task control block data
  */
@@ -58,5 +59,12 @@ tcb_task_t *tcb_create_task(const char *name, simply_thread_task_fnct cb, unsign
  * @return NULL if the task is not in the TCB
  */
 tcb_task_t *tcb_task_self(void);
+
+/**
+ * @brief Blocking function that runs a function in the task control block context.
+ * @param fnct The function to run
+ * @param data the data for the function
+ */
+void run_in_tcb_context(void (*fnct)(void *), void *data);
 
 #endif /* SIMPLY_THREAD_SRC_TASK_HELPER_TCB_H_ */
