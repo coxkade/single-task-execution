@@ -19,6 +19,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <Task-Helper-Tests.h>
+#include <priv-simply-thread.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -328,7 +329,7 @@ static void mutex_worker_3_task(void *data, uint16_t data_size)
     {
         PRINT_MSG("%s Suspending Self\r\n", __FUNCTION__);
         simply_thread_task_suspend(NULL);
-        assert(false == true);
+        SS_ASSERT(false == true);
     }
 }
 
@@ -554,7 +555,7 @@ void *timeout_worker(void *arg)
         .tv_nsec = 0
     };
     typed = arg;
-    assert(NULL != typed);
+    SS_ASSERT(NULL != typed);
     time_data.tv_sec = typed[0];
     while(0 != nanosleep(&time_data, &time_data)) {}
     time_data.tv_nsec = 1000;
@@ -562,7 +563,7 @@ void *timeout_worker(void *arg)
     //If we got this far then we timed out.
     ST_LOG_ERROR("Error Tests have timed out\r\n");
     while(0 != nanosleep(&time_data, &time_data)) {}
-    assert(false == true);
+    SS_ASSERT(false == true);
     return NULL;
 }
 #endif //DISABLE_TIME_OUT
@@ -573,6 +574,7 @@ void *timeout_worker(void *arg)
  */
 int main(void)
 {
+	int result;
 #ifndef DISABLE_TIME_OUT
     pthread_t thread;
     unsigned int timeout_seconds = 30;
@@ -580,18 +582,19 @@ int main(void)
     const struct CMUnitTest tests[] =
     {
         cmocka_unit_test(task_test_success),
-        cmocka_unit_test(task_non_null_data_test),
-        cmocka_unit_test(main_timer_tests),
-        cmocka_unit_test(second_timer_tests),
-        cmocka_unit_test(first_mutex_test_tests),
-        cmocka_unit_test(second_mutex_test_tests),
-        cmocka_unit_test(first_queue_test_tests),
-        cmocka_unit_test(second_queue_test_tests),
+//        cmocka_unit_test(task_non_null_data_test),
+//        cmocka_unit_test(main_timer_tests),
+//        cmocka_unit_test(second_timer_tests),
+//        cmocka_unit_test(first_mutex_test_tests),
+//        cmocka_unit_test(second_mutex_test_tests),
+//        cmocka_unit_test(first_queue_test_tests),
+//        cmocka_unit_test(second_queue_test_tests),
     };
 #ifndef DISABLE_TIME_OUT
-    assert(0 == pthread_create(&thread, NULL, timeout_worker, &timeout_seconds));
+    SS_ASSERT(0 == pthread_create(&thread, NULL, timeout_worker, &timeout_seconds));
 #endif //DISABLE_TIME_OUT
-    return run_task_helper_tests();
-//    return cmocka_run_group_tests(tests, NULL, NULL);
+    result = run_task_helper_tests();
+    SS_ASSERT(0 <= result);
+    return cmocka_run_group_tests(tests, NULL, NULL);
 }
 

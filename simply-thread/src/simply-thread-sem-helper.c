@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 #include <stdint.h>
 
 /***********************************************************************************/
@@ -36,6 +37,8 @@
 
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
+
+#define DEBUG_SIMPLY_THREAD
 
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_WHITE, __VA_ARGS__)
@@ -140,13 +143,14 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
     static const int max_sem_count = 1000;
     static int sem_count = 0; //!< Variable that deals with the semaphore count
     static const char *base_string = "simply_thread_semaphore_";
+    int result;
     char name[MAX_SEM_NAME_SIZE];
     assert(NULL != sem);
     do
     {
         assert(MAX_SEM_NUMBER > sem_count);
-        simply_thread_snprintf(name, MAX_SEM_NAME_SIZE, "%s%i", base_string, sem_count);
-        sem->sem = sem_open((const char *)name, O_CREAT | O_EXCL, 0700, 1);
+        snprintf(name, MAX_SEM_NAME_SIZE, "%s%i", base_string, sem_count);
+        sem->sem = sem_open((const char *)name, O_CREAT | O_EXCL, 0700, 0);
         if(SEM_FAILED == sem->sem)
         {
             switch(errno)
@@ -154,19 +158,19 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
                 case EEXIST:
                     break;
                 case EACCES:
-                    PRINT_MSG("Failed to create sem: %s EACCES\r\n", name);
+                	ST_LOG_ERROR("ERROR: Failed to create sem: %s EACCES\r\n", name);
                     assert(false);
                     break;
                 case EINVAL:
-                    PRINT_MSG("Failed to create sem: %s EINVAL\r\n", name);
+                	ST_LOG_ERROR("ERROR: Failed to create sem: %s EINVAL\r\n", name);
                     assert(false);
                     break;
                 case EMFILE:
-                    PRINT_MSG("Failed to create sem: %s EMFILE\r\n", name);
+                	ST_LOG_ERROR("ERROR: Failed to create sem: %s EMFILE\r\n", name);
                     assert(false);
                     break;
                 default:
-                    PRINT_MSG("Failed to create sem: %s %u\r\n", name, errno);
+                	ST_LOG_ERROR("ERROR: Failed to create sem: %s %u\r\n", name, errno);
                     assert(false);
                     break;
             }
@@ -180,6 +184,19 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
     while(SEM_FAILED == sem->sem);
     PRINT_MSG("Created semaphore: %p %s\r\n", sem->sem, name);
     simply_thread_sem_register(name, sem);
+    PRINT_MSG("\tWaiting on the semaphore\r\n");
+	result = simply_thread_sem_trywait(sem);
+	PRINT_MSG("\tChecking the wait result\r\n");
+	assert(0 == result || EAGAIN == result);
+	PRINT_MSG("\tWaiting on the semaphore\r\n");
+	result = simply_thread_sem_trywait(sem);
+	PRINT_MSG("\tChecking the wait result\r\n");
+	//We should not be able to get the semaphore again
+	if(EAGAIN != result)
+	{
+
+	}
+	assert(EAGAIN == result);
 }
 
 /**
@@ -236,6 +253,7 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
             while(1) {}
             assert(false);
         }
+        rv = eval;
     }
     return rv;
 }
@@ -261,6 +279,11 @@ int simply_thread_sem_trywait(simply_thread_sem_t *sem)
         rv = errno;
     }
     PRINT_MSG("%s returning %i with sem %s\r\n", __FUNCTION__, rv, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
+    if(0 != rv)
+    {
+    	ST_LOG_ERROR("Warning: %s returning %i\r\n", __FUNCTION__, rv);
+    	assert(EAGAIN == rv);
+    }
     return rv;
 }
 
@@ -322,7 +345,7 @@ static void unlink_sem_by_name(const char *name)
     }
     else
     {
-        PRINT_MSG("Unlinked %s\r\n", name);
+    	PRINT_MSG("--Unlinked %s\r\n", name);
     }
 }
 

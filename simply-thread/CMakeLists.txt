@@ -75,13 +75,11 @@ LIST(APPEND simply-thread-sources
 	src/simply-thread-sem-helper.c
 	src/simply-thread.c 
     src/simply-thread-log.c 
-    src/simply-thread-linked-list.c
-    src/simply-thread-scheduler.c
-    src/simply-thread-timers.c
-	src/simply-thread-mutex.c
-	src/simply-thread-queue.c
+    #src/simply-thread-timers.c
+	#src/simply-thread-mutex.c
+	#src/simply-thread-queue.c
 	src/simply_thread_system_clock.c
-	src/master-mutex.c
+	#src/master-mutex.c
 	src/Task-Helper/Message-Helper.c
 	src/Task-Helper/Thread-Helper.c
 	src/Task-Helper/TCB.c

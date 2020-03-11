@@ -7,6 +7,7 @@
  */
 
 #include <semaphore.h>
+#include <errno.h>
 
 #ifndef SIMPLY_THREAD_SEM_HELPER_H_
 #define SIMPLY_THREAD_SEM_HELPER_H_

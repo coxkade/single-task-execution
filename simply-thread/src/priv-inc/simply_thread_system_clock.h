@@ -44,18 +44,6 @@ void simply_thead_system_clock_deregister_on_tick(sys_clock_on_tick_handle_t han
 void simply_thead_system_clock_disable_on_tick_from_handler(sys_clock_on_tick_handle_t handle);
 
 /**
- * @brief Function the deregisters a function on tick
- * @param handle the handle to deregister
- */
-void simply_thead_system_clock_deregister_on_tick_from_locked(sys_clock_on_tick_handle_t handle);
-
-/**
- * Function that tells if it is safe to interrupt a task.  Must be called from a locked context
- * @return true if safe.
- */
-bool simply_thead_system_clock_safe_to_interrupt(void);
-
-/**
  * Function that calculates the tick value
  * @param ticks the ticks to add to the current ticks
  * @return the the ticks after the added ticks

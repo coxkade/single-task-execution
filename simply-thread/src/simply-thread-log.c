@@ -22,6 +22,9 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
+#ifndef SIMPLY_THREAD_LOG_BUFFER_SIZE
+#define SIMPLY_THREAD_LOG_BUFFER_SIZE 1024
+#endif //SIMPLY_THREAD_LOG_BUFFER_SIZE
 
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
@@ -39,35 +42,21 @@
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
-static void *simply_thread_log_task(void *data)
-{
-    char *message;
-    message = (char *) data;
-    assert(NULL != message);
-    assert(0 == pthread_mutex_lock(&simply_thread_lib_data()->print_mutex));
-    printf("%s", message);
-    pthread_mutex_unlock(&simply_thread_lib_data()->print_mutex);
-    return NULL;
-}
-
-
 /**
  * @brief Function that  prints a message in color
  * @param fmt Standard printf format
  */
 void simply_thread_log(const char *color, const char *fmt, ...)
 {
-    char final_buffer[2048];
+    char final_buffer[SIMPLY_THREAD_LOG_BUFFER_SIZE];
     char time_buffer[100];
+    char print_buffer[SIMPLY_THREAD_LOG_BUFFER_SIZE];
     time_t t;
     struct tm tm;
     va_list args;
-    char *print_buffer = NULL;
     unsigned int buffer_size;
-    pthread_t thread;
 
     //Setup the time message string
-
     t = time(NULL);
     tm = *localtime(&t);
     snprintf(time_buffer, ARRAY_MAX_COUNT(time_buffer), "%d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec);
@@ -77,8 +66,7 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     assert(0 < rc);
     va_end(args);
     buffer_size = strlen(time_buffer) + strlen(final_buffer) + strlen(color) + strlen(COLOR_RESET) + 10;
-    print_buffer = malloc(buffer_size);
     assert(NULL != print_buffer);
     snprintf(print_buffer, buffer_size, "%s%s%s%s", color, time_buffer, final_buffer, COLOR_RESET);
-    assert(0 == pthread_create(&thread, NULL, simply_thread_log_task, (void *) print_buffer));
+    printf("%s", print_buffer);
 }

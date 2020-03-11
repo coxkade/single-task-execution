@@ -44,6 +44,14 @@ void tcb_reset(void);
 void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *task);
 
 /**
+ * @brief Fetch the current state of a task
+ * @param task
+ * @return the current state of the task
+ */
+enum simply_thread_thread_state_e tcb_get_task_state(tcb_task_t *task);
+
+
+/**
  * @brief Function that creates a new task
  * @param name
  * @param cb
@@ -66,5 +74,10 @@ tcb_task_t *tcb_task_self(void);
  * @param data the data for the function
  */
 void run_in_tcb_context(void (*fnct)(void *), void *data);
+
+/**
+ * Function to call when an assert occurs
+ */
+void tcb_on_assert(void);
 
 #endif /* SIMPLY_THREAD_SRC_TASK_HELPER_TCB_H_ */

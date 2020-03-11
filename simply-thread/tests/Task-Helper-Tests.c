@@ -20,6 +20,7 @@
 #include <Thread-Helper.h>
 #include <TCB.h>
 
+#define DEBUG_TESTS
 
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) printf(__VA_ARGS__)
@@ -46,9 +47,10 @@ static void message_helper_test_worker(void *message, uint32_t message_size)
 {
     char expected_msg[BASIC_MSG_HELPER_TEST_MSG_SIZE];
     memset(expected_msg, 0xAB, ARRAY_MAX_COUNT(expected_msg));
-    assert_non_null(message);
-    assert_int_equal(ARRAY_MAX_COUNT(expected_msg), message_size);
-    assert_memory_equal(message, expected_msg, message_size);
+    SS_ASSERT(NULL != message);
+    SS_ASSERT(ARRAY_MAX_COUNT(expected_msg) == message_size);
+//    assert_memory_equal(message, expected_msg, message_size);
+    SS_ASSERT(0 == memcmp(message, expected_msg, message_size));
     basic_message_helper_wait = false;
 }
 
@@ -63,10 +65,10 @@ static void basic_message_helper_test(void **state)
     memset(test_msg, 0xAB, ARRAY_MAX_COUNT(test_msg));
     Message_Helper_Instance_t *helper;
     helper = New_Message_Helper(message_helper_test_worker);
-    assert_true(NULL != helper);
+    SS_ASSERT(NULL != helper);
     Message_Helper_Send(helper, test_msg, ARRAY_MAX_COUNT(test_msg));
     while(true == basic_message_helper_wait) {}
-    assert_false(basic_message_helper_wait);
+    SS_ASSERT(false == basic_message_helper_wait);
     Remove_Message_Helper(helper);
 }
 
@@ -87,7 +89,7 @@ struct thread_test_data_s
 static void *thread_worker_test_task(void *data)
 {
     struct thread_test_data_s *typed = data;
-    assert_non_null(typed);
+    SS_ASSERT(NULL != typed);
     while(1)
     {
         if(typed->count < typed->target_count)
@@ -109,23 +111,37 @@ static void basic_thread_helper_test(void **state)
         .count = 0,
         .target_count = 500
     };
+    tcb_reset();
     helper_thread_t *test_thread;
+    PRINT_MSG("Creating Thread\r\n");
     test_thread = thread_helper_thread_create(thread_worker_test_task, &count_data);
-    assert_non_null(test_thread);
+    SS_ASSERT(NULL != test_thread);
+    PRINT_MSG("Waiting on target count\r\n");
     while(count_data.target_count != count_data.count) {}
-    assert_int_equal(count_data.target_count, count_data.count);
-    assert_true(thread_helper_thread_running(test_thread));
-    assert_true(thread_helper_get_id(test_thread) != pthread_self());
+    SS_ASSERT(count_data.target_count == count_data.count);
+    PRINT_MSG("Checking that the thread is running\r\n");
+    SS_ASSERT(true == thread_helper_thread_running(test_thread));
+    PRINT_MSG("Checking the thread ID fails\r\n");
+    SS_ASSERT(thread_helper_get_id(test_thread) != pthread_self());
+    PRINT_MSG("Pausing the Thread\r\n");
     thread_helper_pause_thread(test_thread);
-    assert_false(thread_helper_thread_running(test_thread));
+    PRINT_MSG("Checking that thread is not running\r\n");
+    SS_ASSERT(false == thread_helper_thread_running(test_thread));
     count_data.target_count = 1000;
-    assert_false(thread_helper_thread_running(test_thread));
+    PRINT_MSG("Checking that the thread is not running\r\n");
+    SS_ASSERT(false == thread_helper_thread_running(test_thread));
+    PRINT_MSG("Starting the thread\r\n");
     thread_helper_run_thread(test_thread);
+    PRINT_MSG("Waiting on the Count\r\n");
     while(count_data.target_count != count_data.count) {}
-    assert_int_equal(count_data.target_count, count_data.count);
+    SS_ASSERT(count_data.target_count == count_data.count);
+    PRINT_MSG("Pausing the thread\r\n");
     thread_helper_pause_thread(test_thread);
-    assert_false(thread_helper_thread_running(test_thread));
+    PRINT_MSG("Checking that the thread is not running\r\n");
+    SS_ASSERT(false == thread_helper_thread_running(test_thread));
+    PRINT_MSG("Destroying the thread\r\n");
     thread_helper_thread_destroy(test_thread);
+    tcb_reset();
 }
 
 
@@ -137,12 +153,13 @@ static tcb_task_t * tcb_task_one;
 static tcb_task_t * tcb_task_two;
 static unsigned int tcb_one_count;
 static unsigned int tcb_two_count;
+static bool tcb_test_run_ran;
 
 static void tcb_worker_two(void *data, uint16_t data_size)
 {
 	while(NULL == tcb_task_two){}
-	assert_true(NULL == data);
-	assert_true(0 == data_size);
+	SS_ASSERT(NULL == data);
+	SS_ASSERT(0 == data_size);
 	while(1)
 	{
 		PRINT_MSG("%s Setting task one to ready\r\n", __FUNCTION__);
@@ -159,18 +176,18 @@ static void tcb_worker_one(void *data, uint16_t data_size)
 
 	while(NULL == tcb_task_one){}
 
-	assert(sizeof(unsigned int) == data_size);
-	assert(NULL != typed);
-	assert(200 == typed[0]);
+	SS_ASSERT(sizeof(unsigned int) == data_size);
+	SS_ASSERT(NULL != typed);
+	SS_ASSERT(200 == typed[0]);
 
     task_ptr = tcb_task_self();
 
-	assert(NULL != task_ptr);
+	SS_ASSERT(NULL != task_ptr);
 
 	PRINT_MSG("%s Creating Task Two\r\n", __FUNCTION__);
-	assert_null(tcb_task_two);
+	SS_ASSERT(NULL != tcb_task_two);
 	tcb_task_two = tcb_create_task("TASK TWO", tcb_worker_two, 1, NULL, 0);
-	assert_non_null(tcb_task_two);
+	SS_ASSERT(NULL != tcb_task_two);
 	while(1)
 	{
 		PRINT_MSG("%s suspending task 1\r\n", __FUNCTION__);
@@ -179,7 +196,11 @@ static void tcb_worker_one(void *data, uint16_t data_size)
 	}
 }
 
-
+static void tcb_run_test(void * data)
+{
+	SS_ASSERT(data == (void*)5);
+	tcb_test_run_ran = true;
+}
 
 static void basic_TCB_test(void **state)
 {
@@ -190,20 +211,23 @@ static void basic_TCB_test(void **state)
 	tcb_task_two = NULL;
 	tcb_one_count = 0;
 	tcb_two_count = 0;
+	tcb_test_run_ran = false;
 
 	tcb_reset();
+	run_in_tcb_context(tcb_run_test, (void *)5);
 	//Create tcb worker one
 	PRINT_MSG("Creating Task 1\r\n");
 	tcb_task_one = tcb_create_task("TASK ONE", tcb_worker_one, 2, &value, sizeof(value));
 	PRINT_MSG("Task 1 Created\r\n");
-	assert_non_null(tcb_task_one);
+	SS_ASSERT(NULL != tcb_task_one);
 	while(NULL == tcb_task_two) {}
-	assert_null(tcb_task_self());
+	SS_ASSERT(NULL == tcb_task_self());
 	PRINT_MSG("Finishing up the Tests\r\n");
 	while(500 > tcb_two_count){}
-	assert(500 <= tcb_two_count);
-	assert(500 <= tcb_one_count);
+	SS_ASSERT(500 <= tcb_two_count);
+	SS_ASSERT(500 <= tcb_one_count);
 	tcb_reset();
+	SS_ASSERT(true == tcb_test_run_ran);
 }
 
 static void TCB_Test_One(void **state)
@@ -223,12 +247,12 @@ int run_task_helper_tests(void)
     int rv;
     const struct CMUnitTest message_helper_tests[] =
     {
-        cmocka_unit_test(basic_message_helper_test),
         cmocka_unit_test(basic_thread_helper_test),
+        cmocka_unit_test(basic_message_helper_test),
 		cmocka_unit_test(TCB_Test_One),
 		cmocka_unit_test(TCB_Test_Two)
     };
     rv = cmocka_run_group_tests(message_helper_tests, NULL, NULL);
-    assert(0 <= rv);
+    SS_ASSERT(0 <= rv);
     return 0;
 }

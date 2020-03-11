@@ -95,12 +95,6 @@ bool simply_thread_task_resume(simply_thread_task_t handle);
 enum simply_thread_thread_state_e simply_thread_task_state(simply_thread_task_t handle);
 
 /**
- * @brief Fetch the current task handle
- * @return void*
- */
-void *simply_thread_current_task_handle(void);
-
-/**
  * @brief Function that checks if we are currently in an interrupt
  * @return true currently in the interrupt context.
  * @return false  Not Currently in the interrupt context.

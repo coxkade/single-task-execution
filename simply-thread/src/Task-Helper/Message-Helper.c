@@ -6,6 +6,7 @@
  */
 
 #include <Message-Helper.h>
+#include <simply-thread-log.h>
 #include <sys/msg.h>
 #include <sys/types.h>
 #include <stdbool.h>
@@ -16,6 +17,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <simply-thread-log.h>
+#include <priv-simply-thread.h>
 
 #ifndef MAX_MSG_SIZE
 #define MAX_MSG_SIZE 100
@@ -42,6 +44,42 @@ struct formatted_message_s
 };
 
 /**
+ * @brief print an error message
+ * @param error
+ */
+static inline void print_error_message(int error)
+{
+	if(0 == error)
+	{
+		return;
+	}
+	switch(error)
+	{
+		case EACCES:
+			ST_LOG_ERROR("-----message queue returned EACCES\r\n");
+			break;
+		case EEXIST:
+			ST_LOG_ERROR("-----message queue returned EEXIST\r\n");
+			break;
+		case ENOENT:
+			ST_LOG_ERROR("-----message queue returned ENOENT\r\n");
+			break;
+		case ENOMEM:
+			ST_LOG_ERROR("-----message queue returned ENOMEM\r\n");
+			break;
+		case ENOSPC:
+			ST_LOG_ERROR("-----message queue returned ENOSPC\r\n");
+			break;
+//		case EAGAIN:
+//			ST_LOG_ERROR("-----message queue returned EAGAIN\r\n");
+//			break;
+		default:
+			ST_LOG_ERROR("Error Unknown error %i\r\n", error);
+			SS_ASSERT(false);
+	}
+}
+
+/**
  * Initialize the ipc message queue
  */
 static inline int init_msg_queue(void)
@@ -52,29 +90,9 @@ static inline int init_msg_queue(void)
     if(0  > result)
     {
         error_number = errno;
-        switch(error_number)
-        {
-            case EACCES:
-                PRINT_MSG("-----msgget returned EACCES\r\n");
-                break;
-            case EEXIST:
-                PRINT_MSG("-----msgget returned EEXIST\r\n");
-                break;
-            case ENOENT:
-                PRINT_MSG("-----msgget returned ENOENT\r\n");
-                break;
-            case ENOMEM:
-                PRINT_MSG("-----msgget returned ENOMEM\r\n");
-                break;
-            case ENOSPC:
-                PRINT_MSG("-----msgget returned ENOSPC\r\n");
-                break;
-            default:
-                PRINT_MSG("Error Unknown error\r\n");
-                assert(false);
-        }
+        print_error_message(error_number);
     }
-    assert( 0 <= result);
+    SS_ASSERT( 0 <= result);
     return result;
 }
 
@@ -90,11 +108,11 @@ static void * Message_Helper_Local_Worker(void * args)
 	int result;
 	static const int result_size = sizeof(result_data);
 	typed = args;
-	assert(NULL != typed);
+	SS_ASSERT(NULL != typed);
 	while( false == typed->Kill_Worker)
 	{
 		result = msgrcv(typed->QueueId, &raw, sizeof(struct formatted_message_s), 1, 0);
-		assert(result >= result_size);
+		SS_ASSERT(result >= result_size);
 		memcpy(&result_data, raw.msg, sizeof(result_data));
 		if(false == result_data.internal)
 		{
@@ -112,13 +130,13 @@ static void * Message_Helper_Local_Worker(void * args)
 Message_Helper_Instance_t * New_Message_Helper(Message_Helper_On_Message worker)
 {
 	Message_Helper_Instance_t * rv;
-	assert(NULL != worker);
+	SS_ASSERT(NULL != worker);
 	rv = malloc(sizeof(Message_Helper_Instance_t));
-	assert(NULL != rv);
+	SS_ASSERT(NULL != rv);
 	rv->Kill_Worker = false;
 	rv->cb = worker;
 	rv->QueueId = init_msg_queue();
-	assert(0 == pthread_create(&rv->Worker_Thread, NULL, Message_Helper_Local_Worker, rv));
+	SS_ASSERT(0 == pthread_create(&rv->Worker_Thread, NULL, Message_Helper_Local_Worker, rv));
 	return rv;
 }
 
@@ -131,13 +149,15 @@ void Remove_Message_Helper(Message_Helper_Instance_t * helper)
 	struct message_helper_message_s formatted;
 	struct formatted_message_s raw;
 	int result;
-	assert(NULL != helper);
+	SS_ASSERT(NULL != helper);
 	helper->Kill_Worker = true;
 	formatted.internal = true;
 	memcpy(raw.msg, &formatted, sizeof(formatted));
 	raw.type = 1;
 	result = msgsnd(helper->QueueId, &raw, sizeof(formatted), 0);
-	assert(result == 0);
+	SS_ASSERT(result == 0);
+	result = msgsnd(helper->QueueId, &raw, sizeof(formatted), 0);
+	SS_ASSERT(result == 0);
 	pthread_join(helper->Worker_Thread, NULL);
     if (msgctl(helper->QueueId, IPC_RMID, NULL) == -1)
     {
@@ -157,15 +177,25 @@ void Message_Helper_Send(Message_Helper_Instance_t * helper, void * msg, uint32_
 	struct message_helper_message_s formatted;
 	struct formatted_message_s raw;
 	int result;
-	assert(NULL != helper);
-	assert(NULL != msg);
-	assert(0 < message_size);
-	assert(ARRAY_MAX_COUNT(formatted.data) >= message_size);
+	int err;
+	SS_ASSERT(NULL != helper);
+	SS_ASSERT(NULL != msg);
+	SS_ASSERT(0 < message_size);
+	SS_ASSERT(ARRAY_MAX_COUNT(formatted.data) >= message_size);
 	formatted.internal = false;
 	formatted.message_size = message_size;
 	memcpy(formatted.data, msg, message_size);
 	memcpy(raw.msg, &formatted, sizeof(formatted));
 	raw.type = 1;
-	result = msgsnd(helper->QueueId, &raw, sizeof(formatted), 0);
-	assert(result == 0);
+	result = -1;
+	while(result != 0)
+	{
+		result = msgsnd(helper->QueueId, &raw, sizeof(formatted), 0);
+		err = errno;
+		if(0 != result)
+		{
+			print_error_message(err);
+		}
+	}
+	SS_ASSERT(result == 0);
 }
