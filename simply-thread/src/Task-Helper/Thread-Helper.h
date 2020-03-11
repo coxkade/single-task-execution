@@ -24,7 +24,14 @@ typedef struct helper_thread_t
     void *(* worker)(void *);
     void *worker_data;
     simply_thread_sem_t wait_sem;
+    bool pause_requested;
 } helper_thread_t;
+
+/**
+ * @brief Function that fetches the current thread helper
+ * @return NULL if not known
+ */
+helper_thread_t * thread_helper_self(void);
 
 /**
  * @brief Create and start a new thread
@@ -65,5 +72,11 @@ void thread_helper_run_thread(helper_thread_t *thread);
  * @return the thread id
  */
 pthread_t thread_helper_get_id(helper_thread_t *thread);
+
+/**
+ * @brief Reset the thread helper
+ */
+void reset_thread_helper(void);
+
 
 #endif /* SIMPLY_THREAD_SRC_TASK_HELPER_THREAD_HELPER_H_ */

@@ -31,6 +31,23 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
+/**
+ * @brief Function that sleeps for the specified number of nanoseconds
+ * @param ns number of nanoseconds to sleep
+ */
+void test_thread_sleep_ns(unsigned long ns)
+{
+    struct timespec time_data =
+    {
+        .tv_sec = 0,
+        .tv_nsec = ns
+    };
+
+    while(0 != nanosleep(&time_data, &time_data))
+    {
+    }
+}
+
 /*********************************************************************
  ************** Message Helper Test Items ****************************
  ********************************************************************/
@@ -95,7 +112,12 @@ static void *thread_worker_test_task(void *data)
         if(typed->count < typed->target_count)
         {
             typed->count++;
+            if(typed->count == typed->target_count)
+            {
+            	PRINT_MSG("Target %u Hit\r\n", typed->target_count);
+            }
         }
+
     }
     return NULL;
 }
@@ -111,6 +133,7 @@ static void basic_thread_helper_test(void **state)
         .count = 0,
         .target_count = 500
     };
+    unsigned int last_count;
     tcb_reset();
     helper_thread_t *test_thread;
     PRINT_MSG("Creating Thread\r\n");
@@ -118,23 +141,26 @@ static void basic_thread_helper_test(void **state)
     SS_ASSERT(NULL != test_thread);
     PRINT_MSG("Waiting on target count\r\n");
     while(count_data.target_count != count_data.count) {}
-    SS_ASSERT(count_data.target_count == count_data.count);
+    SS_ASSERT(count_data.target_count <= count_data.count);
     PRINT_MSG("Checking that the thread is running\r\n");
     SS_ASSERT(true == thread_helper_thread_running(test_thread));
     PRINT_MSG("Checking the thread ID fails\r\n");
     SS_ASSERT(thread_helper_get_id(test_thread) != pthread_self());
     PRINT_MSG("Pausing the Thread\r\n");
     thread_helper_pause_thread(test_thread);
+    last_count = count_data.count;
     PRINT_MSG("Checking that thread is not running\r\n");
     SS_ASSERT(false == thread_helper_thread_running(test_thread));
-    count_data.target_count = 1000;
+    count_data.target_count = count_data.count + 1000;
     PRINT_MSG("Checking that the thread is not running\r\n");
     SS_ASSERT(false == thread_helper_thread_running(test_thread));
+    test_thread_sleep_ns(50000);
+    SS_ASSERT(last_count == count_data.count);
     PRINT_MSG("Starting the thread\r\n");
     thread_helper_run_thread(test_thread);
     PRINT_MSG("Waiting on the Count\r\n");
     while(count_data.target_count != count_data.count) {}
-    SS_ASSERT(count_data.target_count == count_data.count);
+    SS_ASSERT(count_data.target_count <= count_data.count);
     PRINT_MSG("Pausing the thread\r\n");
     thread_helper_pause_thread(test_thread);
     PRINT_MSG("Checking that the thread is not running\r\n");
@@ -248,9 +274,9 @@ int run_task_helper_tests(void)
     const struct CMUnitTest message_helper_tests[] =
     {
         cmocka_unit_test(basic_thread_helper_test),
-        cmocka_unit_test(basic_message_helper_test),
-		cmocka_unit_test(TCB_Test_One),
-		cmocka_unit_test(TCB_Test_Two)
+//        cmocka_unit_test(basic_message_helper_test),
+//		cmocka_unit_test(TCB_Test_One),
+//		cmocka_unit_test(TCB_Test_Two)
     };
     rv = cmocka_run_group_tests(message_helper_tests, NULL, NULL);
     SS_ASSERT(0 <= rv);

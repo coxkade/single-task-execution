@@ -427,6 +427,7 @@ static void tcb_clear(void)
 			}
 		}
 	}
+	reset_thread_helper();
 	tcb_module_data.clear_in_progress = false;
 }
 

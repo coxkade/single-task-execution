@@ -136,6 +136,7 @@ Message_Helper_Instance_t * New_Message_Helper(Message_Helper_On_Message worker)
 	rv->Kill_Worker = false;
 	rv->cb = worker;
 	rv->QueueId = init_msg_queue();
+	rv->remove_in_progress = false;
 	SS_ASSERT(0 == pthread_create(&rv->Worker_Thread, NULL, Message_Helper_Local_Worker, rv));
 	return rv;
 }
@@ -150,6 +151,11 @@ void Remove_Message_Helper(Message_Helper_Instance_t * helper)
 	struct formatted_message_s raw;
 	int result;
 	SS_ASSERT(NULL != helper);
+	if(true == helper->remove_in_progress)
+	{
+		while(1){}
+	}
+	helper->remove_in_progress = true;
 	helper->Kill_Worker = true;
 	formatted.internal = true;
 	memcpy(raw.msg, &formatted, sizeof(formatted));
@@ -163,6 +169,7 @@ void Remove_Message_Helper(Message_Helper_Instance_t * helper)
     {
     	ST_LOG_ERROR("Failed to delete my message queue\r\n");
     }
+    helper->remove_in_progress = false;
 	free(helper);
 }
 

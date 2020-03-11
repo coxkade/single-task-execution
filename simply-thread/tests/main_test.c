@@ -594,7 +594,8 @@ int main(void)
     SS_ASSERT(0 == pthread_create(&thread, NULL, timeout_worker, &timeout_seconds));
 #endif //DISABLE_TIME_OUT
     result = run_task_helper_tests();
-    SS_ASSERT(0 <= result);
-    return cmocka_run_group_tests(tests, NULL, NULL);
+//    SS_ASSERT(0 <= result);
+//    return cmocka_run_group_tests(tests, NULL, NULL);
+    return result;
 }
 

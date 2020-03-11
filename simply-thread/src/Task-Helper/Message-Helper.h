@@ -20,6 +20,7 @@ typedef struct Message_Helper_Instance_t
 	Message_Helper_On_Message cb;
 	bool Kill_Worker;
 	pthread_t Worker_Thread;
+	bool remove_in_progress;
 }Message_Helper_Instance_t;
 
 /**
