@@ -18,6 +18,8 @@
 #include <pthread.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
 #include <stdint.h>
 
 /***********************************************************************************/
@@ -54,7 +56,7 @@
 
 struct simply_thread_sem_list_element_s
 {
-    char sem_name[MAX_SEM_NAME_SIZE];
+    int id;
 }; //!< Structure for a single registry element
 
 struct simply_thread_sem_registery_s
@@ -69,6 +71,12 @@ struct simply_thread_timout_worker_data_s
     bool cont; //!< Tells if the worker should keep going
     unsigned int timeout_ms; //!< The max number of milliseconds to try and connect for
     simply_thread_sem_t *sem;  //!< The pointer to the waiting semaphore
+};
+
+union simply_thread_semaphore_union {
+    int val;
+    struct semid_ds *buf;
+    unsigned short  *array;
 };
 
 /***********************************************************************************/
@@ -90,14 +98,20 @@ static struct simply_thread_sem_registery_s st_sem_registery =
     .initialized = false
 }; //!< Variable that holds the semaphore registry
 
-static const struct simply_thread_sem_list_element_s st_empty_entry =
-{
-    .sem_name = "UNUSED"
-};//!< Variable that holds an unused registery entry
+//static const struct simply_thread_sem_list_element_s st_empty_entry =
+//{
+//    .sem_name = "UNUSED"
+//};//!< Variable that holds an unused registery entry
+
+static struct sembuf simply_thread_sem_dec = { 0, -1, SEM_UNDO};
+static struct sembuf simply_thread_sem_try_dec = { 0, -1, SEM_UNDO | IPC_NOWAIT};
+static struct sembuf simply_thread_sem_inc = { 0, +1, SEM_UNDO};
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
+
+
 
 /**
  * @brief Function that initializes the registry if required
@@ -108,31 +122,50 @@ static void simply_thread_init_registery(void)
     {
         for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
         {
-            memcpy(st_sem_registery.createded_sems[i].sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE);
+//            memcpy(st_sem_registery.createded_sems[i].sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE);
+        	st_sem_registery.createded_sems[i].id = -1;
         }
         st_sem_registery.initialized = true;
     }
 }
 
+
 /**
  * @brief Function that registers a created semaphore
  * @param name pointer to string with the semaphores name
  */
-static void simply_thread_sem_register(char *name, simply_thread_sem_t *sem)
+static void simply_thread_sem_register(simply_thread_sem_t *sem)
 {
-    simply_thread_init_registery();
-    assert(NULL != name);
+	simply_thread_init_registery();
     for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
     {
-        if(0 == memcmp(st_sem_registery.createded_sems[i].sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE))
+        if(-1 == st_sem_registery.createded_sems[i].id)
         {
-            memcpy(st_sem_registery.createded_sems[i].sem_name, name, MAX_SEM_NAME_SIZE);
-            sem->data = &st_sem_registery.createded_sems[i];
-            return;
+        	st_sem_registery.createded_sems[i].id = sem->id;
+        	return;
         }
     }
-    assert(false); //We should never get here
+    SS_ASSERT(false); //We should never get here
 }
+/**
+ * @brief Function that registers a created semaphore
+ * @param name pointer to string with the semaphores name
+ */
+//static void simply_thread_sem_register(char *name, simply_thread_sem_t *sem)
+//{
+//    simply_thread_init_registery();
+//    assert(NULL != name);
+//    for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
+//    {
+//        if(0 == memcmp(st_sem_registery.createded_sems[i].sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE))
+//        {
+//            memcpy(st_sem_registery.createded_sems[i].sem_name, name, MAX_SEM_NAME_SIZE);
+//            sem->data = &st_sem_registery.createded_sems[i];
+//            return;
+//        }
+//    }
+//    assert(false); //We should never get here
+//}
 
 /**
  * @brief Initialize a semaphore
@@ -140,63 +173,72 @@ static void simply_thread_sem_register(char *name, simply_thread_sem_t *sem)
  */
 void simply_thread_sem_init(simply_thread_sem_t *sem)
 {
-    static const int max_sem_count = 1000;
-    static int sem_count = 0; //!< Variable that deals with the semaphore count
-    static const char *base_string = "simply_thread_semaphore_";
-    int result;
-    char name[MAX_SEM_NAME_SIZE];
-    assert(NULL != sem);
-    do
-    {
-        assert(MAX_SEM_NUMBER > sem_count);
-        snprintf(name, MAX_SEM_NAME_SIZE, "%s%i", base_string, sem_count);
-        sem->sem = sem_open((const char *)name, O_CREAT | O_EXCL, 0700, 0);
-        if(SEM_FAILED == sem->sem)
-        {
-            switch(errno)
-            {
-                case EEXIST:
-                    break;
-                case EACCES:
-                	ST_LOG_ERROR("ERROR: Failed to create sem: %s EACCES\r\n", name);
-                    assert(false);
-                    break;
-                case EINVAL:
-                	ST_LOG_ERROR("ERROR: Failed to create sem: %s EINVAL\r\n", name);
-                    assert(false);
-                    break;
-                case EMFILE:
-                	ST_LOG_ERROR("ERROR: Failed to create sem: %s EMFILE\r\n", name);
-                    assert(false);
-                    break;
-                default:
-                	ST_LOG_ERROR("ERROR: Failed to create sem: %s %u\r\n", name, errno);
-                    assert(false);
-                    break;
-            }
-        }
-        sem_count++;
-        if(max_sem_count < sem_count)
-        {
-            sem_count = 0;
-        }
-    }
-    while(SEM_FAILED == sem->sem);
-    PRINT_MSG("Created semaphore: %p %s\r\n", sem->sem, name);
-    simply_thread_sem_register(name, sem);
-    PRINT_MSG("\tWaiting on the semaphore\r\n");
-	result = simply_thread_sem_trywait(sem);
-	PRINT_MSG("\tChecking the wait result\r\n");
-	assert(0 == result || EAGAIN == result);
-	PRINT_MSG("\tWaiting on the semaphore\r\n");
-	result = simply_thread_sem_trywait(sem);
-	PRINT_MSG("\tChecking the wait result\r\n");
-	//We should not be able to get the semaphore again
-	if(EAGAIN != result)
-	{
-
-	}
-	assert(EAGAIN == result);
+	union simply_thread_semaphore_union worker_union;
+	SS_ASSERT(NULL != sem);
+	sem->id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | 0666);
+	SS_ASSERT(sem->id >= 0);
+	worker_union.val = 1;
+	SS_ASSERT(0 <= semctl(sem->id, 0, SETVAL, worker_union));
+	simply_thread_sem_register(sem);
+//    static const int max_sem_count = 1000;
+//    static int sem_count = 0; //!< Variable that deals with the semaphore count
+//    static const char *base_string = "simply_thread_semaphore_";
+//    int result;
+//    char name[MAX_SEM_NAME_SIZE];
+//
+//
+//    assert(NULL != sem);
+//    do
+//    {
+//        assert(MAX_SEM_NUMBER > sem_count);
+//        snprintf(name, MAX_SEM_NAME_SIZE, "%s%i", base_string, sem_count);
+//        sem->sem = sem_open((const char *)name, O_CREAT | O_EXCL, 0700, 0);
+//        if(SEM_FAILED == sem->sem)
+//        {
+//            switch(errno)
+//            {
+//                case EEXIST:
+//                    break;
+//                case EACCES:
+//                	ST_LOG_ERROR("ERROR: Failed to create sem: %s EACCES\r\n", name);
+//                    assert(false);
+//                    break;
+//                case EINVAL:
+//                	ST_LOG_ERROR("ERROR: Failed to create sem: %s EINVAL\r\n", name);
+//                    assert(false);
+//                    break;
+//                case EMFILE:
+//                	ST_LOG_ERROR("ERROR: Failed to create sem: %s EMFILE\r\n", name);
+//                    assert(false);
+//                    break;
+//                default:
+//                	ST_LOG_ERROR("ERROR: Failed to create sem: %s %u\r\n", name, errno);
+//                    assert(false);
+//                    break;
+//            }
+//        }
+//        sem_count++;
+//        if(max_sem_count < sem_count)
+//        {
+//            sem_count = 0;
+//        }
+//    }
+//    while(SEM_FAILED == sem->sem);
+//    PRINT_MSG("Created semaphore: %p %s\r\n", sem->sem, name);
+//    simply_thread_sem_register(name, sem);
+//    PRINT_MSG("\tWaiting on the semaphore\r\n");
+//	result = simply_thread_sem_trywait(sem);
+//	PRINT_MSG("\tChecking the wait result\r\n");
+//	assert(0 == result || EAGAIN == result);
+//	PRINT_MSG("\tWaiting on the semaphore\r\n");
+//	result = simply_thread_sem_trywait(sem);
+//	PRINT_MSG("\tChecking the wait result\r\n");
+//	//We should not be able to get the semaphore again
+//	if(EAGAIN != result)
+//	{
+//
+//	}
+//	assert(EAGAIN == result);
 }
 
 /**
@@ -205,22 +247,22 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
  */
 void simply_thread_sem_destroy(simply_thread_sem_t *sem)
 {
-    struct simply_thread_sem_list_element_s *typed;
-    assert(NULL != sem);
-    assert(NULL != sem->sem);
-    typed = sem->data;
-    assert(NULL != typed);
-    PRINT_MSG("Closing: %p %s\r\n", sem->sem, typed->sem_name);
-    sem_trywait(sem->sem);
-    if(0 != sem_close(sem->sem))
-    {
-        ST_LOG_ERROR("ERROR! %u Failed to close semaphore %s\r\n", errno, typed->sem_name);
-        assert(false);
-    }
-    PRINT_MSG("%s Calling unlink_sem_by_name\r\n", __FUNCTION__);
-    unlink_sem_by_name(typed->sem_name);
-    PRINT_MSG("Closed: %p %s\r\n", sem->sem, typed->sem_name);
-    memcpy(typed->sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE);
+//    struct simply_thread_sem_list_element_s *typed;
+//    assert(NULL != sem);
+//    assert(NULL != sem->sem);
+//    typed = sem->data;
+//    assert(NULL != typed);
+//    PRINT_MSG("Closing: %p %s\r\n", sem->sem, typed->sem_name);
+//    sem_trywait(sem->sem);
+//    if(0 != sem_close(sem->sem))
+//    {
+//        ST_LOG_ERROR("ERROR! %u Failed to close semaphore %s\r\n", errno, typed->sem_name);
+//        assert(false);
+//    }
+//    PRINT_MSG("%s Calling unlink_sem_by_name\r\n", __FUNCTION__);
+//    unlink_sem_by_name(typed->sem_name);
+//    PRINT_MSG("Closed: %p %s\r\n", sem->sem, typed->sem_name);
+//    memcpy(typed->sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE);
 }
 
 /**
@@ -230,32 +272,36 @@ void simply_thread_sem_destroy(simply_thread_sem_t *sem)
  */
 int simply_thread_sem_wait(simply_thread_sem_t *sem)
 {
-    int rv;
-    int eval;
-    assert(NULL != sem);
-    assert(NULL != sem->sem);
-    PRINT_MSG("%X Waiting on 0x%04X %s\r\n", pthread_self(), sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
-    rv = sem_wait(sem->sem);
-    if(0 != rv)
-    {
-        eval = errno;
-        if(EBADF == eval)
-        {
-            ST_LOG_ERROR("Bad File Descriptor: %s\r\n", simply_thread_sem_get_filename(sem));
-        }
-        if(EAGAIN == eval)
-        {
-            ST_LOG_ERROR("Error EAGAIN: %s\r\n", simply_thread_sem_get_filename(sem));
-        }
-        if(EINTR != eval && EAGAIN != eval)
-        {
-            ST_LOG_ERROR("Unsupported error %u\r\n", eval);
-            while(1) {}
-            assert(false);
-        }
-        rv = eval;
-    }
-    return rv;
+	int rv;
+	SS_ASSERT(NULL != sem);
+	rv = semop(sem->id, &simply_thread_sem_dec, 1);
+	return rv;
+//    int rv;
+//    int eval;
+//    assert(NULL != sem);
+//    assert(NULL != sem->sem);
+//    PRINT_MSG("%X Waiting on 0x%04X %s\r\n", pthread_self(), sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
+//    rv = sem_wait(sem->sem);
+//    if(0 != rv)
+//    {
+//        eval = errno;
+//        if(EBADF == eval)
+//        {
+//            ST_LOG_ERROR("Bad File Descriptor: %s\r\n", simply_thread_sem_get_filename(sem));
+//        }
+//        if(EAGAIN == eval)
+//        {
+//            ST_LOG_ERROR("Error EAGAIN: %s\r\n", simply_thread_sem_get_filename(sem));
+//        }
+//        if(EINTR != eval && EAGAIN != eval)
+//        {
+//            ST_LOG_ERROR("Unsupported error %u\r\n", eval);
+//            while(1) {}
+//            assert(false);
+//        }
+//        rv = eval;
+//    }
+//    return rv;
 }
 
 /**
@@ -265,26 +311,32 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
  */
 int simply_thread_sem_trywait(simply_thread_sem_t *sem)
 {
-    int rv;
-    int result;
-    assert(NULL != sem);
-    assert(NULL != sem->sem);
-    result = sem_trywait(sem->sem);
-    if(0 == result)
-    {
-        rv = 0;
-    }
-    else
-    {
-        rv = errno;
-    }
-    PRINT_MSG("%s returning %i with sem %s\r\n", __FUNCTION__, rv, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
-    if(0 != rv)
-    {
-    	ST_LOG_ERROR("Warning: %s returning %i\r\n", __FUNCTION__, rv);
-    	assert(EAGAIN == rv);
-    }
-    return rv;
+//    int rv;
+//    int result;
+//    assert(NULL != sem);
+//    assert(NULL != sem->sem);
+//    result = sem_trywait(sem->sem);
+//    if(0 == result)
+//    {
+//        rv = 0;
+//    }
+//    else
+//    {
+//        rv = errno;
+//    }
+//    PRINT_MSG("%s returning %i with sem %s\r\n", __FUNCTION__, rv, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
+//    if(0 != rv)
+//    {
+//    	ST_LOG_ERROR("Warning: %s returning %i\r\n", __FUNCTION__, rv);
+//    	assert(EAGAIN == rv);
+//    }
+//    return rv;
+//	SS_ASSERT(false);
+	int rv;
+	SS_ASSERT(NULL != sem);
+	rv = semop(sem->id, &simply_thread_sem_try_dec, 1);
+	return rv;
+	return 0;
 }
 
 /**
@@ -294,24 +346,28 @@ int simply_thread_sem_trywait(simply_thread_sem_t *sem)
  */
 int simply_thread_sem_post(simply_thread_sem_t *sem)
 {
-    int rv;
-    int errorval;
-    assert(NULL != sem);
-    assert(NULL != sem->sem);
-    PRINT_MSG("%X Posting to 0x%04X %s\r\n", pthread_self(), sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
-    do
-    {
-        rv = sem_post(sem->sem);
-        if(0 != rv)
-        {
-            errorval = errno;
-            assert(EOVERFLOW != errorval);
-            assert(EINVAL != errorval);
-        }
-    }
-    while(0 != rv);
-
-    return rv;
+	int rv;
+	SS_ASSERT(NULL != sem);
+	rv = semop(sem->id, &simply_thread_sem_inc, 1);
+	return rv;
+//    int rv;
+//    int errorval;
+//    assert(NULL != sem);
+//    assert(NULL != sem->sem);
+//    PRINT_MSG("%X Posting to 0x%04X %s\r\n", pthread_self(), sem->sem, ((struct simply_thread_sem_list_element_s *)sem->data)->sem_name);
+//    do
+//    {
+//        rv = sem_post(sem->sem);
+//        if(0 != rv)
+//        {
+//            errorval = errno;
+//            assert(EOVERFLOW != errorval);
+//            assert(EINVAL != errorval);
+//        }
+//    }
+//    while(0 != rv);
+//
+//    return rv;
 }
 
 /**
@@ -358,10 +414,14 @@ void sem_helper_cleanup(void)
     simply_thread_init_registery();
     for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
     {
-        if(0 != memcmp(st_sem_registery.createded_sems[i].sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE))
-        {
-            unlink_sem_by_name(st_sem_registery.createded_sems[i].sem_name);
-        }
+    	if(-1 != st_sem_registery.createded_sems[i].id)
+    	{
+    		//TODO Remove the semaphore here
+    	}
+//        if(0 != memcmp(st_sem_registery.createded_sems[i].sem_name, st_empty_entry.sem_name, MAX_SEM_NAME_SIZE))
+//        {
+//            unlink_sem_by_name(st_sem_registery.createded_sems[i].sem_name);
+//        }
     }
 }
 
@@ -463,9 +523,10 @@ int simply_thread_sem_timed_wait(simply_thread_sem_t *sem, unsigned int ms)
     int rv;
 
     assert(NULL != sem);
-    assert(NULL != sem->sem);
+    assert(-1 != sem->id);
     assert(0 < ms);
 
+    //TODO Remove this malloc
     worker_data = malloc(sizeof(struct simply_thread_timout_worker_data_s));
     assert(NULL != worker_data);
     worker_data->timeout_ms = ms;
@@ -495,19 +556,19 @@ int simply_thread_sem_timed_wait(simply_thread_sem_t *sem, unsigned int ms)
  * @param sem pointer to the file name
  * @return
  */
-const char *simply_thread_sem_get_filename(simply_thread_sem_t *sem)
-{
-    struct simply_thread_sem_list_element_s *typed;
-    const char *rv;
-
-    assert(sem != NULL);
-    assert(sem->data != NULL);
-    assert(sem->sem != NULL);
-
-    typed = sem->data;
-    rv = NULL;
-
-    rv = typed->sem_name;
-
-    return rv;
-}
+//const char *simply_thread_sem_get_filename(simply_thread_sem_t *sem)
+//{
+//    struct simply_thread_sem_list_element_s *typed;
+//    const char *rv;
+//
+//    assert(sem != NULL);
+//    assert(sem->data != NULL);
+//    assert(sem->sem != NULL);
+//
+//    typed = sem->data;
+//    rv = NULL;
+//
+//    rv = typed->sem_name;
+//
+//    return rv;
+//}

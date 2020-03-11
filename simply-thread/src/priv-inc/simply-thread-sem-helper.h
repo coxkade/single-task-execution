@@ -14,8 +14,9 @@
 
 typedef struct simply_thread_sem_t
 {
-    sem_t *sem; //!< Pointer to the posix semaphore
-    void *data;  //!< Additional data for the semaphore
+//    sem_t *sem; //!< Pointer to the posix semaphore
+//    void *data;  //!< Additional data for the semaphore
+	int id;
 } simply_thread_sem_t; //!< Structure for holding my semaphore
 
 /**
@@ -64,11 +65,11 @@ int simply_thread_sem_post(simply_thread_sem_t *sem);
  */
 void sem_helper_cleanup(void);
 
-/**
- * @brief Function that fetches the filename of the semaphore
- * @param sem pointer to the file name
- * @return
- */
-const char *simply_thread_sem_get_filename(simply_thread_sem_t *sem);
+///**
+// * @brief Function that fetches the filename of the semaphore
+// * @param sem pointer to the file name
+// * @return
+// */
+//const char *simply_thread_sem_get_filename(simply_thread_sem_t *sem);
 
 #endif /* SIMPLY_THREAD_SEM_HELPER_H_ */
