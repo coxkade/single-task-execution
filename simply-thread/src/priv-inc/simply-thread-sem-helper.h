@@ -15,7 +15,7 @@
 typedef struct simply_thread_sem_t
 {
     void *data;  //!< Additional data for the semaphore
-	int id; //!< The semaphore id
+    int id; //!< The semaphore id
 } simply_thread_sem_t; //!< Structure for holding my semaphore
 
 /**

@@ -31,7 +31,7 @@ typedef struct helper_thread_t
  * @brief Function that fetches the current thread helper
  * @return NULL if not known
  */
-helper_thread_t * thread_helper_self(void);
+helper_thread_t *thread_helper_self(void);
 
 /**
  * @brief Create and start a new thread
@@ -46,6 +46,12 @@ helper_thread_t *thread_helper_thread_create(void *(* worker)(void *), void *dat
  * @param thread
  */
 void thread_helper_thread_destroy(helper_thread_t *thread);
+
+/**
+ * Function that destroys thread from the assert context
+ * @param thread
+ */
+void thread_helper_thread_assert_destroy(helper_thread_t *thread);
 
 /**
  * @brief Check if a thread is running

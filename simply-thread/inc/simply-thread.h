@@ -8,9 +8,23 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #ifndef SIMPLY_THREAD_H_
 #define SIMPLY_THREAD_H_
+
+
+#define SS_ASSERT(...)\
+    do{\
+        bool ss_assert_result = (__VA_ARGS__);\
+        if(!(ss_assert_result))\
+        {\
+            ST_LOG_ERROR("Assert Failed Cleaning up\r\n");\
+            ST_LOG_ERROR("Line: %i\r\nFile: %s\r\n", __LINE__, __FILE__);\
+            tcb_on_assert();\
+        }\
+        assert(true == ss_assert_result);\
+    }while(false)
 
 //Typedefs for tasks
 typedef void *simply_thread_task_t; //!< Typedef for a handle for a task created with simply thread

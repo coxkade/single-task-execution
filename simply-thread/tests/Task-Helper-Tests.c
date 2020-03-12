@@ -211,7 +211,7 @@ static void tcb_worker_one(void *data, uint16_t data_size)
 	SS_ASSERT(NULL != task_ptr);
 
 	PRINT_MSG("%s Creating Task Two\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != tcb_task_two);
+	SS_ASSERT(NULL == tcb_task_two);
 	tcb_task_two = tcb_create_task("TASK TWO", tcb_worker_two, 1, NULL, 0);
 	SS_ASSERT(NULL != tcb_task_two);
 	while(1)
@@ -240,6 +240,7 @@ static void basic_TCB_test(void **state)
 	tcb_test_run_ran = false;
 
 	tcb_reset();
+	PRINT_MSG("Running tcb_run_test in the TCB Context\r\n");
 	run_in_tcb_context(tcb_run_test, (void *)5);
 	//Create tcb worker one
 	PRINT_MSG("Creating Task 1\r\n");
@@ -247,6 +248,7 @@ static void basic_TCB_test(void **state)
 	PRINT_MSG("Task 1 Created\r\n");
 	SS_ASSERT(NULL != tcb_task_one);
 	while(NULL == tcb_task_two) {}
+	PRINT_MSG("Checking tcb_task_self\r\n");
 	SS_ASSERT(NULL == tcb_task_self());
 	PRINT_MSG("Finishing up the Tests\r\n");
 	while(500 > tcb_two_count){}
@@ -274,9 +276,9 @@ int run_task_helper_tests(void)
     const struct CMUnitTest message_helper_tests[] =
     {
         cmocka_unit_test(basic_thread_helper_test),
-//        cmocka_unit_test(basic_message_helper_test),
-//		cmocka_unit_test(TCB_Test_One),
-//		cmocka_unit_test(TCB_Test_Two)
+        cmocka_unit_test(basic_message_helper_test),
+		cmocka_unit_test(TCB_Test_One),
+		cmocka_unit_test(TCB_Test_Two)
     };
     rv = cmocka_run_group_tests(message_helper_tests, NULL, NULL);
     SS_ASSERT(0 <= rv);

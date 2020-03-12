@@ -591,7 +591,8 @@ int main(void)
 //        cmocka_unit_test(second_queue_test_tests),
     };
 #ifndef DISABLE_TIME_OUT
-    SS_ASSERT(0 == pthread_create(&thread, NULL, timeout_worker, &timeout_seconds));
+    result = pthread_create(&thread, NULL, timeout_worker, &timeout_seconds);
+    SS_ASSERT(0 == result);
 #endif //DISABLE_TIME_OUT
     result = run_task_helper_tests();
 //    SS_ASSERT(0 <= result);

@@ -73,7 +73,8 @@ struct simply_thread_timout_worker_data_s
     simply_thread_sem_t *sem;  //!< The pointer to the waiting semaphore
 };
 
-union simply_thread_semaphore_union {
+union simply_thread_semaphore_union
+{
     int val;
     struct semid_ds *buf;
     unsigned short  *array;
@@ -112,7 +113,7 @@ static void simply_thread_init_registery(void)
     {
         for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
         {
-        	st_sem_registery.createded_sems[i].id = -1;
+            st_sem_registery.createded_sems[i].id = -1;
         }
         st_sem_registery.initialized = true;
     }
@@ -125,14 +126,14 @@ static void simply_thread_init_registery(void)
  */
 static void simply_thread_sem_register(simply_thread_sem_t *sem)
 {
-	simply_thread_init_registery();
+    simply_thread_init_registery();
     for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
     {
         if(-1 == st_sem_registery.createded_sems[i].id)
         {
-        	st_sem_registery.createded_sems[i].id = sem->id;
-        	sem->data = &st_sem_registery.createded_sems[i];
-        	return;
+            st_sem_registery.createded_sems[i].id = sem->id;
+            sem->data = &st_sem_registery.createded_sems[i];
+            return;
         }
     }
     SS_ASSERT(false); //We should never get here
@@ -144,21 +145,21 @@ static void simply_thread_sem_register(simply_thread_sem_t *sem)
  */
 void simply_thread_sem_init(simply_thread_sem_t *sem)
 {
-	int result;
-	union simply_thread_semaphore_union worker_union;
-	PRINT_MSG("%s Started\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != sem);
-	sem->id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | 0666);
-	SS_ASSERT(sem->id >= 0);
-	PRINT_MSG("Created Semaphore %i\r\n", sem->id);
-	simply_thread_sem_register(sem);
-	worker_union.val = 1;
-	SS_ASSERT(0 <= semctl(sem->id, 0, SETVAL, worker_union));
-	PRINT_MSG("\t%s calling simply_thread_sem_trywait\r\n", __FUNCTION__);
-	result = simply_thread_sem_trywait(sem);
-	SS_ASSERT(0 == result);
-	result = simply_thread_sem_trywait(sem);
-	assert(EAGAIN == result);
+    int result;
+    union simply_thread_semaphore_union worker_union;
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != sem);
+    sem->id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | 0666);
+    SS_ASSERT(sem->id >= 0);
+    PRINT_MSG("Created Semaphore %i\r\n", sem->id);
+    simply_thread_sem_register(sem);
+    worker_union.val = 1;
+    SS_ASSERT(0 <= semctl(sem->id, 0, SETVAL, worker_union));
+    PRINT_MSG("\t%s calling simply_thread_sem_trywait\r\n", __FUNCTION__);
+    result = simply_thread_sem_trywait(sem);
+    SS_ASSERT(0 == result);
+    result = simply_thread_sem_trywait(sem);
+    assert(EAGAIN == result);
 }
 
 /**
@@ -167,23 +168,23 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
  */
 void simply_thread_sem_destroy(simply_thread_sem_t *sem)
 {
-	int result;
-	struct simply_thread_sem_list_element_s * typed;
-	PRINT_MSG("%s Started\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != sem)
-	typed = sem->data;
-	SS_ASSERT(typed != NULL);
-	SS_ASSERT(typed->id == sem->id);
-	if(-1 != sem->id)
-	{
-		result = semctl(sem->id, 0, IPC_RMID);
-		if(0 != result)
-		{
-			ST_LOG_ERROR("\tsemctl returned %i error %i\r\n", result, errno);
-		}
-		typed->id = -1;
-		PRINT_MSG("Destroyed semaphore: %i\r\n", sem->id);
-	}
+    int result;
+    struct simply_thread_sem_list_element_s *typed;
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != sem);
+    typed = sem->data;
+    SS_ASSERT(typed != NULL);
+    SS_ASSERT(typed->id == sem->id);
+    if(-1 != sem->id)
+    {
+        result = semctl(sem->id, 0, IPC_RMID);
+        if(0 != result)
+        {
+            ST_LOG_ERROR("\tsemctl returned %i error %i\r\n", result, errno);
+        }
+        typed->id = -1;
+        PRINT_MSG("Destroyed semaphore: %i\r\n", sem->id);
+    }
 }
 
 /**
@@ -193,12 +194,12 @@ void simply_thread_sem_destroy(simply_thread_sem_t *sem)
  */
 int simply_thread_sem_wait(simply_thread_sem_t *sem)
 {
-	int rv;
-	PRINT_MSG("%s Started\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != sem);
-	rv = semop(sem->id, &simply_thread_sem_dec, 1);
-	PRINT_MSG("%s returning %i with sem %i\r\n", __FUNCTION__, rv, sem->id);
-	return rv;
+    int rv;
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != sem);
+    rv = semop(sem->id, &simply_thread_sem_dec, 1);
+    PRINT_MSG("%s returning %i with sem %i\r\n", __FUNCTION__, rv, sem->id);
+    return rv;
 }
 
 /**
@@ -208,16 +209,16 @@ int simply_thread_sem_wait(simply_thread_sem_t *sem)
  */
 int simply_thread_sem_trywait(simply_thread_sem_t *sem)
 {
-	int rv;
-	PRINT_MSG("%s Started\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != sem);
-	rv = semop(sem->id, &simply_thread_sem_try_dec, 1);
+    int rv;
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != sem);
+    rv = semop(sem->id, &simply_thread_sem_try_dec, 1);
     if(0 != rv)
     {
         rv = errno;
     }
     PRINT_MSG("%s returning %i with sem %i\r\n", __FUNCTION__, rv, sem->id);
-	return rv;
+    return rv;
 }
 
 /**
@@ -227,16 +228,16 @@ int simply_thread_sem_trywait(simply_thread_sem_t *sem)
  */
 int simply_thread_sem_post(simply_thread_sem_t *sem)
 {
-	int rv;
-	PRINT_MSG("%s Started\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != sem);
-	rv = semop(sem->id, &simply_thread_sem_inc, 1);
-	if(0 != rv)
-	{
-		ST_LOG_ERROR("\t%s semop returned %i error %s\r\n", __FUNCTION__, rv, errno);
-	}
-	PRINT_MSG("%s returning %i with sem %i\r\n", __FUNCTION__, rv, sem->id);
-	return rv;
+    int rv;
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != sem);
+    rv = semop(sem->id, &simply_thread_sem_inc, 1);
+    if(0 != rv)
+    {
+        ST_LOG_ERROR("\t%s semop returned %i error %s\r\n", __FUNCTION__, rv, errno);
+    }
+    PRINT_MSG("%s returning %i with sem %i\r\n", __FUNCTION__, rv, sem->id);
+    return rv;
 }
 
 /**
@@ -244,20 +245,20 @@ int simply_thread_sem_post(simply_thread_sem_t *sem)
  */
 void sem_helper_cleanup(void)
 {
-	int result;
-	printf("%s\r\n", __FUNCTION__);
+    int result;
+    PRINT_MSG("%s\r\n", __FUNCTION__);
     simply_thread_init_registery();
     for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
     {
-    	if(-1 != st_sem_registery.createded_sems[i].id)
-    	{
-    		result = semctl(st_sem_registery.createded_sems[i].id, 0, IPC_RMID);
-    		if(result != 0)
-    		{
-    			PRINT_MSG("Sem Delete:\r\n\tSem: %i\r\n\tResult: %i\r\n\tErr: %i\r\n",
-    					st_sem_registery.createded_sems[i].id, result, errno);
-    		}
-    	}
+        if(-1 != st_sem_registery.createded_sems[i].id)
+        {
+            result = semctl(st_sem_registery.createded_sems[i].id, 0, IPC_RMID);
+            if(result != 0)
+            {
+                PRINT_MSG("Sem Delete:\r\n\tSem: %i\r\n\tResult: %i\r\n\tErr: %i\r\n",
+                          st_sem_registery.createded_sems[i].id, result, errno);
+            }
+        }
     }
 }
 

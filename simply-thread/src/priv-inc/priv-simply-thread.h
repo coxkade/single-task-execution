@@ -20,14 +20,16 @@
 #endif //ST_NS_PER_MS
 
 #define SS_ASSERT(...)\
-	if(!(__VA_ARGS__))\
-	{\
-		ST_LOG_ERROR("Assert Failed Cleaning up\r\n");\
-		ST_LOG_ERROR("Line: %i\r\nFile: %s\r\n", __LINE__, __FILE__);\
-		tcb_on_assert();\
-		sem_helper_cleanup();\
-	}\
-	assert(__VA_ARGS__);
+    do{\
+        bool ss_assert_result = (__VA_ARGS__);\
+        if(!(ss_assert_result))\
+        {\
+            ST_LOG_ERROR("Assert Failed Cleaning up\r\n");\
+            ST_LOG_ERROR("Line: %i\r\nFile: %s\r\n", __LINE__, __FILE__);\
+            tcb_on_assert();\
+        }\
+        assert(true == ss_assert_result);\
+    }while(false)
 
 ///**
 // * @brief execute the scheduler from a locked context

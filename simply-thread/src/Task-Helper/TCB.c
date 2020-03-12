@@ -31,6 +31,8 @@
 #define MAX_MSG_COUNT 10
 #endif //MAX_MSG_COUNT
 
+#define DEBUG_SIMPLY_THREAD
+
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_CYAN, __VA_ARGS__)
 #else
@@ -53,7 +55,7 @@ struct tcb_message_data_s
     enum
     {
         TCB_SET_STATE,
-		TCB_GET_STATE,
+        TCB_GET_STATE,
         TCB_CREATE_TASK,
         TCB_TASK_SELF,
         TCB_RUNNER
@@ -68,7 +70,7 @@ struct tcb_message_data_s
         struct
         {
             struct tcb_task_t *task;
-            enum simply_thread_thread_state_e * state;
+            enum simply_thread_thread_state_e *state;
         } get_state; //!< Data for the get state command
         struct
         {
@@ -109,6 +111,7 @@ struct tcb_module_data_s
     Message_Helper_Instance_t *msg_helper;
     pthread_t worker_id;
     bool clear_in_progress;
+    bool TCB_Executing; //!< Flag that says the task control Block is executing
 }; //!< Structure for the local module data
 
 /***********************************************************************************/
@@ -123,7 +126,8 @@ static struct tcb_module_data_s tcb_module_data =
 {
     .msg_helper = NULL,
     .worker_id = NULL,
-	.clear_in_progress = false
+    .clear_in_progress = false,
+    .TCB_Executing = false
 };
 
 /***********************************************************************************/
@@ -361,7 +365,7 @@ static void tcb_message_handler(void *message, uint32_t message_size)
     struct tcb_msage_wrapper_s *typed;
     bool sched_required;
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-
+    tcb_module_data.TCB_Executing = true;
     tcb_module_data.worker_id = pthread_self();
     typed = message;
     SS_ASSERT(message_size == sizeof(struct tcb_msage_wrapper_s));
@@ -374,7 +378,7 @@ static void tcb_message_handler(void *message, uint32_t message_size)
             handle_change_state_msg(typed->msg_ptr);
             break;
         case TCB_GET_STATE:
-        	PRINT_MSG("\tHandling Get State\r\n");
+            PRINT_MSG("\tHandling Get State\r\n");
             handle_get_state_msg(typed->msg_ptr);
             sched_required = false;
             break;
@@ -400,35 +404,74 @@ static void tcb_message_handler(void *message, uint32_t message_size)
         //Now run the scheduler
         tcb_run_sched();
     }
+    tcb_module_data.TCB_Executing = false;
     //post to the wait semaphore
     SS_ASSERT(0 == simply_thread_sem_post(&typed->msg_ptr->wait_sem));
 }
 
-//!< Clears all the data in the tcb
-static void tcb_clear(void)
+
+static void *tcb_sched_clear(void *data)
 {
-	struct tcb_entry_s *c_task;
-	tcb_module_data.clear_in_progress = true;
-	if(NULL != tcb_module_data.msg_helper)
-	{
-		printf("!!!!!!Running %s\r\n", __FUNCTION__);
-		//Clean up is required
-		//Kill the messenger
-		Remove_Message_Helper(tcb_module_data.msg_helper);
-		printf("!!!!!!Removed Message Helper %s\r\n", __FUNCTION__);
-		tcb_module_data.msg_helper = NULL;
-		//Kill all running tasks
-		for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)
-		{
-			c_task = &tcb_module_data.tasks[i];
-			if(true == c_task->in_use)
-			{
-				thread_helper_thread_destroy(c_task->task.thread);
-			}
-		}
-	}
-	reset_thread_helper();
-	tcb_module_data.clear_in_progress = false;
+    struct tcb_entry_s *c_task;
+    bool *typed;
+    typed = data;
+
+    if(NULL != tcb_module_data.msg_helper)
+    {
+        PRINT_MSG("!!!!!!Running %s\r\n", __FUNCTION__);
+        //Clean up is required
+        //Kill the messenger
+        Remove_Message_Helper(tcb_module_data.msg_helper);
+        PRINT_MSG("!!!!!!Removed Message Helper %s\r\n", __FUNCTION__);
+        tcb_module_data.msg_helper = NULL;
+        //Kill all running tasks
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)
+        {
+            c_task = &tcb_module_data.tasks[i];
+            if(true == c_task->in_use && NULL != c_task->task.thread)
+            {
+                //Have to use the destroy that does not need the message helper as it has been destroyed
+                thread_helper_thread_assert_destroy(c_task->task.thread);
+            }
+        }
+    }
+    reset_thread_helper();
+    if(true == typed[0])
+    {
+        sem_helper_cleanup();
+        assert(false == true);
+    }
+
+    return NULL;
+}
+
+//!< Clears all the data in the tcb
+static void tcb_clear(bool assert)
+{
+    bool use_scheduled = false;
+    bool is_assert;
+    is_assert = assert;
+    if(true == assert)
+    {
+        if(NULL != thread_helper_self())
+        {
+            use_scheduled = true;
+        }
+    }
+    tcb_module_data.clear_in_progress = true;
+    if(true == use_scheduled)
+    {
+        //The task would kill itself so we need to use another thread
+        pthread_t id;
+        PRINT_MSG("%s Launching task to run tcb clear\r\n", __FUNCTION__);
+        assert(0 == pthread_create(&id, NULL, tcb_sched_clear, &is_assert));
+        pthread_join(id, NULL);
+    }
+    else
+    {
+        tcb_sched_clear(&assert);
+    }
+    tcb_module_data.clear_in_progress = false;
 }
 
 /**
@@ -436,7 +479,30 @@ static void tcb_clear(void)
  */
 void tcb_on_assert(void)
 {
-	tcb_clear();
+    tcb_clear(true);
+}
+
+/**
+ * @brief Function to check and see if the task control block is executing
+ * @return True it the TCB context is running an opperation
+ */
+bool tcb_context_executing(void)
+{
+    return tcb_module_data.TCB_Executing;
+}
+
+/**
+ * @brief Function that tells if we are executing from the TCB context
+ * @return true if the calling function is in the TCB Context
+ */
+bool in_tcb_context(void)
+{
+    bool rv = false;
+    if(tcb_module_data.worker_id == pthread_self())
+    {
+        rv = true;
+    }
+    return rv;
 }
 
 /**
@@ -448,7 +514,7 @@ void tcb_reset(void)
     struct tcb_entry_s *c_task;
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    while(true == tcb_module_data.clear_in_progress){}
+    while(true == tcb_module_data.clear_in_progress) {}
 
     if(true == first_time)
     {
@@ -457,7 +523,7 @@ void tcb_reset(void)
         first_time = false;
     }
 
-    tcb_clear();
+    tcb_clear(false);
     //Initialize the module data
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)
     {
@@ -467,6 +533,7 @@ void tcb_reset(void)
     //Launch the message handler
     tcb_module_data.msg_helper = New_Message_Helper(tcb_message_handler);
     SS_ASSERT(NULL != tcb_module_data.msg_helper);
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -480,7 +547,7 @@ void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *tas
     struct tcb_msage_wrapper_s msg;
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    while(true == tcb_module_data.clear_in_progress){}
+    while(true == tcb_module_data.clear_in_progress) {}
     SS_ASSERT(tcb_module_data.worker_id != pthread_self());
 
     SS_ASSERT(SIMPLY_THREAD_TASK_RUNNING != state && NULL != task);
@@ -495,6 +562,7 @@ void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *tas
     Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
     while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
     simply_thread_sem_destroy(&local_data.wait_sem);
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -509,7 +577,7 @@ enum simply_thread_thread_state_e tcb_get_task_state(tcb_task_t *task)
     enum simply_thread_thread_state_e rv;
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    while(true == tcb_module_data.clear_in_progress){}
+    while(true == tcb_module_data.clear_in_progress) {}
     SS_ASSERT(tcb_module_data.worker_id != pthread_self());
 
     SS_ASSERT(NULL != task);
@@ -524,6 +592,7 @@ enum simply_thread_thread_state_e tcb_get_task_state(tcb_task_t *task)
     Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
     while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
     simply_thread_sem_destroy(&local_data.wait_sem);
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
     return rv;
 }
 
@@ -542,7 +611,7 @@ tcb_task_t *tcb_create_task(const char *name, simply_thread_task_fnct cb, unsign
     struct tcb_msage_wrapper_s msg;
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    while(true == tcb_module_data.clear_in_progress){}
+    while(true == tcb_module_data.clear_in_progress) {}
     SS_ASSERT(tcb_module_data.worker_id != pthread_self());
     SS_ASSERT(NULL != name && NULL != cb);
     msg.msg_ptr = &local_data;
@@ -558,6 +627,7 @@ tcb_task_t *tcb_create_task(const char *name, simply_thread_task_fnct cb, unsign
     Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
     while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
     simply_thread_sem_destroy(&local_data.wait_sem);
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
     return local_data.msg_data.create_task.result.tcb_task;
 }
 
@@ -571,7 +641,7 @@ tcb_task_t *tcb_task_self(void)
     struct tcb_msage_wrapper_s msg;
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    while(true == tcb_module_data.clear_in_progress){}
+    while(true == tcb_module_data.clear_in_progress) {}
     SS_ASSERT(tcb_module_data.worker_id != pthread_self());
 
     msg.msg_ptr = &local_data;
@@ -584,6 +654,7 @@ tcb_task_t *tcb_task_self(void)
     Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
     while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
     simply_thread_sem_destroy(&local_data.wait_sem);
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
     return(local_data.msg_data.task_self.result.tcb_task);
 }
 
@@ -599,17 +670,25 @@ void run_in_tcb_context(void (*fnct)(void *), void *data)
     struct tcb_msage_wrapper_s msg;
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    while(true == tcb_module_data.clear_in_progress){}
-    SS_ASSERT(tcb_module_data.worker_id != pthread_self());
 
-    msg.msg_ptr = &local_data;
-    simply_thread_sem_init(&local_data.wait_sem);
+    if(false == in_tcb_context())
+    {
+        while(true == tcb_module_data.clear_in_progress) {}
+        msg.msg_ptr = &local_data;
+        simply_thread_sem_init(&local_data.wait_sem);
 
-    local_data.msg_type = TCB_RUNNER;
-    local_data.msg_data.runner.fnct = fnct;
-    local_data.msg_data.runner.data = data;
+        local_data.msg_type = TCB_RUNNER;
+        local_data.msg_data.runner.fnct = fnct;
+        local_data.msg_data.runner.data = data;
 
-    Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
-    while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
-    simply_thread_sem_destroy(&local_data.wait_sem);
+        Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
+        while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
+        simply_thread_sem_destroy(&local_data.wait_sem);
+    }
+    else
+    {
+        PRINT_MSG("\t%s Already in the TCB context\r\n", __FUNCTION__);
+        fnct(data);
+    }
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
