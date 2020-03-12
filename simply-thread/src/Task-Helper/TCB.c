@@ -31,6 +31,8 @@
 #define MAX_MSG_COUNT 10
 #endif //MAX_MSG_COUNT
 
+//#define DEBUG_SIMPLY_THREAD
+
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_CYAN, __VA_ARGS__)
 #else
@@ -548,19 +550,24 @@ void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *tas
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     while(true == tcb_module_data.clear_in_progress) {}
+    PRINT_MSG("\t%s checking the worker id\r\n", __FUNCTION__);
     SS_ASSERT(tcb_module_data.worker_id != pthread_self());
-
+    PRINT_MSG("\t%s checking the state and task\r\n", __FUNCTION__);
     SS_ASSERT(SIMPLY_THREAD_TASK_RUNNING != state && NULL != task);
     msg.msg_ptr = &local_data;
 
+    PRINT_MSG("\t%s Initializing semaphore\r\n", __FUNCTION__);
     simply_thread_sem_init(&local_data.wait_sem);
 
     local_data.msg_type = TCB_SET_STATE;
     local_data.msg_data.set_state.state = state;
     local_data.msg_data.set_state.task = task;
 
+    PRINT_MSG("\t%s Sending request\r\n", __FUNCTION__);
     Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
+    PRINT_MSG("\t%s Waiting on the semaphore\r\n", __FUNCTION__);
     while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
+    PRINT_MSG("\t%s Destroying the semaphore\r\n", __FUNCTION__);
     simply_thread_sem_destroy(&local_data.wait_sem);
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }

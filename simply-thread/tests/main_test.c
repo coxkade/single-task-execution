@@ -28,6 +28,8 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
+#define DEBUG_TESTS
+
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) printf(__VA_ARGS__)
 #define PRINT_TASK_STATE() simply_thread_print_tcb()
@@ -86,10 +88,11 @@ static bool tasks_started[10]; //array of task started flags
  */
 static void thread_two_worker(void *data, uint16_t data_size)
 {
+	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
     simply_thread_sleep_ms(100);
     while(1)
     {
-        assert_true(true == simply_thread_task_suspend(NULL));
+        SS_ASSERT(true == simply_thread_task_suspend(NULL));
         thread_two_ran = true;
     }
 }
@@ -101,10 +104,11 @@ static void thread_two_worker(void *data, uint16_t data_size)
  */
 static void thread_one_worker(void *data, uint16_t data_size)
 {
+	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
     simply_thread_sleep_ms(100);
     while(1)
     {
-        assert_true(true == simply_thread_task_resume(task_two));
+        SS_ASSERT(true == simply_thread_task_resume(task_two));
         simply_thread_sleep_ms(10);
         thread_one_ran = true;
     }
@@ -115,17 +119,22 @@ static void thread_one_worker(void *data, uint16_t data_size)
 static void task_test_success(void **state)
 {
     simply_thread_reset();
+    PRINT_MSG("Creating Task1\r\n");
     task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
+    PRINT_MSG("Creating Task2\r\n");
     task_two = simply_thread_new_thread("TASK2", thread_two_worker, 3, NULL, 0);
-
-    assert_true(NULL != task_one);
-    assert_true(NULL != task_two);
-    assert_false(simply_thread_task_suspend(NULL));
-    assert_false(simply_thread_task_resume(NULL));
+    PRINT_MSG("Checking Creation Results\r\n");
+    SS_ASSERT(NULL != task_one);
+    SS_ASSERT(NULL != task_two);
+    PRINT_MSG("Checking Error Results\r\n");
+    SS_ASSERT( false == simply_thread_task_suspend(NULL));
+    SS_ASSERT( false == simply_thread_task_resume(NULL));
+    PRINT_MSG("SLEEPING Task\r\n");
     simply_thread_sleep_ms(1000);
+    PRINT_MSG("Cleaning UP\r\n");
     simply_thread_cleanup();
-    assert_true(thread_one_ran);
-    assert_true(thread_two_ran);
+    SS_ASSERT(thread_one_ran);
+    SS_ASSERT(thread_two_ran);
 }
 
 
@@ -139,10 +148,10 @@ static void thread_three_worker(void *data, uint16_t data_size)
 {
     simply_thread_sleep_ms(100);
     int test_val;
-    assert_int_equal(data_size, sizeof(test_val));
-    assert_true(NULL != data);
+    SS_ASSERT(data_size == sizeof(test_val));
+    SS_ASSERT(NULL != data);
     memcpy(&test_val, data, sizeof(test_val));
-    assert_int_equal(5, test_val);
+    SS_ASSERT(5 == test_val);
     task_non_null_data_test_continue = true;
     while(1)
     {
@@ -161,10 +170,10 @@ static void task_non_null_data_test(void **state)
     task_non_null_data_test_continue = false;
     simply_thread_reset();
     test_task = simply_thread_new_thread("DataTask", thread_three_worker, 1, &test_val, sizeof(test_val));
-    assert_true(NULL != test_task);
+    SS_ASSERT(NULL != test_task);
 
     simply_thread_sleep_ms(2000);
-    assert_true(task_non_null_data_test_continue);
+    SS_ASSERT(task_non_null_data_test_continue);
     simply_thread_cleanup();
 }
 
@@ -175,7 +184,7 @@ static void task_non_null_data_test(void **state)
 static void first_timer_worker(simply_thread_timer_t timer)
 {
     PRINT_MSG("%s running\r\n", __FUNCTION__);
-    assert_true(timer_1 == timer);
+    SS_ASSERT(timer_1 == timer);
     timer_1_ran = true;
 }
 
@@ -193,33 +202,33 @@ static void timer_test(void **state)
     task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
     task_two = simply_thread_new_thread("TASK2", thread_two_worker, 3, NULL, 0);
 
-    assert_true(NULL != task_one);
-    assert_true(NULL != task_two);
-    assert_false(simply_thread_task_suspend(NULL));
-    assert_false(simply_thread_task_resume(NULL));
+    SS_ASSERT(NULL != task_one);
+    SS_ASSERT(NULL != task_two);
+    SS_ASSERT( false == simply_thread_task_suspend(NULL));
+    SS_ASSERT( false == simply_thread_task_resume(NULL));
 
     PRINT_MSG("\tCreating timer 1\r\n");
-    assert_true(NULL == simply_thread_create_timer(NULL, "Hello", 5, SIMPLY_THREAD_TIMER_ONE_SHOT, true));
+    SS_ASSERT(NULL == simply_thread_create_timer(NULL, "Hello", 5, SIMPLY_THREAD_TIMER_ONE_SHOT, true));
     timer_1 = simply_thread_create_timer(first_timer_worker, "Timer One", 100, SIMPLY_THREAD_TIMER_ONE_SHOT, true);
-    assert_true(NULL != timer_1);
+    SS_ASSERT(NULL != timer_1);
     PRINT_MSG("\tTesting timer start and stop\r\n");
-    assert_true(simply_thread_timer_stop(timer_1));
-    assert_false(simply_thread_timer_start(NULL));
-    assert_false(simply_thread_timer_stop(NULL));
-    assert_true(simply_thread_timer_start(timer_1));
+    SS_ASSERT(simply_thread_timer_stop(timer_1));
+    SS_ASSERT( false == simply_thread_timer_start(NULL));
+    SS_ASSERT( false == simply_thread_timer_stop(NULL));
+    SS_ASSERT(simply_thread_timer_start(timer_1));
     PRINT_MSG("\tCreating timer 2\r\n");
     timer_2 = simply_thread_create_timer(second_timer_worker, "Timer two", 100, SIMPLY_THREAD_TIMER_REPEAT, true);
-    assert_true(NULL != timer_2);
+    SS_ASSERT(NULL != timer_2);
     PRINT_MSG("\tSleeping main test task\r\n");
     simply_thread_sleep_ms(540);
     PRINT_MSG("\tStopping timer 2\r\n");
-    assert_true(simply_thread_timer_stop(timer_2));
+    SS_ASSERT(simply_thread_timer_stop(timer_2));
     PRINT_MSG("\tTimer 2 stopped\r\n");
-    assert_int_equal(5, timer_2_count);
+    SS_ASSERT(5 == timer_2_count);
     simply_thread_cleanup();
-    assert_true(thread_one_ran);
-    assert_true(thread_two_ran);
-    assert_true(timer_1_ran);
+    SS_ASSERT(thread_one_ran);
+    SS_ASSERT(thread_two_ran);
+    SS_ASSERT(timer_1_ran);
     PRINT_MSG("%s finnished\r\n", __FUNCTION__);
 }
 
@@ -243,28 +252,28 @@ static void second_timer_tests(void **state)
 static void mutex_worker_1_task(void *data, uint16_t data_size)
 {
     simply_thread_mutex_t *m_handle = data;
-    assert_true(NULL != m_handle);
-    assert_true(sizeof(simply_thread_mutex_t) == data_size);
+    SS_ASSERT(NULL != m_handle);
+    SS_ASSERT(sizeof(simply_thread_mutex_t) == data_size);
     PRINT_MSG("%s Started\r\n", __FUNCTION__);
     simply_thread_sleep_ms(25);
     tasks_started[0] = true;
     PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
     PRINT_TASK_STATE();
-    assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+    SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
     PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
     PRINT_TASK_STATE();
-    assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
+    SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[0]));
     PRINT_MSG("%s Unlocked second_mutex\r\n", __FUNCTION__);
     while(1)
     {
         PRINT_MSG("%s Locking second_mutex 2\r\n", __FUNCTION__);
         PRINT_TASK_STATE();
-        assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+        SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
         thread_one_ran = true;
         simply_thread_sleep_ms(25);
         PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
         PRINT_TASK_STATE();
-        assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
+        SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[0]));
         PRINT_MSG("%s Unlocked second_mutex\r\n", __FUNCTION__);
         PRINT_TASK_STATE();
         simply_thread_sleep_ms(100);
@@ -274,37 +283,37 @@ static void mutex_worker_1_task(void *data, uint16_t data_size)
 static void mutex_worker_2_task(void *data, uint16_t data_size)
 {
     simply_thread_mutex_t *m_handle = data;
-    assert_true(NULL != m_handle);
-    assert_true(sizeof(simply_thread_mutex_t) == data_size);
+    SS_ASSERT(NULL != m_handle);
+    SS_ASSERT(sizeof(simply_thread_mutex_t) == data_size);
     PRINT_MSG("%s Started\r\n", __FUNCTION__);
     simply_thread_sleep_ms(40);
     tasks_started[1] = true;
     PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
     PRINT_TASK_STATE();
-    assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+    SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
     PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
     PRINT_TASK_STATE();
-    assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
+    SS_ASSERT(true == simply_thread_mutex_unlock(mutex_handles[0]));
     PRINT_MSG("%s Unlocked second_mutex\r\n", __FUNCTION__);
     PRINT_MSG("%s Locking third_mutex\r\n", __FUNCTION__);
-    assert_true(simply_thread_mutex_lock(mutex_handles[1], 0xFFFFFFFF));
+    SS_ASSERT(true == simply_thread_mutex_lock(mutex_handles[1], 0xFFFFFFFF));
     PRINT_MSG("%s Unlocking third_mutex\r\n", __FUNCTION__);
-    assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
+    SS_ASSERT(true == simply_thread_mutex_unlock(mutex_handles[1]));
     PRINT_MSG("%s Unlocked third_mutex\r\n", __FUNCTION__);
     simply_thread_sleep_ms(50);
     while(1)
     {
         PRINT_MSG("%s Locking second_mutex 2\r\n", __FUNCTION__);
         PRINT_TASK_STATE();
-        assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+        SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
         PRINT_MSG("%s Testing timeout\r\n", __FUNCTION__);
-        assert_false(simply_thread_mutex_lock(mutex_handles[0], 10));
+        SS_ASSERT( false == simply_thread_mutex_lock(mutex_handles[0], 10));
         PRINT_MSG("%s Timed Out\r\n", __FUNCTION__);
         thread_two_ran = true;
         simply_thread_sleep_ms(25);
         PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
         PRINT_TASK_STATE();
-        assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
+        SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[0]));
         PRINT_MSG("%s Unlocked second_mutex\r\n", __FUNCTION__);
         simply_thread_sleep_ms(100);
     }
@@ -312,19 +321,19 @@ static void mutex_worker_2_task(void *data, uint16_t data_size)
 
 static void mutex_worker_3_task(void *data, uint16_t data_size)
 {
-    assert_true(NULL == data);
-    assert_true(0 == data_size);
+    SS_ASSERT(NULL == data);
+    SS_ASSERT(0 == data_size);
     PRINT_MSG("%s Started\r\n", __FUNCTION__);
     tasks_started[2] = true;
     PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
     PRINT_TASK_STATE();
-    assert_true(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
+    SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
     PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
     PRINT_TASK_STATE();
-    assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
+    SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[0]));
     PRINT_MSG("%s Unlocked second_mutex\r\n", __FUNCTION__);
-    assert_true(simply_thread_mutex_lock(mutex_handles[1], 0xFFFFFFFF));
-    assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
+    SS_ASSERT(simply_thread_mutex_lock(mutex_handles[1], 0xFFFFFFFF));
+    SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[1]));
     while(1)
     {
         PRINT_MSG("%s Suspending Self\r\n", __FUNCTION__);
@@ -347,22 +356,22 @@ static void mutex_test(void **state)
     thread_two_ran = false;
     simply_thread_reset();
     mutex_handle = simply_thread_mutex_create(NULL);
-    assert_true(NULL == mutex_handle);
-    assert_false(simply_thread_mutex_unlock(NULL));
-    assert_false(simply_thread_mutex_lock(NULL, 0));
+    SS_ASSERT(NULL == mutex_handle);
+    SS_ASSERT( false == simply_thread_mutex_unlock(NULL));
+    SS_ASSERT( false == simply_thread_mutex_lock(NULL, 0));
     PRINT_MSG("\tCreating the test_mutex \r\n");
     mutex_handle = simply_thread_mutex_create("test_mutex");
-    assert_true(NULL != mutex_handle);
+    SS_ASSERT(NULL != mutex_handle);
     PRINT_MSG("\tCreating the second_mutex \r\n");
     mutex_handles[0] = simply_thread_mutex_create("second_mutex");
     PRINT_MSG("\tCreating the third_mutex \r\n");
     mutex_handles[1] = simply_thread_mutex_create("third_mutex");
-    assert_true(NULL != mutex_handles[0]);
-    assert_true(NULL != mutex_handles[1]);
+    SS_ASSERT(NULL != mutex_handles[0]);
+    SS_ASSERT(NULL != mutex_handles[1]);
     PRINT_MSG("\tLocking all of the Mutexes\r\n");
-    assert_true(simply_thread_mutex_lock(mutex_handles[0], 0));
-    assert_true(simply_thread_mutex_lock(mutex_handles[1], 0));
-    assert_true(simply_thread_mutex_lock(mutex_handle, 0));
+    SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0));
+    SS_ASSERT(simply_thread_mutex_lock(mutex_handles[1], 0));
+    SS_ASSERT(simply_thread_mutex_lock(mutex_handle, 0));
     PRINT_MSG("\tCreating TASK1 to run mutex_worker_1_task\r\n");
     task_one = simply_thread_new_thread("TASK1", mutex_worker_1_task, 1, &mutex_handle, sizeof(mutex_handle));
     PRINT_MSG("\tCreating TASK2 to run mutex_worker_2_task\r\n");
@@ -370,7 +379,7 @@ static void mutex_test(void **state)
     PRINT_MSG("\tCreating TASK3 to run mutex_worker_3_task\r\n");
     LOCAL_ASSERT(NULL != simply_thread_new_thread("TASK3", mutex_worker_3_task, 4, NULL, 0));
     PRINT_MSG("\tVerifying simply_thread_mutex_lock(mutex_handle, 0xFFFFFFFF) fails\r\n");
-    assert_false(simply_thread_mutex_lock(mutex_handle, 0xFFFFFFFF));
+    SS_ASSERT( false == simply_thread_mutex_lock(mutex_handle, 0xFFFFFFFF));
     while(tasks_started[0] == false || tasks_started[1] == false || tasks_started[2] == false)
     {
         simply_thread_sleep_ms(1000);
@@ -378,15 +387,15 @@ static void mutex_test(void **state)
     simply_thread_sleep_ms(1000);
     PRINT_MSG("\t%s Unlocking test_mutex\r\n", __FUNCTION__);
     PRINT_TASK_STATE();
-    assert_true(simply_thread_mutex_unlock(mutex_handle));
+    SS_ASSERT(simply_thread_mutex_unlock(mutex_handle));
     PRINT_MSG("\t%s Unlocking second_mutex\r\n", __FUNCTION__);
     PRINT_TASK_STATE();
-    assert_true(simply_thread_mutex_unlock(mutex_handles[0]));
+    SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[0]));
     PRINT_MSG("\t%s Unlocking third_mutex\r\n", __FUNCTION__);
     PRINT_TASK_STATE();
-    assert_true(simply_thread_mutex_unlock(mutex_handles[1]));
-    assert_true(NULL != task_one);
-    assert_true(NULL != task_two);
+    SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[1]));
+    SS_ASSERT(NULL != task_one);
+    SS_ASSERT(NULL != task_two);
     PRINT_MSG("\t%s Letting tasks run\r\n", __FUNCTION__);
     PRINT_MSG("\t%s Checking that the tasks ran\r\n", __FUNCTION__);
     while(true != thread_one_ran || true != thread_two_ran)
@@ -394,8 +403,8 @@ static void mutex_test(void **state)
         simply_thread_sleep_ms(2000);
     }
     PRINT_MSG("!!!!!!! Stopping the Library\r\n");
-    assert_true(true == thread_one_ran);
-    assert_true(true == thread_two_ran);
+    SS_ASSERT(true == thread_one_ran);
+    SS_ASSERT(true == thread_two_ran);
     simply_thread_cleanup();
 }
 
@@ -426,7 +435,7 @@ static void first_queue_task(void *data, uint16_t data_size)
     LOCAL_ASSERT(true == simply_thread_queue_rcv(queue_handles[1], &val, 0xFFFFFFFF));
     PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
     PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 0);
-    assert_true(simply_thread_queue_rcv(queue_handles[0], &val, 500));
+    SS_ASSERT(simply_thread_queue_rcv(queue_handles[0], &val, 500));
     PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
     LOCAL_ASSERT(7 == val);
     val = 1;
@@ -434,7 +443,7 @@ static void first_queue_task(void *data, uint16_t data_size)
     PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 2);
     LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[2], &val, 0xFFFFFFFF));
     PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 2);
-    assert_true(simply_thread_queue_rcv(queue_handles[2], &val, 0xFFFFFFFF));
+    SS_ASSERT(simply_thread_queue_rcv(queue_handles[2], &val, 0xFFFFFFFF));
     LOCAL_ASSERT(1 == val);
     while(1)
     {
@@ -442,7 +451,7 @@ static void first_queue_task(void *data, uint16_t data_size)
         val = 1;
         PRINT_MSG("%s sending 1\r\n", __FUNCTION__);
         PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
-        assert_true(simply_thread_queue_send(queue_handles[1], &val, 0xFFFFFFFF));
+        SS_ASSERT(simply_thread_queue_send(queue_handles[1], &val, 0xFFFFFFFF));
     }
 }
 
@@ -457,15 +466,15 @@ static void second_queue_task(void *data, uint16_t data_size)
     PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 2);
     LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[2], &val, 0xFFFFFFFF));
     PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 2);
-    assert_true(simply_thread_queue_rcv(queue_handles[2], &val, 0xFFFFFFFF));
+    SS_ASSERT(simply_thread_queue_rcv(queue_handles[2], &val, 0xFFFFFFFF));
     LOCAL_ASSERT(2 == val);
     while(1)
     {
         thread_two_ran = true;
         PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 1);
-        assert_true(simply_thread_queue_rcv(queue_handles[1], &val, 0xFFFFFFFF));
+        SS_ASSERT(simply_thread_queue_rcv(queue_handles[1], &val, 0xFFFFFFFF));
         PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
-        assert_int_equal(1, val);
+        SS_ASSERT(1 == val);
     }
 }
 
@@ -478,35 +487,35 @@ static void queue_test(void **state)
     tasks_started[1] = false;
     simply_thread_reset();
 
-    assert_true(NULL == simply_thread_queue_create(NULL, 1, sizeof(unsigned int)));
-    assert_true(NULL == simply_thread_queue_create("test", 0, sizeof(unsigned int)));
-    assert_true(NULL == simply_thread_queue_create("test", 5, 0));
+    SS_ASSERT(NULL == simply_thread_queue_create(NULL, 1, sizeof(unsigned int)));
+    SS_ASSERT(NULL == simply_thread_queue_create("test", 0, sizeof(unsigned int)));
+    SS_ASSERT(NULL == simply_thread_queue_create("test", 5, 0));
 
     queue_handles[0] = simply_thread_queue_create("Queue1", 3, sizeof(unsigned int));
     queue_handles[1] = simply_thread_queue_create("Queue2", 1, sizeof(unsigned int));
     queue_handles[2] = simply_thread_queue_create("Queue3", 1, sizeof(unsigned int));
-    assert_true(NULL != queue_handles[0]);
-    assert_true(NULL != queue_handles[1]);
-    assert_true(NULL != queue_handles[2]);
+    SS_ASSERT(NULL != queue_handles[0]);
+    SS_ASSERT(NULL != queue_handles[1]);
+    SS_ASSERT(NULL != queue_handles[2]);
 
-    assert_false(simply_thread_queue_rcv(queue_handles[0], &val, 5));
-    assert_false(simply_thread_queue_rcv(NULL, &val, 5));
-    assert_false(simply_thread_queue_send(NULL, &val, 0));
+    SS_ASSERT( false == simply_thread_queue_rcv(queue_handles[0], &val, 5));
+    SS_ASSERT( false == simply_thread_queue_rcv(NULL, &val, 5));
+    SS_ASSERT( false == simply_thread_queue_send(NULL, &val, 0));
 
-    assert_true(simply_thread_queue_send(queue_handles[0], &val, 0));
-    assert_true(simply_thread_queue_send(queue_handles[2], &val, 0));
+    SS_ASSERT(simply_thread_queue_send(queue_handles[0], &val, 0));
+    SS_ASSERT(simply_thread_queue_send(queue_handles[2], &val, 0));
     val++;
-    assert_true(simply_thread_queue_send(queue_handles[0], &val, 0));
+    SS_ASSERT(simply_thread_queue_send(queue_handles[0], &val, 0));
     val++;
-    assert_true(simply_thread_queue_send(queue_handles[0], &val, 0));
-    assert_false(simply_thread_queue_send(queue_handles[0], &val, 0));
-    assert_int_equal(3, simply_thread_queue_get_count(queue_handles[0]));
-    assert_int_equal(0, simply_thread_queue_get_count(queue_handles[1]));
+    SS_ASSERT(simply_thread_queue_send(queue_handles[0], &val, 0));
+    SS_ASSERT( false == simply_thread_queue_send(queue_handles[0], &val, 0));
+    SS_ASSERT(3 == simply_thread_queue_get_count(queue_handles[0]));
+    SS_ASSERT(0 == simply_thread_queue_get_count(queue_handles[1]));
 
     PRINT_MSG("Launching the Tasks\r\n");
 
-    assert_true(NULL != simply_thread_new_thread("TASK1", first_queue_task, 4, NULL, 0));
-    assert_true(NULL != simply_thread_new_thread("TASK2", second_queue_task, 3, NULL, 0));
+    SS_ASSERT(NULL != simply_thread_new_thread("TASK1", first_queue_task, 4, NULL, 0));
+    SS_ASSERT(NULL != simply_thread_new_thread("TASK2", second_queue_task, 3, NULL, 0));
     while(tasks_started[0] == false || tasks_started[1] == false)
     {
         simply_thread_sleep_ms(1000);
@@ -515,8 +524,8 @@ static void queue_test(void **state)
     PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
     LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[1], &val, 0));
     simply_thread_sleep_ms(1000);
-    assert_true(simply_thread_queue_rcv(queue_handles[2], &val, 0));
-    assert_int_equal(7, val);
+    SS_ASSERT(simply_thread_queue_rcv(queue_handles[2], &val, 0));
+    SS_ASSERT(7 == val);
     PRINT_MSG("Waiting for Cleanup\r\n");
     simply_thread_sleep_ms(2000);
     while(false == thread_one_ran)
@@ -527,8 +536,8 @@ static void queue_test(void **state)
     }
     PRINT_MSG("%s Shutting down test\r\n", __FUNCTION__);
     simply_thread_cleanup();
-    assert_true(thread_one_ran);
-    assert_true(thread_two_ran);
+    SS_ASSERT(thread_one_ran);
+    SS_ASSERT(thread_two_ran);
 }
 
 static void first_queue_test_tests(void **state)
@@ -595,8 +604,9 @@ int main(void)
     SS_ASSERT(0 == result);
 #endif //DISABLE_TIME_OUT
     result = run_task_helper_tests();
-//    SS_ASSERT(0 <= result);
-//    return cmocka_run_group_tests(tests, NULL, NULL);
+    SS_ASSERT(0 <= result);
+    result = cmocka_run_group_tests(tests, NULL, NULL);
+    SS_ASSERT(0 <= result || 255 == result);
     return result;
 }
 

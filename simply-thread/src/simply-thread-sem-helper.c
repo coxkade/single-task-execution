@@ -148,13 +148,21 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
     int result;
     union simply_thread_semaphore_union worker_union;
     PRINT_MSG("%s Started\r\n", __FUNCTION__);
+    PRINT_MSG("\t%s Sem for NULL\r\n", __FUNCTION__);
     SS_ASSERT(NULL != sem);
+    PRINT_MSG("\t%s Getting the semaphore\r\n", __FUNCTION__);
     sem->id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | 0666);
     SS_ASSERT(sem->id >= 0);
     PRINT_MSG("Created Semaphore %i\r\n", sem->id);
     simply_thread_sem_register(sem);
     worker_union.val = 1;
-    SS_ASSERT(0 <= semctl(sem->id, 0, SETVAL, worker_union));
+//    SS_ASSERT(0 <= semctl(sem->id, 0, SETVAL, worker_union));
+    result = semctl(sem->id, 0, SETVAL, worker_union);
+    if(0 > result)
+    {
+    	ST_LOG_ERROR("semctl returned %i with error %i\r\n", result, errno);
+    	SS_ASSERT(0<=result);
+    }
     PRINT_MSG("\t%s calling simply_thread_sem_trywait\r\n", __FUNCTION__);
     result = simply_thread_sem_trywait(sem);
     SS_ASSERT(0 == result);

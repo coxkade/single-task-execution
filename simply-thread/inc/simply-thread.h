@@ -16,7 +16,8 @@
 
 #define SS_ASSERT(...)\
     do{\
-        bool ss_assert_result = (__VA_ARGS__);\
+        bool ss_assert_result = false;\
+        if(__VA_ARGS__){ ss_assert_result; }\
         if(!(ss_assert_result))\
         {\
             ST_LOG_ERROR("Assert Failed Cleaning up\r\n");\

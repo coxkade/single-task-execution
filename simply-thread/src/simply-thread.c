@@ -27,21 +27,13 @@
 #include <sys/time.h>
 #include <stdarg.h>
 
+#define DEBUG_SIMPLY_THREAD
+
 #ifdef DEBUG_SIMPLY_THREAD
-#define PRINT_MSG(...) simply_thread_log(COLOR_MAGENTA, __VA_ARGS__)
-#define ROOT_PRINT(...) simply_thread_log(COLOR_YELLOW, __VA_ARGS__)
+#define PRINT_MSG(...) simply_thread_log(COLOR_YELLOW, __VA_ARGS__)
 #else
 #define PRINT_MSG(...)
-#define ROOT_PRINT(...)
 #endif //DEBUG_SIMPLY_THREAD
-
-#ifdef DEBUG_MASTER_MUTEX
-#define MM_PRINT_MSG(...) simply_thread_log(COLOR_BLUE, __VA_ARGS__)
-#else
-#define MM_PRINT_MSG(...)
-#endif //DEBUG_MASTER_MUTEX
-
-#define MM_DEBUG_MESSAGE(...) MM_PRINT_MSG("%s: %s", __FUNCTION__, __VA_ARGS__)
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -177,12 +169,14 @@ void simply_thread_sleep_tick_handler(sys_clock_on_tick_handle_t handle, uint64_
 {
 	struct sleep_tick_data_s * typed;
 	typed = args;
+//	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
 	SS_ASSERT(NULL != typed);
 	if(NULL != typed->task)
 	{
 		//Interrupt context is sleeping
 		if(SIMPLY_THREAD_TASK_SUSPENDED != tcb_get_task_state(typed->task))
 		{
+			PRINT_MSG("%s Waiting on SIMPLY_THREAD_TASK_SUSPENDED \r\n", __FUNCTION__);
 			return;
 		}
 	}
@@ -191,13 +185,16 @@ void simply_thread_sleep_tick_handler(sys_clock_on_tick_handle_t handle, uint64_
 		typed->count++;
 		if(typed->count == typed->max_count)
 		{
+			PRINT_MSG("%s Reached Count: %u \r\n", __FUNCTION__, typed->count);
 			//We have finished sleeping and need to let the sleeping context know
 			if(NULL == typed->task)
 			{
+				PRINT_MSG("%s Posting to the interrupt semaphore\r\n", __FUNCTION__);
 				SS_ASSERT(0 == simply_thread_sem_post(&typed->sem));
 			}
 			else
 			{
+				PRINT_MSG("%s Setting task %s to SIMPLY_THREAD_TASK_READY\r\n", __FUNCTION__, typed->task->name);
 				tcb_set_task_state(SIMPLY_THREAD_TASK_READY, typed->task);
 			}
 		}
@@ -210,24 +207,34 @@ void simply_thread_sleep_tick_handler(sys_clock_on_tick_handle_t handle, uint64_
  */
 void simply_thread_sleep_ms(unsigned long ms)
 {
+	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
 	sys_clock_on_tick_handle_t tick_handle;
 	struct sleep_tick_data_s sleep_data;
+	int result;
 	sleep_data.task = tcb_task_self();
 	sleep_data.count = 0;
 	sleep_data.max_count = ms;
 	if(NULL == sleep_data.task)
 	{
+		PRINT_MSG("\t%s Handling unknown task %p\r\n", __FUNCTION__, pthread_self());
 		//We are in the interrupt context
 		simply_thread_sem_init(&sleep_data.sem);
-		SS_ASSERT(EAGAIN == simply_thread_sem_wait(&sleep_data.sem));
+		result = simply_thread_sem_trywait(&sleep_data.sem);
+		if(EAGAIN != result)
+		{
+			SS_ASSERT(EAGAIN == result);
+		}
 		tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_sleep_tick_handler, &sleep_data);
 		SS_ASSERT(NULL != tick_handle);
+		PRINT_MSG("\t%s Waiting on semaphore %p\r\n", __FUNCTION__, pthread_self());
 		while(0 != simply_thread_sem_wait(&sleep_data.sem)) {}
+		PRINT_MSG("\t%s Finished waiting on semaphore %p\r\n", __FUNCTION__, pthread_self());
 		//finished waiting destroy the semaphore
 		simply_thread_sem_destroy(&sleep_data.sem);
 	}
 	else
 	{
+		PRINT_MSG("\t%s Handling known task %p\r\n", __FUNCTION__, pthread_self());
 		//We are not in the interrupt context
 		tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_sleep_tick_handler, &sleep_data);
 		SS_ASSERT(NULL != tick_handle);
@@ -235,6 +242,7 @@ void simply_thread_sleep_ms(unsigned long ms)
 	}
 	SS_ASSERT(NULL != tick_handle);
 	simply_thead_system_clock_deregister_on_tick(tick_handle);
+	PRINT_MSG("%s Finishing %p\r\n", __FUNCTION__, pthread_self());
 }
 
 /**
@@ -244,11 +252,17 @@ void simply_thread_sleep_ms(unsigned long ms)
  */
 bool simply_thread_task_suspend(simply_thread_task_t handle)
 {
-	if(NULL == handle)
+	tcb_task_t * typed;
+	typed = handle;
+	if(NULL == typed)
 	{
-		return false;
+		typed = tcb_task_self();
+		if(NULL == typed)
+		{
+			return false;
+		}
 	}
-	tcb_set_task_state(SIMPLY_THREAD_TASK_SUSPENDED, handle);
+	tcb_set_task_state(SIMPLY_THREAD_TASK_SUSPENDED, typed);
 	return true;
 }
 
