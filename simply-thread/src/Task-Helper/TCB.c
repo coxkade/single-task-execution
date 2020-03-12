@@ -31,8 +31,6 @@
 #define MAX_MSG_COUNT 10
 #endif //MAX_MSG_COUNT
 
-#define DEBUG_SIMPLY_THREAD
-
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_CYAN, __VA_ARGS__)
 #else
