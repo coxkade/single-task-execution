@@ -124,16 +124,9 @@ project(simply-thread)
 
 
 project(sem-clean-tool)
-	#executable that cleans up the semaphores
-	add_executable(semaphore-cleaner tools/unlink.c)
-	set_lib_cmake_flags(semaphore-cleaner)
-	target_link_libraries(semaphore-cleaner ${CMAKE_THREAD_LIBS_INIT} -fprofile-arcs -ftest-coverage)
-
 	add_custom_target(
 		semaphore-clean
-		COMMAND semaphore-cleaner
-		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-		DEPENDS semaphore-cleaner
+		COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/src/ipcs-cleanup.py
 	)
 
 		

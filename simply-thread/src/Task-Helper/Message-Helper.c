@@ -28,7 +28,11 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
+#ifdef DEBUG_MESAGE_HELPER
 #define PRINT_MSG(...) printf(__VA_ARGS__)
+#else
+#define PRINT_MSG(...)
+#endif //DEBUG_MESAGE_HELPER
 
 struct message_helper_message_s
 {
@@ -70,9 +74,12 @@ static inline void print_error_message(int error)
         case ENOSPC:
             ST_LOG_ERROR("-----message queue returned ENOSPC\r\n");
             break;
-//      case EAGAIN:
-//          ST_LOG_ERROR("-----message queue returned EAGAIN\r\n");
-//          break;
+        case EINTR:
+        	PRINT_MSG("-----message queue returned EINTR\r\n");
+        	break;
+        case EINVAL:
+        	PRINT_MSG("-----message queue returned EINVAL\r\n");
+        	break;
         default:
             ST_LOG_ERROR("Error Unknown error %i\r\n", error);
             SS_ASSERT(false);

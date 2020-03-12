@@ -33,4 +33,9 @@
  */
 void simply_thread_log(const char *color, const char *fmt, ...);
 
+/**
+ * @brief cleanup on exit
+ */
+void ss_log_on_exit(void);
+
 #endif /* SIMPLY_THREAD_LOG_H_ */

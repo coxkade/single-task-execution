@@ -252,7 +252,6 @@ static void init_if_required(void)
         thread_helper_data.kill_action.sa_handler = m_catch_kill;
         thread_helper_data.kill_action.sa_flags = 0;
         SS_ASSERT(0 == sigaction(KILL_SIGNAL, &thread_helper_data.kill_action, NULL));
-        atexit(sem_helper_cleanup);
         thread_helper_data.signals_initialized = true;
     }
 }

@@ -36,11 +36,14 @@ struct simp_thread_log_module_data_s
     Message_Helper_Instance_t *msg_helper;
     bool initialized;
     pthread_mutex_t mutex;
+    bool cleaned_up;
 };
 
 struct message_buffer_s
 {
     char buffer[SIMPLY_THREAD_LOG_BUFFER_SIZE];
+    const char *color;
+    bool Finished;
 };
 
 /***********************************************************************************/
@@ -55,7 +58,8 @@ static struct simp_thread_log_module_data_s print_module_data =
 {
     .msg_helper = NULL,
     .initialized = false,
-    .mutex = PTHREAD_MUTEX_INITIALIZER
+    .mutex = PTHREAD_MUTEX_INITIALIZER,
+	.cleaned_up = false
 };
 
 /***********************************************************************************/
@@ -65,8 +69,9 @@ static struct simp_thread_log_module_data_s print_module_data =
 /**
  * @brief cleanup on exit
  */
-static void ss_log_on_exit(void)
+void ss_log_on_exit(void)
 {
+	print_module_data.cleaned_up = true;
     if(NULL != print_module_data.msg_helper)
     {
         Remove_Message_Helper(print_module_data.msg_helper);
@@ -80,11 +85,22 @@ static void ss_log_on_exit(void)
  */
 static void message_printer(void *message, uint32_t message_size)
 {
+	char time_buffer[100];
+	unsigned int buffer_size;
+	time_t t;
+	struct tm tm;
     struct message_buffer_s **typed;
     typed = message;
     assert(NULL != typed && sizeof(struct message_buffer_s *) == message_size);
-    printf("%s", typed[0]->buffer);
-    free(typed[0]);
+
+    //Setup the time message string
+    t = time(NULL);
+    tm = *localtime(&t);
+    snprintf(time_buffer, ARRAY_MAX_COUNT(time_buffer), "%d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+    buffer_size = strlen(time_buffer) + strlen(typed[0]->buffer) + strlen(typed[0]->color) + strlen(COLOR_RESET) + 10;
+	printf("%s%s%s%s", typed[0]->color, time_buffer, typed[0]->buffer, COLOR_RESET);
+	typed[0]->Finished = true;
 }
 
 /**
@@ -99,7 +115,6 @@ static void init_if_needed(void)
         {
             print_module_data.msg_helper = New_Message_Helper(message_printer);
             assert(NULL != print_module_data.msg_helper);
-            atexit(ss_log_on_exit);
             print_module_data.initialized = true;
         }
         pthread_mutex_unlock(&print_module_data.mutex);
@@ -112,29 +127,20 @@ static void init_if_needed(void)
  */
 void simply_thread_log(const char *color, const char *fmt, ...)
 {
-    char final_buffer[SIMPLY_THREAD_LOG_BUFFER_SIZE];
-    char time_buffer[100];
-    time_t t;
-    struct tm tm;
     va_list args;
-    unsigned int buffer_size;
-
+    struct message_buffer_s buffer;
     struct message_buffer_s *out_buffer;
+    out_buffer = &buffer;
 
     init_if_needed();
-
-    //Setup the time message string
-    t = time(NULL);
-    tm = *localtime(&t);
-    snprintf(time_buffer, ARRAY_MAX_COUNT(time_buffer), "%d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec);
-
+    assert(NULL != out_buffer);
     va_start(args, fmt);
-    int rc = vsnprintf(final_buffer, ARRAY_MAX_COUNT(final_buffer), fmt, args);
+    int rc = vsnprintf(out_buffer->buffer, ARRAY_MAX_COUNT(out_buffer->buffer), fmt, args);
     assert(0 < rc);
     va_end(args);
-    buffer_size = strlen(time_buffer) + strlen(final_buffer) + strlen(color) + strlen(COLOR_RESET) + 10;
-    out_buffer = malloc(sizeof(struct message_buffer_s));
-    assert(NULL != out_buffer);
-    snprintf(out_buffer->buffer, buffer_size, "%s%s%s%s", color, time_buffer, final_buffer, COLOR_RESET);
+    out_buffer->color = color;
+    out_buffer->Finished = false;
     Message_Helper_Send(print_module_data.msg_helper, &out_buffer, sizeof(struct message_buffer_s *));
+    while(false == out_buffer->Finished) {}
 }
+

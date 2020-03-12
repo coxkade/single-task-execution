@@ -139,6 +139,8 @@ static void tcb_on_exit(void)
     {
         Remove_Message_Helper(tcb_module_data.msg_helper);
     }
+    sem_helper_cleanup();
+    ss_log_on_exit();
 }
 
 /**
