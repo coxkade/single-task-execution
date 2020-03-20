@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <que-creator.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -101,13 +102,6 @@ struct thread_helper_message_data_s
 	bool * finished;
 };
 
-union thread_helper_union
-{
-    int val;
-    struct semid_ds *buf;
-    unsigned short  *array;
-};
-
 struct thread_helper_raw_message_s
 {
     long type;
@@ -116,6 +110,7 @@ struct thread_helper_raw_message_s
     struct thread_helper_message_data_s decoded;
     };
 };
+
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
@@ -153,19 +148,9 @@ static struct thread_helper_module_data_s thread_helper_data =
 /**
  * Initialize the ipc message queue
  */
-static inline int init_msg_queue(void)
+static inline int init_th_msg_queue(void)
 {
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-    int error_number;
-    int result;
-    result = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0666);
-    if(0  > result)
-    {
-        error_number = errno;
-        ST_LOG_ERROR("%s %s msgget error %i\r\n", __FILE__, __FUNCTION__, error_number);
-    }
-    SS_ASSERT(0 <= result);
-    return result;
+	return create_new_queue();
 }
 
 /**
@@ -263,6 +248,9 @@ static bool internal_thread_destroy(struct thread_helper_message_data_s * messag
  */
 static void internal_reset(void)
 {
+	int result;
+	int error_val = 0;
+	struct thread_helper_raw_message_s in_message;
 	PRINT_MSG("%s Running\r\n", __FUNCTION__);
 	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(thread_helper_data.registry); i++)
 	{
@@ -271,6 +259,14 @@ static void internal_reset(void)
 			internal_destroy_thread_id(&thread_helper_data.registry[i].thread);
 		}
 	}
+	//Clear out any pending messages
+	do{
+		result = msgrcv(thread_helper_data.queue_id, &in_message, sizeof(struct thread_helper_raw_message_s), 1, IPC_NOWAIT);
+		if(0 > result)
+		{
+			error_val = errno;
+		}
+	}while(ENOMSG != error_val);
 }
 
 /**
@@ -460,7 +456,7 @@ static void init_if_needed(void)
             thread_helper_data.registry[i].in_use = false;
         }
         thread_helper_data.kill_worker = false;
-        thread_helper_data.queue_id = init_msg_queue();
+        thread_helper_data.queue_id = init_th_msg_queue();
         SS_ASSERT(0 == pthread_create(&thread_helper_data.id, NULL, thread_helper_worker, NULL));
     }
     if(false == thread_helper_data.signals_initialized)

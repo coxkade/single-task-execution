@@ -211,6 +211,7 @@ static void pause_clock(void)
 	{
 		run_in_tcb_context(pause_clock_tcb, &paused);
 	}
+	while(true == clock_module_data.clock_running) {}
 	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
@@ -256,19 +257,19 @@ static void resume_clock(void)
 	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
-void simply_thead_system_clock_reset_from_tcb(void * data)
-{
-	if(NULL != clock_module_data.tick_thread)
-	{
-		wait_tick_tock();
-		SS_ASSERT(false == clock_module_data.working);
-		PRINT_MSG("\t%s calling thread_helper_thread_destroy\r\n", __FUNCTION__);
-		while(true == clock_module_data.working) {}
-		thread_helper_thread_destroy(clock_module_data.tick_thread);
-		PRINT_MSG("\t%s finished calling thread_helper_thread_destroy\r\n", __FUNCTION__);
-		clock_module_data.tick_thread = NULL;
-	}
-}
+//void simply_thead_system_clock_reset_from_tcb(void * data)
+//{
+//	if(NULL != clock_module_data.tick_thread)
+//	{
+//		wait_tick_tock();
+//		SS_ASSERT(false == clock_module_data.working);
+//		PRINT_MSG("\t%s calling thread_helper_thread_destroy\r\n", __FUNCTION__);
+//		while(true == clock_module_data.working) {}
+//		thread_helper_thread_destroy(clock_module_data.tick_thread);
+//		PRINT_MSG("\t%s finished calling thread_helper_thread_destroy\r\n", __FUNCTION__);
+//		clock_module_data.tick_thread = NULL;
+//	}
+//}
 
 
 /**
@@ -284,19 +285,11 @@ void simply_thead_system_clock_reset(void)
 	}
 	if(NULL != clock_module_data.tick_thread)
 	{
-//		pause_clock();
 	clock_module_data.cleaning_up = true;
-	wait_tick_tock();
-//	SS_ASSERT(false == clock_module_data.working);
 
-	if(true != in_tcb_context())
+	if(NULL != clock_module_data.tick_thread)
 	{
-		PRINT_MSG("\t%s Executing from outside of the TCB context\r\n");
-		run_in_tcb_context(simply_thead_system_clock_reset_from_tcb, NULL);
-	}
-	else
-	{
-		simply_thead_system_clock_reset_from_tcb(NULL);
+		clock_module_data.tick_thread = NULL;
 	}
 	
 	clock_module_data.cleaning_up = false;

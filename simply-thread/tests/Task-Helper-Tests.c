@@ -21,7 +21,7 @@
 #include <Sem-Helper.h>
 #include <TCB.h>
 
-#define DEBUG_TESTS
+//#define DEBUG_TESTS
 
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) SIMPLY_THREAD_PRINT(__VA_ARGS__)
@@ -88,6 +88,11 @@ static void basic_message_helper_test(void **state)
     while(true == basic_message_helper_wait) {}
     SS_ASSERT(false == basic_message_helper_wait);
     Remove_Message_Helper(helper);
+    reset_thread_helper();
+    Sem_Helper_clear();
+    thread_helper_cleanup();
+    Message_Helper_Cleanup();
+    Sem_Helper_clean_up();
 }
 
 /*********************************************************************
@@ -173,6 +178,7 @@ static void basic_thread_helper_test(void **state)
     reset_thread_helper();
     Sem_Helper_clear();
     thread_helper_cleanup();
+    Message_Helper_Cleanup();
     Sem_Helper_clean_up();
 }
 
@@ -286,7 +292,7 @@ int run_task_helper_tests(void)
     const struct CMUnitTest message_helper_tests[] =
     {
 		cmocka_unit_test(basic_message_helper_test),
-        cmocka_unit_test(basic_thread_helper_test),
+		cmocka_unit_test(basic_thread_helper_test),
         cmocka_unit_test(TCB_Test_One),
         cmocka_unit_test(TCB_Test_Two)
     };

@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <que-creator.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -108,18 +109,9 @@ static struct sembuf sem_helper_sem_inc = { 0, +1, SEM_UNDO};
 /**
  * Initialize the ipc message queue
  */
-static inline int init_msg_queue(void)
+static inline int init_sm_msg_queue(void)
 {
-    int error_number;
-    int result;
-    result = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0666);
-    if(0  > result)
-    {
-        error_number = errno;
-        ST_LOG_ERROR("%s %s msgget error %i\r\n", __FILE__, __FUNCTION__, error_number);
-    }
-    SS_ASSERT(0 <= result);
-    return result;
+	return create_new_queue();
 }
 
 /**
@@ -214,6 +206,10 @@ static void internal_sem_delete(sem_helper_sem_t *sem)
  */
 static void internal_sem_clear(void)
 {
+	int result;
+	int error_val;
+	struct sem_helper_raw_message_s in_message;
+
     if(false == sem_module_data.reg.initialized)
     {
         for(int i = 0; i < ARRAY_MAX_COUNT(sem_module_data.reg.sem_ids); i++)
@@ -232,6 +228,14 @@ static void internal_sem_clear(void)
             sem_module_data.reg.sem_ids[i] = -1;
         }
     }
+	//Clear out any pending messages
+	do{
+		result = msgrcv(sem_module_data.queue_id, &in_message, sizeof(struct sem_helper_raw_message_s), 1, IPC_NOWAIT);
+		if(0 > result)
+		{
+			error_val = errno;
+		}
+	}while(ENOMSG != error_val);
 }
 
 /**
@@ -291,7 +295,7 @@ static void init_msg_thread(void)
     {
         sem_module_data.kill_worker = false;
         sem_module_data.enabled = false;
-        sem_module_data.queue_id = init_msg_queue();
+        sem_module_data.queue_id = init_sm_msg_queue();
         SS_ASSERT(0 == pthread_create(&sem_module_data.id, NULL, sem_msg_handler_thread, NULL));
         sem_module_data.enabled = true;
     }

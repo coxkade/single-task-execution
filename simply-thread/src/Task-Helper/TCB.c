@@ -8,7 +8,6 @@
 
 #include <TCB.h>
 #include <Message-Helper.h>
-#include <simply-thread-sem-helper.h>
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
 #include <Sem-Helper.h>
@@ -116,6 +115,7 @@ struct tcb_module_data_s
     pthread_t worker_id;
     bool clear_in_progress;
     bool TCB_Executing; //!< Flag that says the task control Block is executing
+    pthread_mutex_t clear_mutex; //!< Mutes that provides mutual exclusion for the clear function
 }; //!< Structure for the local module data
 
 /***********************************************************************************/
@@ -131,7 +131,8 @@ static struct tcb_module_data_s tcb_module_data =
     .msg_helper = NULL,
     .worker_id = NULL,
     .clear_in_progress = false,
-    .TCB_Executing = false
+    .TCB_Executing = false,
+	.clear_mutex = PTHREAD_MUTEX_INITIALIZER
 };
 
 /***********************************************************************************/
@@ -159,7 +160,7 @@ static void tcb_on_exit(void)
         Remove_Message_Helper(tcb_module_data.msg_helper);
     }
     thread_helper_cleanup();
-    sem_helper_clear_master();
+    Message_Helper_Cleanup();
     Sem_Helper_clean_up();
     ss_log_on_exit();
 }
@@ -438,71 +439,44 @@ static void tcb_message_handler(void *message, uint32_t message_size)
 //    SS_ASSERT(0 == simply_thread_sem_post(&typed->msg_ptr->wait_sem));
 }
 
-
 static void *tcb_sched_clear(void *data)
 {
-    struct tcb_entry_s *c_task;
     bool *typed;
     typed = data;
 
+    PRINT_MSG("Running %s\r\n", __FUNCTION__);
+    SS_ASSERT(0 == pthread_mutex_lock(&tcb_module_data.clear_mutex));
+    tcb_module_data.clear_in_progress = true;
+    thread_helper_cleanup();
+    Message_Helper_Cleanup();
     if(NULL != tcb_module_data.msg_helper)
     {
-        PRINT_MSG("!!!!!!Running %s\r\n", __FUNCTION__);
         //Clean up is required
-        //Kill the messenger
-        PRINT_MSG("!!!!!!Removing Message Helper %s\r\n", __FUNCTION__);
-        Remove_Message_Helper(tcb_module_data.msg_helper);
-        PRINT_MSG("!!!!!!Removed Message Helper %s\r\n", __FUNCTION__);
         tcb_module_data.msg_helper = NULL;
-        //Kill all running tasks
-        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)
-        {
-            c_task = &tcb_module_data.tasks[i];
-            if(true == c_task->in_use && NULL != c_task->task.thread)
-            {
-                //Have to use the destroy that does not need the message helper as it has been destroyed
-            	PRINT_MSG("\t%s Destroying Task %s\r\n", __FUNCTION__, c_task->task.name);
-                thread_helper_thread_assert_destroy(c_task->task.thread);
-            }
-        }
     }
-    reset_thread_helper();
-    if(true == typed[0])
-    {
-        sem_helper_cleanup();
-        assert(false == true);
-    }
-
+    Sem_Helper_clean_up();
+    tcb_module_data.clear_in_progress = false;
+    pthread_mutex_unlock(&tcb_module_data.clear_mutex);
+    PRINT_MSG("Finishing %s\r\n", __FUNCTION__);
     return NULL;
 }
 
 //!< Clears all the data in the tcb
 static void tcb_clear(bool assert)
 {
-    bool use_scheduled = false;
+	int result;
+	pthread_t killer_thread;
     bool is_assert;
+
     is_assert = assert;
-    if(true == assert)
+    result = pthread_create(&killer_thread, NULL, tcb_sched_clear, &is_assert);
+    if(0 != result)
     {
-        if(NULL != thread_helper_self())
-        {
-            use_scheduled = true;
-        }
+    	ST_LOG_ERROR("%s failed to launch kill thread\r\n");
+    	assert(true == false);
     }
-    tcb_module_data.clear_in_progress = true;
-    if(true == use_scheduled)
-    {
-        //The task would kill itself so we need to use another thread
-        pthread_t id;
-        PRINT_MSG("%s Launching task to run tcb clear\r\n", __FUNCTION__);
-        assert(0 == pthread_create(&id, NULL, tcb_sched_clear, &is_assert));
-        pthread_join(id, NULL);
-    }
-    else
-    {
-        tcb_sched_clear(&assert);
-    }
-    tcb_module_data.clear_in_progress = false;
+    //Wait for the kill thread to complete
+    pthread_join(killer_thread, NULL);
 }
 
 /**
@@ -545,7 +519,7 @@ void tcb_reset(void)
     struct tcb_entry_s *c_task;
 
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-    while(true == tcb_module_data.clear_in_progress) {}
+
 
     if(true == first_time)
     {

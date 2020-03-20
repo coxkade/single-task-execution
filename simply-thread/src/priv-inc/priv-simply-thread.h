@@ -8,7 +8,6 @@
 
 #include <simply-thread-objects.h>
 #include <simply-thread-log.h>
-#include <simply-thread-sem-helper.h>
 #include <TCB.h>
 #include <stdlib.h>
 

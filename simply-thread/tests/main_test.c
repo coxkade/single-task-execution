@@ -30,8 +30,9 @@
 
 #define DEBUG_TESTS
 
+
 #ifdef DEBUG_TESTS
-#define PRINT_MSG(...) printf(__VA_ARGS__)
+#define PRINT_MSG(...) SIMPLY_THREAD_PRINT(__VA_ARGS__)
 #define PRINT_TASK_STATE() simply_thread_print_tcb()
 #ifndef USE_SPIN_ASSERT
 #define USE_SPIN_ASSERT

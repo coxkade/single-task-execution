@@ -13,7 +13,7 @@
 #include <simply-thread-timers.h>
 #include <simply-thread-mutex.h>
 #include <simply_thread_system_clock.h>
-#include <simply-thread-sem-helper.h>
+#include <Sem-Helper.h>
 #include <TCB.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -51,7 +51,7 @@ struct sleep_tick_data_s
 {
     uint64_t count;
     uint64_t max_count;
-    simply_thread_sem_t sem;
+    sem_helper_sem_t sem;
     tcb_task_t * task;
 }; //!< Structure to help with the sleep on tick handler
 
@@ -138,10 +138,10 @@ void simply_thread_cleanup(void)
 
 //	printf("reseting tcb\r\n");
 //	tcb_reset(); //Destroy all running tcb tasks
-	printf("resetting the system clock\r\n");
-	simply_thead_system_clock_reset(); //Reset the system clock
-	printf("reseting tcb\r\n");
+	SIMPLY_THREAD_PRINT("reseting tcb\r\n");
 	tcb_reset(); //Destroy all running tcb tasks
+	SIMPLY_THREAD_PRINT("resetting the system clock\r\n");
+	simply_thead_system_clock_reset(); //Reset the system clock
 	simply_thread_module_data.cleaning_up = false;
 }
 
@@ -196,7 +196,7 @@ void simply_thread_sleep_tick_handler(sys_clock_on_tick_handle_t handle, uint64_
 			if(NULL == typed->task)
 			{
 				PRINT_MSG("%s Posting to the interrupt semaphore\r\n", __FUNCTION__);
-				SS_ASSERT(0 == simply_thread_sem_post(&typed->sem));
+				SS_ASSERT(0 == Sem_Helper_sem_post(&typed->sem));
 			}
 			else
 			{
@@ -224,8 +224,8 @@ void simply_thread_sleep_ms(unsigned long ms)
 	{
 		PRINT_MSG("\t%s Handling unknown task %p\r\n", __FUNCTION__, pthread_self());
 		//We are in the interrupt context
-		simply_thread_sem_init(&sleep_data.sem);
-		result = simply_thread_sem_trywait(&sleep_data.sem);
+		Sem_Helper_sem_init(&sleep_data.sem);
+		result = Sem_Helper_sem_trywait(&sleep_data.sem);
 		if(EAGAIN != result)
 		{
 			SS_ASSERT(EAGAIN == result);
@@ -233,10 +233,10 @@ void simply_thread_sleep_ms(unsigned long ms)
 		tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_sleep_tick_handler, &sleep_data);
 		SS_ASSERT(NULL != tick_handle);
 		PRINT_MSG("\t%s Waiting on semaphore %p\r\n", __FUNCTION__, pthread_self());
-		while(0 != simply_thread_sem_wait(&sleep_data.sem)) {}
+		while(0 != Sem_Helper_sem_wait(&sleep_data.sem)) {}
 		PRINT_MSG("\t%s Finished waiting on semaphore %p\r\n", __FUNCTION__, pthread_self());
 		//finished waiting destroy the semaphore
-		simply_thread_sem_destroy(&sleep_data.sem);
+		Sem_Helper_sem_destroy(&sleep_data.sem);
 	}
 	else
 	{
@@ -421,7 +421,6 @@ void simply_thread_assert(bool result, const char * file, unsigned int line, con
             printf("%s\n", strs[i]);
         }
         free(strs);
-        while(1) {}
 		tcb_on_assert();
 		printf("Exiting on assert\r\n");
 		exit(-1);

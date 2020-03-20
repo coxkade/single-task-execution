@@ -12,10 +12,12 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <errno.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/msg.h>
 #include <sys/types.h>
+#include <que-creator.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -170,14 +172,7 @@ static void * log_worker(void * passed)
  */
 static inline int init_msg_queue(void)
 {
-    int result;
-    result = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0666);
-    if(result<0)
-    {
-    	printf("Error %i initializing the log message queue\r\n", errno);
-    	assert(0 <= result);
-    }
-    return result;
+	return create_new_queue();
 }
 
 /**

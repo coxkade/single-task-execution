@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <Thread-Helper.h>
 
 typedef void (*Message_Helper_On_Message)(void *message, uint32_t message_size);  //!< Typedef for message helper callback
 
@@ -18,11 +19,7 @@ typedef struct Message_Helper_Instance_t
 {
     int QueueId;
     Message_Helper_On_Message cb;
-    bool Kill_Worker;
-    pthread_t Worker_Thread;
-    bool remove_in_progress;
-    bool processing;
-    bool clearing;
+    helper_thread_t * Worker_Thread;
     const char * name;
 } Message_Helper_Instance_t;
 
@@ -53,5 +50,15 @@ void Message_Helper_Send(Message_Helper_Instance_t *helper, void *msg, uint32_t 
  * @return The number of pending messages
  */
 unsigned int Message_Helper_Pending_Messages(Message_Helper_Instance_t *helper);
+
+/**
+ * @brief Function that resets the message helper module
+ */
+void Message_Helper_Reset(void);
+
+/**
+ * @brief Function that cleans up all of the message helper information on exit
+ */
+void Message_Helper_Cleanup(void);
 
 #endif /* SIMPLY_THREAD_SRC_TASK_HELPER_MESSAGE_HELPER_H_ */
