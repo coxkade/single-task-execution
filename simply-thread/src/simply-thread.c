@@ -26,8 +26,9 @@
 #include <string.h>
 #include <sys/time.h>
 #include <stdarg.h>
+#include <execinfo.h>
 
-#define DEBUG_SIMPLY_THREAD
+//#define DEBUG_SIMPLY_THREAD
 
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_YELLOW, __VA_ARGS__)
@@ -134,8 +135,13 @@ void simply_thread_reset(void)
 void simply_thread_cleanup(void)
 {
 	simply_thread_module_data.cleaning_up = true;
-	tcb_reset(); //Destroy all running tcb tasks
+
+//	printf("reseting tcb\r\n");
+//	tcb_reset(); //Destroy all running tcb tasks
+	printf("resetting the system clock\r\n");
 	simply_thead_system_clock_reset(); //Reset the system clock
+	printf("reseting tcb\r\n");
+	tcb_reset(); //Destroy all running tcb tasks
 	simply_thread_module_data.cleaning_up = false;
 }
 
@@ -169,8 +175,8 @@ void simply_thread_sleep_tick_handler(sys_clock_on_tick_handle_t handle, uint64_
 {
 	struct sleep_tick_data_s * typed;
 	typed = args;
-//	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
 	SS_ASSERT(NULL != typed);
+
 	if(NULL != typed->task)
 	{
 		//Interrupt context is sleeping
@@ -395,4 +401,30 @@ bool simply_thread_queue_rcv(simply_thread_queue_t queue, void *data, unsigned i
  */
 void simply_thread_print_tcb(void);
 
+
+/**
+ * Function that handles our asserts
+ * @param result
+ * @param file
+ * @param line
+ * @param expression
+ */
+void simply_thread_assert(bool result, const char * file, unsigned int line, const char * expression)
+{
+	if(true != result)
+	{
+		ST_LOG_ERROR("%s Assert Failed Cleaning up\r\n\tLine: %i\r\n\tFile: %s\r\n", expression,  line, file);
+        void* callstack[128];
+        int i, frames = backtrace(callstack, 128);
+        char** strs = backtrace_symbols(callstack, frames);
+        for (i = 0; i < frames; ++i) {
+            printf("%s\n", strs[i]);
+        }
+        free(strs);
+        while(1) {}
+		tcb_on_assert();
+		printf("Exiting on assert\r\n");
+		exit(-1);
+	}
+}
 

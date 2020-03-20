@@ -13,19 +13,8 @@
 #ifndef SIMPLY_THREAD_H_
 #define SIMPLY_THREAD_H_
 
+#define SS_ASSERT(...) simply_thread_assert((__VA_ARGS__), __FILE__, __LINE__, #__VA_ARGS__)
 
-#define SS_ASSERT(...)\
-    do{\
-        bool ss_assert_result = false;\
-        if(__VA_ARGS__){ ss_assert_result; }\
-        if(!(ss_assert_result))\
-        {\
-            ST_LOG_ERROR("Assert Failed Cleaning up\r\n");\
-            ST_LOG_ERROR("Line: %i\r\nFile: %s\r\n", __LINE__, __FILE__);\
-            tcb_on_assert();\
-        }\
-        assert(true == ss_assert_result);\
-    }while(false)
 
 //Typedefs for tasks
 typedef void *simply_thread_task_t; //!< Typedef for a handle for a task created with simply thread
@@ -203,6 +192,15 @@ bool simply_thread_queue_rcv(simply_thread_queue_t queue, void *data, unsigned i
  * @brief Function that prints the contents of the tcb
  */
 void simply_thread_print_tcb(void);
+
+/**
+ * Function that handles our asserts
+ * @param result
+ * @param file
+ * @param line
+ * @param expression
+ */
+void simply_thread_assert(bool result, const char * file, unsigned int line, const char * expression);
 
 
 #endif /* SIMPLY_THREAD_H_ */

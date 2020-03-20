@@ -83,6 +83,7 @@ LIST(APPEND simply-thread-sources
 	src/Task-Helper/Message-Helper.c
 	src/Task-Helper/Thread-Helper.c
 	src/Task-Helper/TCB.c
+	src/Task-Helper/Sem-Helper.c
 	)
 
 #project for the simply thread tests

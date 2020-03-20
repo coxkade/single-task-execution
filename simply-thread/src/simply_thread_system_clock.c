@@ -25,6 +25,8 @@
 //Macro that sets the registry size
 #define REGISTRY_MAX_COUNT (100)
 
+//#define DEBUG_SIMPLY_THREAD
+
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_EARTH_GREEN, __VA_ARGS__)
 #else
@@ -52,6 +54,9 @@ struct system_clock_data_s
     struct sysclock_on_tick_registry_element_s tick_reg[REGISTRY_MAX_COUNT]; //!< The tick registery
     helper_thread_t * tick_thread; //!< The tick worker thread
     bool clock_running; //!< Tells if the system clock is currently running
+    bool cleaning_up;
+    bool working;
+    bool tick_tock;
 };
 
 /***********************************************************************************/
@@ -66,12 +71,40 @@ static struct system_clock_data_s clock_module_data =
 {
     .max_ticks = SIMPLY_THREAD_MAX_SYSTEM_CLOCK_TICKS,
     .current_ticks = 0,
-    .tick_thread = NULL
+    .tick_thread = NULL,
+	.cleaning_up = false,
+	.working = false,
+	.tick_tock = false
 }; //!< Variable that holds the local modules data
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
+
+/**
+ * @brief Function that toggles the ticktock values
+ */
+static inline void do_tick_tock(void)
+{
+	if(false == clock_module_data.tick_tock)
+	{
+		clock_module_data.tick_tock = true;
+	}
+	else
+	{
+		clock_module_data.tick_tock = false;
+	}
+}
+
+/**
+ * @brief Function that waits on a ticktock transition
+ */
+static void wait_tick_tock(void)
+{
+	bool orig;
+	orig = clock_module_data.tick_tock;
+	while(orig == clock_module_data.tick_tock) {}
+}
 
 /**
  * The Tick worker function
@@ -85,16 +118,22 @@ static void * on_tick_worker(void * data)
 	while(1)
 	{
 		simply_thread_sleep_ns(ST_NS_PER_MS);
-		clock_module_data.current_ticks++;
-		for(unsigned int i = 0; i < ARRAY_MAX_COUNT(clock_module_data.tick_reg); i++)
+		do_tick_tock();
+		if(false == clock_module_data.cleaning_up && true == clock_module_data.clock_running)
 		{
-			worker_handle = &clock_module_data.tick_reg[i];
-			memcpy(&worker, &clock_module_data.tick_reg[i], sizeof(worker));
-			if(NULL != worker.cb && true == worker.enabled)
+			clock_module_data.working = true;
+			clock_module_data.current_ticks++;
+			for(unsigned int i = 0; i < ARRAY_MAX_COUNT(clock_module_data.tick_reg); i++)
 			{
-				//Call the callback here
-				worker.cb(worker_handle, clock_module_data.current_ticks, worker.args);
+				worker_handle = &clock_module_data.tick_reg[i];
+				memcpy(&worker, &clock_module_data.tick_reg[i], sizeof(worker));
+				if(NULL != worker.cb && true == worker.enabled)
+				{
+					//Call the callback here
+					worker.cb(worker_handle, clock_module_data.current_ticks, worker.args);
+				}
 			}
+			clock_module_data.working = false;
 		}
 	}
 	return NULL;
@@ -106,11 +145,11 @@ static void * on_tick_worker(void * data)
  */
 static void init_thread_worker(void * data)
 {
-	assert(NULL == data);
+	SS_ASSERT(NULL == data);
 	if(NULL == clock_module_data.tick_thread)
 	{
 		clock_module_data.tick_thread = thread_helper_thread_create(on_tick_worker, NULL);
-		assert(NULL != clock_module_data.tick_thread);
+		SS_ASSERT(NULL != clock_module_data.tick_thread);
 		for(unsigned int i = 0; i < ARRAY_MAX_COUNT(clock_module_data.tick_reg); i++)
 		{
 			clock_module_data.tick_reg[i].cb = NULL;
@@ -127,7 +166,9 @@ static void init_if_required(void)
 {
 	if(NULL == clock_module_data.tick_thread)
 	{
+		PRINT_MSG("%s Running in TCB Context\r\n", __FUNCTION__);
 		run_in_tcb_context(init_thread_worker, NULL);
+		PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 	}
 }
 
@@ -139,16 +180,20 @@ static void pause_clock_tcb(void * data)
 {
 	bool * typed;
 	typed = data;
-	assert(NULL != typed);
+	SS_ASSERT(NULL != typed);
+	if(NULL == clock_module_data.tick_thread)
+	{
+		return;
+	}
 	if(false == clock_module_data.clock_running)
 	{
 		typed[0] = false;
 	}
 	else
 	{
-		assert(true == clock_module_data.clock_running);
-		assert(NULL != clock_module_data.tick_thread);
-		thread_helper_pause_thread(clock_module_data.tick_thread);
+		SS_ASSERT(true == clock_module_data.clock_running);
+		SS_ASSERT(NULL != clock_module_data.tick_thread);
+//		thread_helper_pause_thread(clock_module_data.tick_thread);
 		clock_module_data.clock_running = false;
 		typed[0] = true;
 	}
@@ -160,10 +205,13 @@ static void pause_clock_tcb(void * data)
 static void pause_clock(void)
 {
 	bool paused = false;
-	while(false == paused)
+	PRINT_MSG("%s Running\r\n", __FUNCTION__);
+	while(true == clock_module_data.cleaning_up) {}
+	while(false == paused && NULL != clock_module_data.tick_thread)
 	{
 		run_in_tcb_context(pause_clock_tcb, &paused);
 	}
+	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -174,16 +222,20 @@ static void resume_clock_tcb(void * data)
 {
 	bool * typed;
 	typed = data;
-	assert(NULL != typed);
+	SS_ASSERT(NULL != typed);
+	if(NULL == clock_module_data.tick_thread)
+	{
+		return;
+	}
 	if(true == clock_module_data.clock_running)
 	{
 		typed[0] = false;
 	}
 	else
 	{
-		assert(false == clock_module_data.clock_running);
-		assert(NULL != clock_module_data.tick_thread);
-		thread_helper_run_thread(clock_module_data.tick_thread);
+		SS_ASSERT(false == clock_module_data.clock_running);
+		SS_ASSERT(NULL != clock_module_data.tick_thread);
+//		thread_helper_run_thread(clock_module_data.tick_thread);
 		clock_module_data.clock_running = true;
 		typed[0] = true;
 	}
@@ -195,22 +247,61 @@ static void resume_clock_tcb(void * data)
 static void resume_clock(void)
 {
 	bool resumed = false;
-	while(false == resumed)
+	PRINT_MSG("%s Running\r\n", __FUNCTION__);
+	while(true == clock_module_data.cleaning_up) {}
+	while(false == resumed && NULL != clock_module_data.tick_thread)
 	{
 		run_in_tcb_context(resume_clock_tcb, &resumed);
 	}
+	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
+
+void simply_thead_system_clock_reset_from_tcb(void * data)
+{
+	if(NULL != clock_module_data.tick_thread)
+	{
+		wait_tick_tock();
+		SS_ASSERT(false == clock_module_data.working);
+		PRINT_MSG("\t%s calling thread_helper_thread_destroy\r\n", __FUNCTION__);
+		while(true == clock_module_data.working) {}
+		thread_helper_thread_destroy(clock_module_data.tick_thread);
+		PRINT_MSG("\t%s finished calling thread_helper_thread_destroy\r\n", __FUNCTION__);
+		clock_module_data.tick_thread = NULL;
+	}
+}
+
 
 /**
  * @brief Function that resets the simply thread clock logic
  */
 void simply_thead_system_clock_reset(void)
 {
+	PRINT_MSG("%s Running\r\n", __FUNCTION__);
+	if(true == clock_module_data.cleaning_up)
+	{
+		while(true == clock_module_data.cleaning_up) {}
+		return;
+	}
 	if(NULL != clock_module_data.tick_thread)
 	{
-		thread_helper_thread_destroy(clock_module_data.tick_thread);
-		clock_module_data.tick_thread = NULL;
+//		pause_clock();
+	clock_module_data.cleaning_up = true;
+	wait_tick_tock();
+//	SS_ASSERT(false == clock_module_data.working);
+
+	if(true != in_tcb_context())
+	{
+		PRINT_MSG("\t%s Executing from outside of the TCB context\r\n");
+		run_in_tcb_context(simply_thead_system_clock_reset_from_tcb, NULL);
 	}
+	else
+	{
+		simply_thead_system_clock_reset_from_tcb(NULL);
+	}
+	
+	clock_module_data.cleaning_up = false;
+	}
+	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -226,7 +317,7 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
 	rv = NULL;
 	init_if_required();
 	pause_clock();
-	assert(false == clock_module_data.clock_running);
+	SS_ASSERT(false == clock_module_data.clock_running);
 	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(clock_module_data.tick_reg) && NULL == rv; i++)
 	{
 		if(NULL == clock_module_data.tick_reg[i].cb)
@@ -250,7 +341,7 @@ void simply_thead_system_clock_deregister_on_tick(sys_clock_on_tick_handle_t han
 	struct sysclock_on_tick_registry_element_s * typed;
 	typed = handle;
 	init_if_required();
-	assert(NULL != typed);
+	SS_ASSERT(NULL != typed);
 	pause_clock();
 	typed->cb = NULL;
 	typed->args = NULL;
@@ -267,7 +358,7 @@ void simply_thead_system_clock_disable_on_tick_from_handler(sys_clock_on_tick_ha
 	struct sysclock_on_tick_registry_element_s * typed;
 	typed = handle;
 	init_if_required();
-	assert(NULL != typed);
+	SS_ASSERT(NULL != typed);
 	pause_clock();
 	typed->enabled = false;
 	resume_clock();

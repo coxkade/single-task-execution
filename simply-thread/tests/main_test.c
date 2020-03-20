@@ -133,6 +133,7 @@ static void task_test_success(void **state)
     simply_thread_sleep_ms(1000);
     PRINT_MSG("Cleaning UP\r\n");
     simply_thread_cleanup();
+    PRINT_MSG("Cleaning UP Complete\r\n");
     SS_ASSERT(thread_one_ran);
     SS_ASSERT(thread_two_ran);
 }
@@ -605,7 +606,8 @@ int main(void)
 #endif //DISABLE_TIME_OUT
     result = run_task_helper_tests();
     SS_ASSERT(0 <= result);
-    result = cmocka_run_group_tests(tests, NULL, NULL);
+//    result = cmocka_run_group_tests(tests, NULL, NULL);
+    printf("result: %i\r\n", result);
     SS_ASSERT(0 <= result || 255 == result);
     return result;
 }

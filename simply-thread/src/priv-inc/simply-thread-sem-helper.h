@@ -64,5 +64,9 @@ int simply_thread_sem_post(simply_thread_sem_t *sem);
  */
 void sem_helper_cleanup(void);
 
+/**
+ * Cleanup function to call on exit
+ */
+void sem_helper_clear_master(void);
 
 #endif /* SIMPLY_THREAD_SEM_HELPER_H_ */

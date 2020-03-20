@@ -11,10 +11,12 @@
 #include <simply-thread-sem-helper.h>
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
+#include <Sem-Helper.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <execinfo.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -51,7 +53,9 @@ struct tcb_entry_s
 
 struct tcb_message_data_s
 {
-    simply_thread_sem_t wait_sem;
+//    simply_thread_sem_t wait_sem;
+	bool started;
+	bool wait;
     enum
     {
         TCB_SET_STATE,
@@ -137,11 +141,26 @@ static struct tcb_module_data_s tcb_module_data =
 static void tcb_on_exit(void)
 {
     PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    printf("%s Running\r\n", __FUNCTION__);
+    if(true == tcb_module_data.clear_in_progress)
+    {
+    	void* callstack[256];
+		int i, frames = backtrace(callstack, 256);
+		char** strs = backtrace_symbols(callstack, frames);
+		for (i = 0; i < frames; ++i) {
+			printf("%s\n", strs[i]);
+		}
+		free(strs);
+    }
+    while(true == tcb_module_data.clear_in_progress) {}
+
     if(NULL != tcb_module_data.msg_helper)
     {
         Remove_Message_Helper(tcb_module_data.msg_helper);
     }
-    sem_helper_cleanup();
+    thread_helper_cleanup();
+    sem_helper_clear_master();
+    Sem_Helper_clean_up();
     ss_log_on_exit();
 }
 
@@ -354,7 +373,9 @@ static void handle_task_self(struct tcb_message_data_s *msg)
 static void handle_task_run(struct tcb_message_data_s *msg)
 {
     SS_ASSERT(TCB_RUNNER == msg->msg_type);
+    msg->started = true;
     msg->msg_data.runner.fnct(msg->msg_data.runner.data);
+    msg->wait = false;
 }
 
 /**
@@ -365,50 +386,56 @@ static void handle_task_run(struct tcb_message_data_s *msg)
 static void tcb_message_handler(void *message, uint32_t message_size)
 {
     struct tcb_msage_wrapper_s *typed;
-    bool sched_required;
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     tcb_module_data.TCB_Executing = true;
     tcb_module_data.worker_id = pthread_self();
     typed = message;
     SS_ASSERT(message_size == sizeof(struct tcb_msage_wrapper_s));
     SS_ASSERT(NULL != typed);
-    sched_required = true;
+    PRINT_MSG("\%s Handling Type %04X\r\n", __FUNCTION__, typed->msg_ptr->msg_type);
     switch(typed->msg_ptr->msg_type)
     {
         case TCB_SET_STATE:
             PRINT_MSG("\tHandling Set State\r\n");
             handle_change_state_msg(typed->msg_ptr);
+            tcb_run_sched();
+//            SS_ASSERT(0 == simply_thread_sem_post(&typed->msg_ptr->wait_sem));
+            typed->msg_ptr->wait = false;
             break;
         case TCB_GET_STATE:
             PRINT_MSG("\tHandling Get State\r\n");
             handle_get_state_msg(typed->msg_ptr);
-            sched_required = false;
+//            SS_ASSERT(0 == simply_thread_sem_post(&typed->msg_ptr->wait_sem));
+            typed->msg_ptr->wait = false;
             break;
         case TCB_CREATE_TASK:
             PRINT_MSG("\tHandling Create Task\r\n");
             handle_task_create_msg(typed->msg_ptr);
+            tcb_run_sched();
+//            SS_ASSERT(0 == simply_thread_sem_post(&typed->msg_ptr->wait_sem));
+            typed->msg_ptr->wait = false;
             break;
         case TCB_TASK_SELF:
             PRINT_MSG("\tHandling Task Self\r\n");
             handle_task_self(typed->msg_ptr);
-            sched_required = false;
+            //post to the wait semaphore
+//			SS_ASSERT(0 == simply_thread_sem_post(&typed->msg_ptr->wait_sem));
+            typed->msg_ptr->wait = false;
             break;
         case TCB_RUNNER:
             PRINT_MSG("\tHandling Task Runner\r\n");
             handle_task_run(typed->msg_ptr);
-            sched_required = false;
+            //post to the wait semaphore
+//			SS_ASSERT(0 == simply_thread_sem_post(&typed->msg_ptr->wait_sem));
+//            typed->msg_ptr->wait = false;
             break;
         default:
+        	ST_LOG_ERROR("Unknown message type %i\r\n", typed->msg_ptr->msg_type);
             SS_ASSERT(false);
     }
-    if(true == sched_required)
-    {
-        //Now run the scheduler
-        tcb_run_sched();
-    }
     tcb_module_data.TCB_Executing = false;
-    //post to the wait semaphore
-    SS_ASSERT(0 == simply_thread_sem_post(&typed->msg_ptr->wait_sem));
+//    //post to the wait semaphore
+//    SS_ASSERT(0 == simply_thread_sem_post(&typed->msg_ptr->wait_sem));
 }
 
 
@@ -423,6 +450,7 @@ static void *tcb_sched_clear(void *data)
         PRINT_MSG("!!!!!!Running %s\r\n", __FUNCTION__);
         //Clean up is required
         //Kill the messenger
+        PRINT_MSG("!!!!!!Removing Message Helper %s\r\n", __FUNCTION__);
         Remove_Message_Helper(tcb_module_data.msg_helper);
         PRINT_MSG("!!!!!!Removed Message Helper %s\r\n", __FUNCTION__);
         tcb_module_data.msg_helper = NULL;
@@ -433,6 +461,7 @@ static void *tcb_sched_clear(void *data)
             if(true == c_task->in_use && NULL != c_task->task.thread)
             {
                 //Have to use the destroy that does not need the message helper as it has been destroyed
+            	PRINT_MSG("\t%s Destroying Task %s\r\n", __FUNCTION__, c_task->task.name);
                 thread_helper_thread_assert_destroy(c_task->task.thread);
             }
         }
@@ -533,7 +562,8 @@ void tcb_reset(void)
         c_task->in_use = false;
     }
     //Launch the message handler
-    tcb_module_data.msg_helper = New_Message_Helper(tcb_message_handler);
+    PRINT_MSG("\t%s Creating a new message helper\r\n", __FUNCTION__);
+    tcb_module_data.msg_helper = New_Message_Helper(tcb_message_handler, "TCB-Queue");
     SS_ASSERT(NULL != tcb_module_data.msg_helper);
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
@@ -557,18 +587,21 @@ void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *tas
     msg.msg_ptr = &local_data;
 
     PRINT_MSG("\t%s Initializing semaphore\r\n", __FUNCTION__);
-    simply_thread_sem_init(&local_data.wait_sem);
-
+//    simply_thread_sem_init(&local_data.wait_sem);
+    local_data.wait = true;
     local_data.msg_type = TCB_SET_STATE;
     local_data.msg_data.set_state.state = state;
     local_data.msg_data.set_state.task = task;
 
-    PRINT_MSG("\t%s Sending request\r\n", __FUNCTION__);
+    PRINT_MSG("------ Sending set task state\r\n");
     Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
     PRINT_MSG("\t%s Waiting on the semaphore\r\n", __FUNCTION__);
-    while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
+//    while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
+    while(true == local_data.wait) {}
+    SS_ASSERT(false == local_data.wait);
+    PRINT_MSG("++++++ Finishing set task state\r\n");
     PRINT_MSG("\t%s Destroying the semaphore\r\n", __FUNCTION__);
-    simply_thread_sem_destroy(&local_data.wait_sem);
+//    simply_thread_sem_destroy(&local_data.wait_sem);
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
@@ -590,15 +623,20 @@ enum simply_thread_thread_state_e tcb_get_task_state(tcb_task_t *task)
     SS_ASSERT(NULL != task);
     msg.msg_ptr = &local_data;
 
-    simply_thread_sem_init(&local_data.wait_sem);
+//    simply_thread_sem_init(&local_data.wait_sem);
+    local_data.wait = true;
 
     local_data.msg_type = TCB_GET_STATE;
     local_data.msg_data.get_state.task = task;
     local_data.msg_data.get_state.state = &rv;
 
+    PRINT_MSG("------ Sending Get Task State\r\n");
     Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
-    while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
-    simply_thread_sem_destroy(&local_data.wait_sem);
+//    while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
+    while(true == local_data.wait) {}
+    SS_ASSERT(false == local_data.wait);
+    PRINT_MSG("++++++ Finishing get task state\r\n");
+//    simply_thread_sem_destroy(&local_data.wait_sem);
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
     return rv;
 }
@@ -623,7 +661,8 @@ tcb_task_t *tcb_create_task(const char *name, simply_thread_task_fnct cb, unsign
     SS_ASSERT(NULL != name && NULL != cb);
     msg.msg_ptr = &local_data;
 
-    simply_thread_sem_init(&local_data.wait_sem);
+//    simply_thread_sem_init(&local_data.wait_sem);
+    local_data.wait = true;
     local_data.msg_type = TCB_CREATE_TASK;
     local_data.msg_data.create_task.cb = cb;
     local_data.msg_data.create_task.data = data;
@@ -631,9 +670,13 @@ tcb_task_t *tcb_create_task(const char *name, simply_thread_task_fnct cb, unsign
     local_data.msg_data.create_task.name = name;
     local_data.msg_data.create_task.priority = priority;
     local_data.msg_data.create_task.result.tcb_task = NULL;
+    PRINT_MSG("------ Sending Create Task\r\n");
     Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
-    while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
-    simply_thread_sem_destroy(&local_data.wait_sem);
+//    while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
+    while(true == local_data.wait) {}
+    SS_ASSERT(false == local_data.wait);
+    PRINT_MSG("++++++ Finishing create task\r\n");
+//    simply_thread_sem_destroy(&local_data.wait_sem);
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
     return local_data.msg_data.create_task.result.tcb_task;
 }
@@ -652,15 +695,19 @@ tcb_task_t *tcb_task_self(void)
     SS_ASSERT(tcb_module_data.worker_id != pthread_self());
 
     msg.msg_ptr = &local_data;
-    simply_thread_sem_init(&local_data.wait_sem);
+//    simply_thread_sem_init(&local_data.wait_sem);
+    local_data.wait = true;
 
     local_data.msg_type = TCB_TASK_SELF;
     local_data.msg_data.task_self.self_id = pthread_self();
     local_data.msg_data.task_self.result.tcb_task = NULL;
-
+    PRINT_MSG("------ Sending Task Self\r\n");
     Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
-    while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
-    simply_thread_sem_destroy(&local_data.wait_sem);
+//    while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
+    while(true == local_data.wait) {}
+    SS_ASSERT(false == local_data.wait);
+    PRINT_MSG("++++++ Finishing task self\r\n");
+//    simply_thread_sem_destroy(&local_data.wait_sem);
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
     return(local_data.msg_data.task_self.result.tcb_task);
 }
@@ -682,15 +729,21 @@ void run_in_tcb_context(void (*fnct)(void *), void *data)
     {
         while(true == tcb_module_data.clear_in_progress) {}
         msg.msg_ptr = &local_data;
-        simply_thread_sem_init(&local_data.wait_sem);
-
+//        simply_thread_sem_init(&local_data.wait_sem);
+        local_data.wait = true;
+        local_data.started = false;
         local_data.msg_type = TCB_RUNNER;
         local_data.msg_data.runner.fnct = fnct;
         local_data.msg_data.runner.data = data;
 
+        PRINT_MSG("------ Sending Run in Context\r\n");
         Message_Helper_Send(tcb_module_data.msg_helper, &msg, sizeof(struct tcb_msage_wrapper_s));
-        while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
-        simply_thread_sem_destroy(&local_data.wait_sem);
+//        while(0 != simply_thread_sem_wait(&local_data.wait_sem)) {}
+        while(false == local_data.started) {}
+        while(true == local_data.wait) {}
+        SS_ASSERT(false == local_data.wait);
+        PRINT_MSG("++++++ Finishing run in context\r\n");
+//        simply_thread_sem_destroy(&local_data.wait_sem);
     }
     else
     {

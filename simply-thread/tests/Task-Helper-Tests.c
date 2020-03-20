@@ -18,8 +18,10 @@
 #include <pthread.h>
 #include <Message-Helper.h>
 #include <Thread-Helper.h>
+#include <Sem-Helper.h>
 #include <TCB.h>
 
+//#define DEBUG_TESTS
 
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) printf(__VA_ARGS__)
@@ -80,7 +82,7 @@ static void basic_message_helper_test(void **state)
     basic_message_helper_wait = true;
     memset(test_msg, 0xAB, ARRAY_MAX_COUNT(test_msg));
     Message_Helper_Instance_t *helper;
-    helper = New_Message_Helper(message_helper_test_worker);
+    helper = New_Message_Helper(message_helper_test_worker, "TEST-QUEUE");
     SS_ASSERT(NULL != helper);
     Message_Helper_Send(helper, test_msg, ARRAY_MAX_COUNT(test_msg));
     while(true == basic_message_helper_wait) {}
@@ -113,7 +115,7 @@ static void *thread_worker_test_task(void *data)
             typed->count++;
             if(typed->count == typed->target_count)
             {
-                PRINT_MSG("Target %u Hit\r\n", typed->target_count);
+//                PRINT_MSG("Target %u Hit\r\n", typed->target_count);
             }
         }
 
@@ -133,8 +135,10 @@ static void basic_thread_helper_test(void **state)
         .target_count = 500
     };
     unsigned int last_count;
-    tcb_reset();
     helper_thread_t *test_thread;
+    PRINT_MSG("Resetting the thread helper\r\n");
+    reset_thread_helper();
+    Sem_Helper_clear();
     PRINT_MSG("Creating Thread\r\n");
     test_thread = thread_helper_thread_create(thread_worker_test_task, &count_data);
     SS_ASSERT(NULL != test_thread);
@@ -166,7 +170,10 @@ static void basic_thread_helper_test(void **state)
     SS_ASSERT(false == thread_helper_thread_running(test_thread));
     PRINT_MSG("Destroying the thread\r\n");
     thread_helper_thread_destroy(test_thread);
-    tcb_reset();
+    reset_thread_helper();
+    Sem_Helper_clear();
+    thread_helper_cleanup();
+    Sem_Helper_clean_up();
 }
 
 
@@ -243,7 +250,7 @@ static void basic_TCB_test(void **state)
     tcb_test_run_ran = false;
 
     tcb_reset();
-    PRINT_MSG("Running tcb_run_test in the TCB Context\r\n");
+    printf("Running tcb_run_test in the TCB Context\r\n");
     run_in_tcb_context(tcb_run_test, (void *)5);
     //Create tcb worker one
     PRINT_MSG("Creating Task 1\r\n");
@@ -278,8 +285,8 @@ int run_task_helper_tests(void)
     int rv;
     const struct CMUnitTest message_helper_tests[] =
     {
+		cmocka_unit_test(basic_message_helper_test),
         cmocka_unit_test(basic_thread_helper_test),
-        cmocka_unit_test(basic_message_helper_test),
         cmocka_unit_test(TCB_Test_One),
         cmocka_unit_test(TCB_Test_Two)
     };

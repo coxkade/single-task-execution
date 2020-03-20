@@ -21,6 +21,7 @@
 #include <sys/ipc.h>
 #include <sys/sem.h>
 #include <stdint.h>
+#include <Message-Helper.h>
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -80,10 +81,27 @@ union simply_thread_semaphore_union
     unsigned short  *array;
 };
 
+struct ss_sem_message_data_s
+{
+	enum{
+		SS_SEM_CREATE,
+		SS_SEM_DESTROY,
+		SS_SEM_CLEANUP
+	}action;
+	simply_thread_sem_t * sem;
+	bool finished;
+};
+
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
 /***********************************************************************************/
 
+/**
+ * @brief Function that handles semaphore messages
+ * @param message
+ * @param message_size
+ */
+static void handle_sem_messages(void *message, uint32_t message_size);
 
 /***********************************************************************************/
 /***************************** Static Variables ************************************/
@@ -94,6 +112,7 @@ static struct simply_thread_sem_registery_s st_sem_registery =
     .initialized = false
 }; //!< Variable that holds the semaphore registry
 
+static Message_Helper_Instance_t * sem_mh = NULL;
 static struct sembuf simply_thread_sem_dec = { 0, -1, SEM_UNDO};
 static struct sembuf simply_thread_sem_try_dec = { 0, -1, SEM_UNDO | IPC_NOWAIT};
 static struct sembuf simply_thread_sem_inc = { 0, +1, SEM_UNDO};
@@ -102,6 +121,17 @@ static struct sembuf simply_thread_sem_inc = { 0, +1, SEM_UNDO};
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
+/**
+ * Initialize the messenger if needed
+ */
+static void init_sem_messanger(void)
+{
+	if(NULL == sem_mh)
+	{
+		sem_mh = New_Message_Helper(handle_sem_messages, "simply-thread-sem-helper-queue");
+		SS_ASSERT(NULL != sem_mh);
+	}
+}
 
 
 /**
@@ -140,34 +170,141 @@ static void simply_thread_sem_register(simply_thread_sem_t *sem)
 }
 
 /**
+ * Handle creating a new semaphore
+ * @param data
+ */
+static void handle_sem_init(struct ss_sem_message_data_s * data)
+{
+	int result;
+	union simply_thread_semaphore_union worker_union;
+	simply_thread_sem_t *sem;
+	if(SS_SEM_CREATE == data->action)
+	{
+		sem = data->sem;
+		SS_ASSERT(NULL != sem);
+
+		PRINT_MSG("%s Started\r\n", __FUNCTION__);
+		PRINT_MSG("\t%s Sem for NULL\r\n", __FUNCTION__);
+
+		PRINT_MSG("\t%s Getting the semaphore\r\n", __FUNCTION__);
+		sem->id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | 0666);
+		SS_ASSERT(sem->id >= 0);
+		PRINT_MSG("Created Semaphore %i\r\n", sem->id);
+		simply_thread_sem_register(sem);
+		worker_union.val = 1;
+		result = semctl(sem->id, 0, SETVAL, worker_union);
+		if(0 > result)
+		{
+	//    	ST_LOG_ERROR("%s semctl returned %i with error %i\r\n", __FUNCTION__, result, errno);
+			while(1){}
+		}
+		PRINT_MSG("\t%s calling simply_thread_sem_trywait\r\n", __FUNCTION__);
+		result = simply_thread_sem_trywait(sem);
+		SS_ASSERT(0 == result);
+		result = simply_thread_sem_trywait(sem);
+		assert(EAGAIN == result);
+	}
+}
+
+/**
+ * Handle destroying a semaphore
+ * @param data
+ */
+static void handle_sem_destroy(struct ss_sem_message_data_s * data)
+{
+	int result;
+	struct simply_thread_sem_list_element_s *typed;
+	simply_thread_sem_t *sem;
+	if(SS_SEM_DESTROY == data->action)
+	{
+		sem = data->sem;
+		PRINT_MSG("%s Started\r\n", __FUNCTION__);
+		SS_ASSERT(NULL != sem);
+		typed = sem->data;
+		SS_ASSERT(typed != NULL);
+		if(typed->id != sem->id)
+		{
+			ST_LOG_ERROR("Warning %i != %i\r\n", typed->id, sem->id);
+		}
+		SS_ASSERT(typed->id == sem->id);
+		if(-1 != sem->id)
+		{
+			result = semctl(sem->id, 0, IPC_RMID);
+			if(0 != result)
+			{
+				ST_LOG_ERROR("%s semctl returned %i with error %i\r\n", __FUNCTION__, result, errno);
+				while(1) {}
+			}
+			typed->id = -1;
+			PRINT_MSG("Destroyed semaphore: %i\r\n", sem->id);
+		}
+	}
+}
+
+/**
+ * Cleanup all the created semaphores
+ * @param data
+ */
+static void handle_sem_cleanup(struct ss_sem_message_data_s * data)
+{
+	int result;
+	if(SS_SEM_CLEANUP == data->action)
+	{
+		SS_ASSERT(NULL == data->sem);
+		PRINT_MSG("%s\r\n", __FUNCTION__);
+		simply_thread_init_registery();
+		for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
+		{
+			if(-1 != st_sem_registery.createded_sems[i].id)
+			{
+				result = semctl(st_sem_registery.createded_sems[i].id, 0, IPC_RMID);
+				if(result != 0)
+				{
+					PRINT_MSG("Sem Delete:\r\n\tSem: %i\r\n\tResult: %i\r\n\tErr: %i\r\n",
+							  st_sem_registery.createded_sems[i].id, result, errno);
+				}
+			}
+		}
+	}
+}
+
+/**
+ * @brief Function that handles semaphore messages
+ * @param message
+ * @param message_size
+ */
+static void handle_sem_messages(void *message, uint32_t message_size)
+{
+	struct ss_sem_message_data_s * data_ptr;
+	SS_ASSERT(message_size == sizeof(data_ptr));
+	memcpy(&data_ptr, message, message_size);
+
+	handle_sem_init(data_ptr);
+	handle_sem_destroy(data_ptr);
+	handle_sem_cleanup(data_ptr);
+	data_ptr->finished = true;
+
+}
+
+/**
  * @brief Initialize a semaphore
  * @param sem
  */
 void simply_thread_sem_init(simply_thread_sem_t *sem)
 {
-    int result;
-    union simply_thread_semaphore_union worker_union;
-    PRINT_MSG("%s Started\r\n", __FUNCTION__);
-    PRINT_MSG("\t%s Sem for NULL\r\n", __FUNCTION__);
-    SS_ASSERT(NULL != sem);
-    PRINT_MSG("\t%s Getting the semaphore\r\n", __FUNCTION__);
-    sem->id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | 0666);
-    SS_ASSERT(sem->id >= 0);
-    PRINT_MSG("Created Semaphore %i\r\n", sem->id);
-    simply_thread_sem_register(sem);
-    worker_union.val = 1;
-//    SS_ASSERT(0 <= semctl(sem->id, 0, SETVAL, worker_union));
-    result = semctl(sem->id, 0, SETVAL, worker_union);
-    if(0 > result)
-    {
-    	ST_LOG_ERROR("semctl returned %i with error %i\r\n", result, errno);
-    	SS_ASSERT(0<=result);
-    }
-    PRINT_MSG("\t%s calling simply_thread_sem_trywait\r\n", __FUNCTION__);
-    result = simply_thread_sem_trywait(sem);
-    SS_ASSERT(0 == result);
-    result = simply_thread_sem_trywait(sem);
-    assert(EAGAIN == result);
+	struct ss_sem_message_data_s data;
+	struct ss_sem_message_data_s *data_ptr;
+	init_sem_messanger();
+	data_ptr = &data;
+
+	SS_ASSERT(NULL != sem);
+
+	data_ptr->action = SS_SEM_CREATE;
+	data_ptr->finished = false;
+	data_ptr->sem = sem;
+
+	Message_Helper_Send(sem_mh, &data_ptr, sizeof(data_ptr));
+	while(false == data_ptr->finished) {}
 }
 
 /**
@@ -176,24 +313,87 @@ void simply_thread_sem_init(simply_thread_sem_t *sem)
  */
 void simply_thread_sem_destroy(simply_thread_sem_t *sem)
 {
-    int result;
-    struct simply_thread_sem_list_element_s *typed;
-    PRINT_MSG("%s Started\r\n", __FUNCTION__);
-    SS_ASSERT(NULL != sem);
-    typed = sem->data;
-    SS_ASSERT(typed != NULL);
-    SS_ASSERT(typed->id == sem->id);
-    if(-1 != sem->id)
-    {
-        result = semctl(sem->id, 0, IPC_RMID);
-        if(0 != result)
-        {
-            ST_LOG_ERROR("\tsemctl returned %i error %i\r\n", result, errno);
-        }
-        typed->id = -1;
-        PRINT_MSG("Destroyed semaphore: %i\r\n", sem->id);
-    }
+	struct ss_sem_message_data_s data;
+	struct ss_sem_message_data_s *data_ptr;
+	init_sem_messanger();
+	data_ptr = &data;
+
+	SS_ASSERT(NULL != sem);
+
+	data_ptr->action = SS_SEM_DESTROY;
+	data_ptr->finished = false;
+	data_ptr->sem = sem;
+
+	Message_Helper_Send(sem_mh, &data_ptr, sizeof(data_ptr));
+	while(false == data_ptr->finished) {}
 }
+
+///**
+// * @brief Initialize a semaphore
+// * @param sem
+// */
+//void simply_thread_sem_init(simply_thread_sem_t *sem)
+//{
+//    int result;
+//    union simply_thread_semaphore_union worker_union;
+//    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+//    PRINT_MSG("\t%s Sem for NULL\r\n", __FUNCTION__);
+//    SS_ASSERT(NULL != sem);
+//
+//    sem_helper_lock();
+//
+//    PRINT_MSG("\t%s Getting the semaphore\r\n", __FUNCTION__);
+//    sem->id = semget(IPC_PRIVATE, 1, IPC_CREAT | IPC_EXCL | 0666);
+//    SS_ASSERT(sem->id >= 0);
+//    PRINT_MSG("Created Semaphore %i\r\n", sem->id);
+//	simply_thread_sem_register(sem);
+//    worker_union.val = 1;
+////    SS_ASSERT(0 <= semctl(sem->id, 0, SETVAL, worker_union));
+//    result = semctl(sem->id, 0, SETVAL, worker_union);
+//    if(0 > result)
+//    {
+////    	ST_LOG_ERROR("%s semctl returned %i with error %i\r\n", __FUNCTION__, result, errno);
+//    	while(1){}
+//    }
+//    PRINT_MSG("\t%s calling simply_thread_sem_trywait\r\n", __FUNCTION__);
+//    result = simply_thread_sem_trywait(sem);
+//    SS_ASSERT(0 == result);
+//    result = simply_thread_sem_trywait(sem);
+//    assert(EAGAIN == result);
+//    sem_helper_unlock();
+//}
+//
+///**
+// * Destroy a semaphore
+// * @param sem
+// */
+//void simply_thread_sem_destroy(simply_thread_sem_t *sem)
+//{
+//    int result;
+//    struct simply_thread_sem_list_element_s *typed;
+//    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+//    SS_ASSERT(NULL != sem);
+//    typed = sem->data;
+//    SS_ASSERT(typed != NULL);
+//    sem_helper_lock();
+//    if(typed->id != sem->id)
+//    {
+//    	ST_LOG_ERROR("Warning %i != %i\r\n", typed->id, sem->id);
+//    }
+//    SS_ASSERT(typed->id == sem->id);
+//    if(-1 != sem->id)
+//    {
+//        result = semctl(sem->id, 0, IPC_RMID);
+//        if(0 != result)
+//        {
+//        	ST_LOG_ERROR("%s semctl returned %i with error %i\r\n", __FUNCTION__, result, errno);
+//            while(1) {}
+//        }
+//        typed->id = -1;
+//        PRINT_MSG("Destroyed semaphore: %i\r\n", sem->id);
+//    }
+//    sem_helper_unlock();
+//}
 
 /**
  * Blocking Wait for a semaphor
@@ -253,22 +453,33 @@ int simply_thread_sem_post(simply_thread_sem_t *sem)
  */
 void sem_helper_cleanup(void)
 {
-    int result;
-    PRINT_MSG("%s\r\n", __FUNCTION__);
-    simply_thread_init_registery();
-    for(unsigned int i = 0; i < MAX_SEM_COUNT; i++)
-    {
-        if(-1 != st_sem_registery.createded_sems[i].id)
-        {
-            result = semctl(st_sem_registery.createded_sems[i].id, 0, IPC_RMID);
-            if(result != 0)
-            {
-                PRINT_MSG("Sem Delete:\r\n\tSem: %i\r\n\tResult: %i\r\n\tErr: %i\r\n",
-                          st_sem_registery.createded_sems[i].id, result, errno);
-            }
-        }
-    }
+	struct ss_sem_message_data_s data;
+	struct ss_sem_message_data_s *data_ptr;
+	init_sem_messanger();
+	data_ptr = &data;
+
+
+	data_ptr->action = SS_SEM_CLEANUP;
+	data_ptr->finished = false;
+	data_ptr->sem = NULL;
+
+	Message_Helper_Send(sem_mh, &data_ptr, sizeof(data_ptr));
+	while(false == data_ptr->finished) {}
 }
+
+/**
+ * Cleanup function to call on exit
+ */
+void sem_helper_clear_master(void)
+{
+	sem_helper_cleanup();
+	if(NULL != sem_mh)
+	{
+		Remove_Message_Helper(sem_mh);
+		sem_mh = NULL;
+	}
+}
+
 
 
 /**
@@ -395,4 +606,7 @@ int simply_thread_sem_timed_wait(simply_thread_sem_t *sem, unsigned int ms)
     free(worker_data);
     return rv;
 }
+
+
+
 

@@ -11,8 +11,8 @@
 
 #include <pthread.h>
 #include <stdbool.h>
-#include <simply-thread-sem-helper.h>
 #include <signal.h>
+#include <Sem-Helper.h>
 
 #define PAUSE_SIGNAL SIGUSR1
 #define KILL_SIGNAL SIGUSR2
@@ -23,8 +23,8 @@ typedef struct helper_thread_t
     pthread_t id;
     void *(* worker)(void *);
     void *worker_data;
-    simply_thread_sem_t wait_sem;
-    bool pause_requested;
+    sem_helper_sem_t wait_sem;
+    bool in_crit_section;
 } helper_thread_t;
 
 /**
@@ -67,6 +67,16 @@ bool thread_helper_thread_running(helper_thread_t *thread);
 void thread_helper_pause_thread(helper_thread_t *thread);
 
 /**
+ * Have a thread enter a critical section
+ */
+void thread_enter_critical_section(helper_thread_t *thread);
+
+/**
+ * Have a thread enter a critical section
+ */
+void thread_exit_critical_section(helper_thread_t *thread);
+
+/**
  * @brief Run a thread
  * @param thread
  */
@@ -83,6 +93,11 @@ pthread_t thread_helper_get_id(helper_thread_t *thread);
  * @brief Reset the thread helper
  */
 void reset_thread_helper(void);
+
+/**
+ * Function to call when program exits to clean up all the hanging thread helper data
+ */
+void thread_helper_cleanup(void);
 
 
 #endif /* SIMPLY_THREAD_SRC_TASK_HELPER_THREAD_HELPER_H_ */
