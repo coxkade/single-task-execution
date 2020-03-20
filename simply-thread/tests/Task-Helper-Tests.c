@@ -21,10 +21,10 @@
 #include <Sem-Helper.h>
 #include <TCB.h>
 
-//#define DEBUG_TESTS
+#define DEBUG_TESTS
 
 #ifdef DEBUG_TESTS
-#define PRINT_MSG(...) printf(__VA_ARGS__)
+#define PRINT_MSG(...) SIMPLY_THREAD_PRINT(__VA_ARGS__)
 #else
 #define PRINT_MSG(...)
 #endif //DEBUG_TESTS

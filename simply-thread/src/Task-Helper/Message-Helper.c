@@ -335,23 +335,6 @@ void Remove_Message_Helper(Message_Helper_Instance_t *helper)
 
 
 /**
- * @brief Function that sleeps for the specified number of nanoseconds
- * @param ns number of nanoseconds to sleep
- */
-static void mh_simply_thread_sleep_ns(unsigned long ns)
-{
-    struct timespec time_data =
-    {
-        .tv_sec = 0,
-        .tv_nsec = ns
-    };
-
-    while(0 != nanosleep(&time_data, &time_data))
-    {
-    }
-}
-
-/**
  * @brief Function that sends a message
  * @param helper
  * @param msg

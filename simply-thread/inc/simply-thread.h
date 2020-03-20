@@ -15,6 +15,7 @@
 
 #define SS_ASSERT(...) simply_thread_assert((__VA_ARGS__), __FILE__, __LINE__, #__VA_ARGS__)
 
+#define SIMPLY_THREAD_PRINT(...) simply_thread_log(COLOR_RESET, __VA_ARGS__)
 
 //Typedefs for tasks
 typedef void *simply_thread_task_t; //!< Typedef for a handle for a task created with simply thread
