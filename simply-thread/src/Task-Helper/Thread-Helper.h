@@ -24,7 +24,6 @@ typedef struct helper_thread_t
     void *(* worker)(void *);
     void *worker_data;
     sem_helper_sem_t wait_sem;
-    bool in_crit_section;
 } helper_thread_t;
 
 /**
@@ -65,11 +64,6 @@ bool thread_helper_thread_running(helper_thread_t *thread);
  * @param thread
  */
 void thread_helper_pause_thread(helper_thread_t *thread);
-
-/**
- * Have a thread enter a critical section
- */
-void thread_enter_critical_section(helper_thread_t *thread);
 
 /**
  * Have a thread enter a critical section

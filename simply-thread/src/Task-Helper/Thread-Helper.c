@@ -28,6 +28,8 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
+//#define DEBUG_THREAD_HELPER
+
 #ifdef DEBUG_THREAD_HELPER
 #define PRINT_MSG(...) simply_thread_log(COLOR_MAGENTA, __VA_ARGS__)
 #define PRINT_COLOR_MSG(C, ...) simply_thread_log(C, __VA_ARGS__)
@@ -71,8 +73,6 @@ struct thread_helper_message_data_s
 		TH_THREAD_DESTROY,
 		TH_THREAD_RESET,
 		TH_THREAD_SELF,
-		TH_ENTER_CRIT,
-		TH_EXIT_CRIT,
 		TH_THREAD_PAUSE,
 		TH_THREAD_RESUME,
 		TH_THREAD_KILL,
@@ -98,6 +98,11 @@ struct thread_helper_message_data_s
 		struct{
 			helper_thread_t * thread;
 		}pause; //!< Data for pausing and unpausing threads
+		struct
+		{
+			bool val;
+			helper_thread_t * thread;
+		}cmd_progress; //!< Data used for setting the command in progress command
 	}data;
 	bool * finished;
 };
@@ -179,6 +184,50 @@ static void thread_helper_send_message(struct thread_helper_raw_message_s * msg)
 	SS_ASSERT(0 == result);
 }
 
+///**
+// * Function that fetches the thread an action is to be performed on
+// * @param message
+// * @return
+// */
+//static helper_thread_t * fetch_action_thread(struct thread_helper_message_data_s * message)
+//{
+//
+//	helper_thread_t * rv;
+//	rv = NULL;
+//	switch(message->action)
+//	{
+//	case TH_THREAD_CREATE:
+//		break;
+//	case TH_THREAD_DESTROY:
+//		rv = message->data.destroy.thread;
+//		break;
+//	case TH_THREAD_RESET:
+//		break;
+//	case TH_THREAD_SELF:
+//		break;
+//	case TH_ENTER_CRIT:
+//		rv = message->data.crit.thread;
+//		break;
+//	case TH_EXIT_CRIT:
+//		rv = message->data.crit.thread;
+//		break;
+//	case TH_THREAD_PAUSE:
+//		rv = message->data.pause.thread;
+//		break;
+//	case TH_THREAD_RESUME:
+//		rv = message->data.pause.thread;
+//		break;
+//	case TH_COMMAND_PROGRESS:
+//		break;
+//	case TH_THREAD_KILL:
+//		break;
+//	default:
+//		break;
+//	}
+//
+//	return rv;
+//}
+
 /**
  * @brief internal function that creates a new thread
  * @param message
@@ -197,7 +246,6 @@ static void internal_thread_create(struct thread_helper_message_data_s * message
 			message->data.create.new_thread[0]->worker = message->data.create.worker;
 			message->data.create.new_thread[0]->worker_data = message->data.create.data;
 			message->data.create.new_thread[0]->thread_running = false;
-			message->data.create.new_thread[0]->in_crit_section = false;
 			Sem_Helper_sem_init(&message->data.create.new_thread[0]->wait_sem);
 			SS_ASSERT(0 == pthread_create(&message->data.create.new_thread[0]->id, NULL, thread_helper_runner, message->data.create.new_thread[0]));
 			while(false ==message->data.create.new_thread[0]->thread_running );
@@ -234,10 +282,6 @@ static void internal_destroy_thread_id(helper_thread_t * thread)
 static bool internal_thread_destroy(struct thread_helper_message_data_s * message)
 {
 	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	if(true == message->data.destroy.resp_crit && true == message->data.destroy.thread->in_crit_section)
-	{
-		return false;
-	}
 	internal_destroy_thread_id(message->data.destroy.thread);
 	message->data.destroy.result[0] = true;
 	return true;
@@ -289,23 +333,6 @@ static void internal_thread_self(struct thread_helper_message_data_s * message)
 	}
 }
 
-/**
- * @brief function for handling the entering of critical sections
- * @param message
- * @param enter
- * @return true on success
- */
-static bool internal_thread_handle_crit(struct thread_helper_message_data_s * message, bool enter)
-{
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != message->data.crit.thread);
-	if(enter == message->data.crit.thread->in_crit_section)
-	{
-		return false;
-	}
-	message->data.crit.thread->in_crit_section = enter;
-	return true;
-}
 
 /**
  * @brief internal function for handling pause messages
@@ -317,11 +344,8 @@ static bool internal_thread_handle_pause(struct thread_helper_message_data_s * m
 	int result;
 	PRINT_MSG("%s Running\r\n", __FUNCTION__);
 	SS_ASSERT(NULL != message->data.pause.thread);
+	while(false == message->data.pause.thread->thread_running) {}
 	SS_ASSERT(true == message->data.pause.thread->thread_running);
-	if(true == message->data.pause.thread->in_crit_section)
-	{
-		return false;
-	}
 	while(EAGAIN != Sem_Helper_sem_trywait(&message->data.pause.thread->wait_sem)) {} //Force the sem to block
 	result = pthread_kill(message->data.pause.thread->id, PAUSE_SIGNAL);
 	SS_ASSERT(0 == result);
@@ -341,6 +365,7 @@ static void internal_thread_handle_resume(struct thread_helper_message_data_s * 
 	while(false == message->data.pause.thread->thread_running) {}
 }
 
+
 /**
  * The internal worker function that processes the internal queue data
  * @param data
@@ -349,84 +374,79 @@ static void * thread_helper_worker(void * data)
 {
 	PRINT_MSG("%s Running\r\n", __FUNCTION__);
 	int result;
+//	bool process;
 	struct thread_helper_raw_message_s in_message;
-
+//	static helper_thread_t * ptr_thread;
 	SS_ASSERT(NULL == data);
 	while(false == thread_helper_data.kill_worker)
 	{
 		result = msgrcv(thread_helper_data.queue_id, &in_message, sizeof(struct thread_helper_raw_message_s), 1, 0);
+//		process = true;
 		 if(result != -1)
 		 {
 			 SS_ASSERT(1 == in_message.type);
 			 PRINT_MSG("\t%s received message type %i\r\n", __FUNCTION__, in_message.decoded.action);
-			 switch(in_message.decoded.action)
-			 {
-			 case TH_THREAD_CREATE:
-				 //We need to create a thread
-				 internal_thread_create(&in_message.decoded);
-				 in_message.decoded.finished[0] = true;
-				 break;
-			 case TH_THREAD_DESTROY:
-				 if(true ==  internal_thread_destroy(&in_message.decoded))
-				 {
-					 in_message.decoded.finished[0] = true;
-				 }
-				 else
-				 {
-					 thread_helper_send_message(&in_message);
-				 }
-				 break;
-			 case TH_THREAD_RESET:
-				 internal_reset();
-				 in_message.decoded.finished[0] = true;
-				 break;
-			 case TH_THREAD_SELF:
-				 internal_thread_self(&in_message.decoded);
-				 in_message.decoded.finished[0] = true;
-				 break;
-			 case TH_THREAD_PAUSE:
-				 if(true == internal_thread_handle_pause(&in_message.decoded))
-				 {
-					 in_message.decoded.finished[0] = true;
-				 }
-				 else
-				 {
-					 thread_helper_send_message(&in_message);
-				 }
-				 break;
-			 case TH_EXIT_CRIT:
-				 if(true == internal_thread_handle_crit(&in_message.decoded, false))
-				 {
-					 in_message.decoded.finished[0] = true;
-				 }
-				 else
-				 {
-					 thread_helper_send_message(&in_message);
-				 }
-				 break;
-			 case TH_ENTER_CRIT:
-				 if(true == internal_thread_handle_crit(&in_message.decoded, true))
-				 {
-					 in_message.decoded.finished[0] = true;
-				 }
-				 else
-				 {
-					 thread_helper_send_message(&in_message);
-				 }
-				 break;
-			 case TH_THREAD_RESUME:
-				 internal_thread_handle_resume(&in_message.decoded);
-				 in_message.decoded.finished[0] = true;
-				 break;
-			 case TH_THREAD_KILL:
-				 thread_helper_data.kill_worker = true;
-				 in_message.decoded.finished[0] = true;
-				 break;
-			 default:
-				 SS_ASSERT(true == false);
-				 break;
-			 }
 
+//			 ptr_thread = fetch_action_thread(&in_message.decoded);
+//			 if(NULL != ptr_thread)
+//			 {
+//				 if(true == ptr_thread->command_in_progress && in_message.decoded.action != TH_COMMAND_PROGRESS)
+//				 {
+//					 process = false;
+//					 thread_helper_send_message(&in_message);
+//				 }
+//			 }
+
+//			 if(true == process)
+//			 {
+				 switch(in_message.decoded.action)
+				 {
+				 case TH_THREAD_CREATE:
+					 //We need to create a thread
+					 internal_thread_create(&in_message.decoded);
+					 in_message.decoded.finished[0] = true;
+					 break;
+				 case TH_THREAD_DESTROY:
+					 if(true ==  internal_thread_destroy(&in_message.decoded))
+					 {
+						 in_message.decoded.finished[0] = true;
+					 }
+					 else
+					 {
+						 thread_helper_send_message(&in_message);
+					 }
+					 break;
+				 case TH_THREAD_RESET:
+					 internal_reset();
+					 in_message.decoded.finished[0] = true;
+					 break;
+				 case TH_THREAD_SELF:
+					 internal_thread_self(&in_message.decoded);
+					 in_message.decoded.finished[0] = true;
+					 break;
+				 case TH_THREAD_PAUSE:
+					 if(true == internal_thread_handle_pause(&in_message.decoded))
+					 {
+						 in_message.decoded.finished[0] = true;
+					 }
+					 else
+					 {
+						 thread_helper_send_message(&in_message);
+					 }
+					 break;
+				 case TH_THREAD_RESUME:
+					 internal_thread_handle_resume(&in_message.decoded);
+					 in_message.decoded.finished[0] = true;
+					 break;
+				 case TH_THREAD_KILL:
+					 thread_helper_data.kill_worker = true;
+					 in_message.decoded.finished[0] = true;
+					 break;
+				 default:
+					 SS_ASSERT(true == false);
+					 break;
+				 }
+//			 }
 		 }
 		 else
 		 {
@@ -618,7 +638,11 @@ static void thread_helper_destroy(helper_thread_t *thread, bool respect_crit_sec
 void thread_helper_thread_destroy(helper_thread_t *thread)
 {
 	PRINT_MSG("%s Running\r\n", __FUNCTION__);
+	SS_ASSERT(NULL != thread);
+	init_if_needed();
+	//set_command_in_progress(thread, true);
 	thread_helper_destroy(thread, true);
+	//set_command_in_progress(thread, false);
 }
 
 /**
@@ -628,6 +652,7 @@ void thread_helper_thread_destroy(helper_thread_t *thread)
 void thread_helper_thread_assert_destroy(helper_thread_t *thread)
 {
 	PRINT_MSG("%s Running\r\n", __FUNCTION__);
+	SS_ASSERT(NULL != thread);
 	thread_helper_destroy(thread, false);
 }
 
@@ -655,53 +680,19 @@ void thread_helper_pause_thread(helper_thread_t *thread)
 	PRINT_MSG("%s Running\r\n", __FUNCTION__);
 	SS_ASSERT(NULL != thread);
 
+	//set_command_in_progress(thread, true);
 	init_if_needed();
 	message.decoded.finished = &comp;
 	message.decoded.action = TH_THREAD_PAUSE;
 	message.decoded.data.pause.thread = thread;
 	message.type = 1;
-
+	while(false == thread->thread_running) {}
 	send_and_wait(&message);
 	while(true == thread->thread_running) {}
+	//set_command_in_progress(thread, false);
 }
 
-/**
- * Have a thread enter a critical section
- */
-void thread_enter_critical_section(helper_thread_t *thread)
-{
-	struct thread_helper_raw_message_s message;
-	bool comp = false;
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != thread);
 
-	init_if_needed();
-	message.decoded.finished = &comp;
-	message.decoded.action = TH_ENTER_CRIT;
-	message.decoded.data.crit.thread = thread;
-	message.type = 1;
-
-	send_and_wait(&message);
-}
-
-/**
- * Have a thread enter a critical section
- */
-void thread_exit_critical_section(helper_thread_t *thread)
-{
-	struct thread_helper_raw_message_s message;
-	bool comp = false;
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != thread);
-
-	init_if_needed();
-	message.decoded.finished = &comp;
-	message.decoded.action = TH_EXIT_CRIT;
-	message.decoded.data.crit.thread = thread;
-	message.type = 1;
-
-	send_and_wait(&message);
-}
 
 /**
  * @brief Run a thread
@@ -720,9 +711,9 @@ void thread_helper_run_thread(helper_thread_t *thread)
 	message.decoded.action = TH_THREAD_RESUME;
 	message.decoded.data.pause.thread = thread;
 	message.type = 1;
-
+	//set_command_in_progress(thread, true);
 	send_and_wait(&message);
-
+	//set_command_in_progress(thread, false);
 }
 
 /**

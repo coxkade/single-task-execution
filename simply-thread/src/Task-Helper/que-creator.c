@@ -52,13 +52,18 @@ static pthread_mutex_t queue_creator_mutex = PTHREAD_MUTEX_INITIALIZER;
 int create_new_queue(void)
 {
 	int result;
+	int error_val;
 	assert(0 == pthread_mutex_lock(&queue_creator_mutex));
 	result = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL | 0666);
+	error_val = errno;
 	pthread_mutex_unlock(&queue_creator_mutex);
 	if(0 > result)
 	{
-		printf("Failed to create queue %i %i \r\n", result, errno);
+		printf("Failed to create queue %i %i \r\n", result, error_val);
 	}
-	assert(0 < result);
+	if(0 > result && 0 != error_val)
+	{
+		assert(0 < result);
+	}
 	return result;
 }

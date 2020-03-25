@@ -56,7 +56,11 @@ struct message_buffer_s
 {
     char buffer[SIMPLY_THREAD_LOG_BUFFER_SIZE];
     const char *color;
-    bool Finished;
+};
+
+struct actual_log_message_s
+{
+	struct message_buffer_s * data_ptr;
 };
 
 struct internal_log_message_data_s
@@ -66,7 +70,7 @@ struct internal_log_message_data_s
 		MSG_TYPE_EXIT,
 		MSG_TYPE_PRINT
 	}type;
-	void * data;
+	struct actual_log_message_s msg;
 };
 
 struct formatted_message_s
@@ -108,7 +112,6 @@ void ss_log_on_exit(void)
 	{
 		print_module_data.kill_worker = true;
 		msg.type = MSG_TYPE_EXIT;
-		msg.data = NULL;
 		memcpy(raw.msg, &msg, sizeof(msg));
 		raw.type = 1;
 		assert(0 <=  msgsnd(print_module_data.QueueId, &raw, sizeof(msg), 0));
@@ -124,23 +127,19 @@ void ss_log_on_exit(void)
  * @param message
  * @param message_size
  */
-static void message_printer(void *message)
+static void message_printer(struct message_buffer_s * message)
 {
 	char time_buffer[100];
-	unsigned int buffer_size;
 	time_t t;
 	struct tm tm;
-    struct message_buffer_s **typed;
-    typed = (struct message_buffer_s **)message;
 
     //Setup the time message string
     t = time(NULL);
     tm = *localtime(&t);
     snprintf(time_buffer, ARRAY_MAX_COUNT(time_buffer), "%d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-    buffer_size = strlen(time_buffer) + strlen(typed[0]->buffer) + strlen(typed[0]->color) + strlen(COLOR_RESET) + 10;
-	printf("%s%s%s%s", typed[0]->color, time_buffer, typed[0]->buffer, COLOR_RESET);
-	typed[0]->Finished = true;
+	printf("%s%s%s%s", message->color, time_buffer, message->buffer, COLOR_RESET);
+	free(message);
 }
 
 static void * log_worker(void * passed)
@@ -156,7 +155,7 @@ static void * log_worker(void * passed)
 			memcpy(&data, raw.msg, sizeof(data));
 			if( MSG_TYPE_PRINT == data.type )
 			{
-				message_printer(data.data);
+				message_printer(data.msg.data_ptr);
 			}
 			if( MSG_TYPE_EXIT == data.type)
 			{
@@ -199,14 +198,16 @@ static void init_if_needed(void)
  * @param data
  * @param data_size
  */
-static inline void send_message(void * data, unsigned int data_size)
+static inline void send_message(struct message_buffer_s * buffer)
 {
 	struct internal_log_message_data_s msg;
 	struct formatted_message_s raw;
 	int result;
 	init_if_needed();
+
 	msg.type = MSG_TYPE_PRINT;
-	msg.data = data;
+	msg.msg.data_ptr = buffer;
+	assert(NULL != msg.msg.data_ptr);
 	memcpy(raw.msg, &msg, sizeof(msg));
 	raw.type = 1;
 	result = msgsnd(print_module_data.QueueId, &raw, sizeof(msg), 0);
@@ -224,10 +225,10 @@ static inline void send_message(void * data, unsigned int data_size)
 void simply_thread_log(const char *color, const char *fmt, ...)
 {
     va_list args;
-    struct message_buffer_s buffer;
+//    struct message_buffer_s buffer;
     struct message_buffer_s *out_buffer;
-    out_buffer = &buffer;
-
+    out_buffer = malloc(sizeof(struct message_buffer_s));
+    assert(NULL != out_buffer);
     init_if_needed();
     assert(NULL != out_buffer);
     va_start(args, fmt);
@@ -235,8 +236,7 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     assert(0 < rc);
     va_end(args);
     out_buffer->color = color;
-    out_buffer->Finished = false;
-    send_message( &out_buffer, sizeof(struct message_buffer_s *));
-    while(false == out_buffer->Finished) {}
+//    send_message( &out_buffer, sizeof(struct message_buffer_s *));
+    send_message(out_buffer);
 }
 

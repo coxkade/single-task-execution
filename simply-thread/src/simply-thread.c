@@ -138,10 +138,11 @@ void simply_thread_cleanup(void)
 
 //	printf("reseting tcb\r\n");
 //	tcb_reset(); //Destroy all running tcb tasks
-	SIMPLY_THREAD_PRINT("reseting tcb\r\n");
+	PRINT_MSG("reseting tcb\r\n");
 	tcb_reset(); //Destroy all running tcb tasks
-	SIMPLY_THREAD_PRINT("resetting the system clock\r\n");
+	PRINT_MSG("resetting the system clock\r\n");
 	simply_thead_system_clock_reset(); //Reset the system clock
+	simply_thread_timers_cleanup();
 	simply_thread_module_data.cleaning_up = false;
 }
 
@@ -157,8 +158,9 @@ void simply_thread_cleanup(void)
 simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_task_fnct cb, unsigned int priority, void *data, uint16_t data_size)
 {
 	simply_thread_task_t rv;
-	if(NULL == name || NULL == cb || (data != NULL && 0 < data_size))
+	if(NULL == name || NULL == cb || (data == NULL && 0 != data_size))
 	{
+		ST_LOG_ERROR("Name: %p, cb: %p, data: %p, data size: %u\r\n", name, cb, data, data_size);
 		return NULL;
 	}
 	rv = tcb_create_task(name, cb, priority, data, data_size);
@@ -174,13 +176,16 @@ simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_ta
 void simply_thread_sleep_tick_handler(sys_clock_on_tick_handle_t handle, uint64_t tickval, void *args)
 {
 	struct sleep_tick_data_s * typed;
+	enum simply_thread_thread_state_e cstate;
 	typed = args;
 	SS_ASSERT(NULL != typed);
 
 	if(NULL != typed->task)
 	{
 		//Interrupt context is sleeping
-		if(SIMPLY_THREAD_TASK_SUSPENDED != tcb_get_task_state(typed->task))
+		cstate = tcb_get_task_state(typed->task);
+		PRINT_MSG("tcb_get_task_state retunred %i\r\n", cstate);
+		if(SIMPLY_THREAD_TASK_SUSPENDED != cstate)
 		{
 			PRINT_MSG("%s Waiting on SIMPLY_THREAD_TASK_SUSPENDED \r\n", __FUNCTION__);
 			return;

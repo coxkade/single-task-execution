@@ -130,11 +130,11 @@ static void task_test_success(void **state)
     PRINT_MSG("Checking Error Results\r\n");
     SS_ASSERT( false == simply_thread_task_suspend(NULL));
     SS_ASSERT( false == simply_thread_task_resume(NULL));
-    PRINT_MSG("SLEEPING Task\r\n");
+    PRINT_MSG("----SLEEPING Test\r\n");
     simply_thread_sleep_ms(1000);
+    PRINT_MSG("----sleep test finished\r\n");
     PRINT_MSG("Cleaning UP\r\n");
     simply_thread_cleanup();
-    PRINT_MSG("Cleaning UP Complete\r\n");
     SS_ASSERT(thread_one_ran);
     SS_ASSERT(thread_two_ran);
 }
@@ -171,11 +171,15 @@ static void task_non_null_data_test(void **state)
     int test_val = 5;
     task_non_null_data_test_continue = false;
     simply_thread_reset();
+    PRINT_MSG("Creating test task\r\n");
     test_task = simply_thread_new_thread("DataTask", thread_three_worker, 1, &test_val, sizeof(test_val));
+    PRINT_MSG("Checking the result\r\n");
     SS_ASSERT(NULL != test_task);
-
-    simply_thread_sleep_ms(2000);
-    SS_ASSERT(task_non_null_data_test_continue);
+    PRINT_MSG("Sleeping\r\n");
+    simply_thread_sleep_ms(1000);
+    PRINT_MSG("Checking value\r\n");
+    SS_ASSERT(true == task_non_null_data_test_continue);
+    PRINT_MSG("Cleaning Up\r\n");
     simply_thread_cleanup();
 }
 
@@ -593,9 +597,9 @@ int main(void)
     const struct CMUnitTest tests[] =
     {
         cmocka_unit_test(task_test_success),
-//        cmocka_unit_test(task_non_null_data_test),
-//        cmocka_unit_test(main_timer_tests),
-//        cmocka_unit_test(second_timer_tests),
+        cmocka_unit_test(task_non_null_data_test),
+        cmocka_unit_test(main_timer_tests),
+        cmocka_unit_test(second_timer_tests),
 //        cmocka_unit_test(first_mutex_test_tests),
 //        cmocka_unit_test(second_mutex_test_tests),
 //        cmocka_unit_test(first_queue_test_tests),
@@ -607,7 +611,7 @@ int main(void)
 #endif //DISABLE_TIME_OUT
     result = run_task_helper_tests();
     SS_ASSERT(0 <= result);
-//    result = cmocka_run_group_tests(tests, NULL, NULL);
+    result = cmocka_run_group_tests(tests, NULL, NULL);
     printf("result: %i\r\n", result);
     SS_ASSERT(0 <= result || 255 == result);
     return result;
