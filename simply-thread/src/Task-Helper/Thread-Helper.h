@@ -24,7 +24,7 @@ typedef struct helper_thread_t
     void *(* worker)(void *);
     void *worker_data;
     sem_helper_sem_t wait_sem;
-} helper_thread_t;
+} helper_thread_t; //!< Helper thread data
 
 /**
  * @brief Function that fetches the current thread helper

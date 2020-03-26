@@ -3,7 +3,7 @@
  * @author Kade Cox
  * @date Created: Mar 20, 2020
  * @details
- * 
+ *
  */
 
 #ifndef SIMPLY_THREAD_SRC_TASK_HELPER_QUE_CREATOR_H_

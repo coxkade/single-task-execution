@@ -69,13 +69,13 @@ struct simply_thread_timer_module_data_s
 
 struct st_timer_create_data_s
 {
-	simply_thread_timer_cb cb;
-	const char *name;
-	unsigned int period_ms;
-	simply_thread_timer_type_e mode;
-	bool run_now;
-	 struct simply_thread_timer_entry_s * result;
-};
+    simply_thread_timer_cb cb;
+    const char *name;
+    unsigned int period_ms;
+    simply_thread_timer_type_e mode;
+    bool run_now;
+    struct simply_thread_timer_entry_s *result;
+};//!< data for the timer create
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
@@ -133,21 +133,21 @@ static void simply_thread_timers_worker(sys_clock_on_tick_handle_t handle, uint6
  * @brief Function that initializes this module from the TCB context
  * @param data
  */
-static void st_timers_init(void * data)
+static void st_timers_init(void *data)
 {
-	if(false == m_timer_data.initialized)
-	{
-		for(unsigned int i=0; i<ARRAY_MAX_COUNT(m_timer_data.timer_registry); i++)
-		{
-			m_timer_data.timer_registry[i].cb = NULL;
-			m_timer_data.timer_registry[i].count = 0;
-			m_timer_data.timer_registry[i].max_count = 0;
-			m_timer_data.timer_registry[i].name = NULL;
-			m_timer_data.timer_registry[i].running = false;
-			m_timer_data.timer_registry[i].tick_handle = NULL;
-		}
-		m_timer_data.initialized = true;
-	}
+    if(false == m_timer_data.initialized)
+    {
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry); i++)
+        {
+            m_timer_data.timer_registry[i].cb = NULL;
+            m_timer_data.timer_registry[i].count = 0;
+            m_timer_data.timer_registry[i].max_count = 0;
+            m_timer_data.timer_registry[i].name = NULL;
+            m_timer_data.timer_registry[i].running = false;
+            m_timer_data.timer_registry[i].tick_handle = NULL;
+        }
+        m_timer_data.initialized = true;
+    }
 }
 
 /**
@@ -155,10 +155,10 @@ static void st_timers_init(void * data)
  */
 static void st_timers_init_if_needed(void)
 {
-	if(false == m_timer_data.initialized)
-	{
-		run_in_tcb_context(st_timers_init, NULL);
-	}
+    if(false == m_timer_data.initialized)
+    {
+        run_in_tcb_context(st_timers_init, NULL);
+    }
 }
 
 
@@ -167,38 +167,38 @@ static void st_timers_init_if_needed(void)
  */
 void simply_thread_timers_cleanup(void)
 {
-	m_timer_data.initialized = false;
+    m_timer_data.initialized = false;
 }
 
 /**
  * Create a new timer from the TCB context
  * @param data
  */
-static void st_timer_create_tcb(void * data)
+static void st_timer_create_tcb(void *data)
 {
-	struct st_timer_create_data_s * typed;
-	typed = data;
-	PRINT_MSG("Running %s\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != typed);
-	typed->result = NULL;
+    struct st_timer_create_data_s *typed;
+    typed = data;
+    PRINT_MSG("Running %s\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != typed);
+    typed->result = NULL;
 
 
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry) && NULL == typed->result; i++)
-	{
-		PRINT_MSG("\tindex %u\r\n", i);
-		if(m_timer_data.timer_registry[i].name == NULL)
-		{
-			typed->result = &m_timer_data.timer_registry[i];
-			m_timer_data.timer_registry[i].cb = typed->cb;
-			m_timer_data.timer_registry[i].name = typed->name;
-			m_timer_data.timer_registry[i].max_count = typed->period_ms;
-			m_timer_data.timer_registry[i].count = 0;
-			m_timer_data.timer_registry[i].running = false;
-			m_timer_data.timer_registry[i].tick_handle = NULL;
-			m_timer_data.timer_registry[i].mode = typed->mode;
-			PRINT_MSG("\tCreated timer at index %u\r\n", i);
-		}
-	}
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry) && NULL == typed->result; i++)
+    {
+        PRINT_MSG("\tindex %u\r\n", i);
+        if(m_timer_data.timer_registry[i].name == NULL)
+        {
+            typed->result = &m_timer_data.timer_registry[i];
+            m_timer_data.timer_registry[i].cb = typed->cb;
+            m_timer_data.timer_registry[i].name = typed->name;
+            m_timer_data.timer_registry[i].max_count = typed->period_ms;
+            m_timer_data.timer_registry[i].count = 0;
+            m_timer_data.timer_registry[i].running = false;
+            m_timer_data.timer_registry[i].tick_handle = NULL;
+            m_timer_data.timer_registry[i].mode = typed->mode;
+            PRINT_MSG("\tCreated timer at index %u\r\n", i);
+        }
+    }
 }
 
 /**
@@ -213,28 +213,28 @@ static void st_timer_create_tcb(void * data)
 simply_thread_timer_t simply_thread_create_timer(simply_thread_timer_cb cb, const char *name, unsigned int period_ms, simply_thread_timer_type_e mode,
         bool run_now)
 {
-	struct st_timer_create_data_s run_data;
-	run_data.cb = cb;
-	run_data.name = name;
-	run_data.mode = mode;
-	run_data.period_ms = period_ms;
-	run_data.run_now = run_now;
-	run_data.result = NULL;
-	st_timers_init_if_needed();
-	if(NULL == cb || NULL == name || 0 >= period_ms)
-	{
-		return NULL;
-	}
-	SS_ASSERT(SIMPLY_THREAD_TIMER_ONE_SHOT == mode || SIMPLY_THREAD_TIMER_REPEAT == mode);
-	run_in_tcb_context(st_timer_create_tcb, &run_data);
-	if(NULL != run_data.result)
-	{
-		run_data.result->tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_timers_worker, run_data.result);
-		if(true == run_data.run_now)
-		{
-			simply_thread_timer_start(run_data.result);
-		}
-	}
+    struct st_timer_create_data_s run_data;
+    run_data.cb = cb;
+    run_data.name = name;
+    run_data.mode = mode;
+    run_data.period_ms = period_ms;
+    run_data.run_now = run_now;
+    run_data.result = NULL;
+    st_timers_init_if_needed();
+    if(NULL == cb || NULL == name || 0 >= period_ms)
+    {
+        return NULL;
+    }
+    SS_ASSERT(SIMPLY_THREAD_TIMER_ONE_SHOT == mode || SIMPLY_THREAD_TIMER_REPEAT == mode);
+    run_in_tcb_context(st_timer_create_tcb, &run_data);
+    if(NULL != run_data.result)
+    {
+        run_data.result->tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_timers_worker, run_data.result);
+        if(true == run_data.run_now)
+        {
+            simply_thread_timer_start(run_data.result);
+        }
+    }
     return run_data.result;
 }
 

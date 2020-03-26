@@ -28,7 +28,7 @@ typedef struct tcb_task_t
     simply_thread_task_fnct cb;
     enum simply_thread_thread_state_e state;
     bool continue_on_run;
-} tcb_task_t;
+} tcb_task_t; //TCB task data
 
 
 /**

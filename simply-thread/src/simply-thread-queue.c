@@ -154,7 +154,7 @@ struct ss_queue_msg_s
 static struct ss_queue_module_data_s queue_data =
 {
     .m_helper = NULL
-};
+}; //!< variable holding the local module data
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
@@ -362,22 +362,22 @@ static void ss_queue_on_tick(sys_clock_on_tick_handle_t handle, uint64_t tickval
     struct queue_wait_task_s *typed;
     typed = args;
 
-	SS_ASSERT(NULL != typed);
-	if(NULL != typed->waiting_task && handle == typed->tick_handle)
-	{
-		SS_ASSERT(handle == typed->tick_handle);
-		typed->count++;
-		if(typed->count >= typed->max_count)
-		{
-			//Ok we need to handle the timeout
-			comp = false;
-			message.type = SS_QUEUE_TIMEOUT;
-			message.data.time_out = typed;
-			message.finished = &comp;
-			Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
-			while(false == comp) {}
-		}
-	}
+    SS_ASSERT(NULL != typed);
+    if(NULL != typed->waiting_task && handle == typed->tick_handle)
+    {
+        SS_ASSERT(handle == typed->tick_handle);
+        typed->count++;
+        if(typed->count >= typed->max_count)
+        {
+            //Ok we need to handle the timeout
+            comp = false;
+            message.type = SS_QUEUE_TIMEOUT;
+            message.data.time_out = typed;
+            message.finished = &comp;
+            Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
+            while(false == comp) {}
+        }
+    }
 }
 
 /**
@@ -416,33 +416,34 @@ static inline void handle_queue_create(struct ss_queue_create_data_s *data)
 {
     PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
     data->result = NULL;
-    if(NULL != data->name && ARRAY_MAX_COUNT(queue_data.all_queues[0].elements[0].buffer) >= data->element_size && 0 < data->queue_size && 0 < data->element_size)
+    if(NULL != data->name && ARRAY_MAX_COUNT(queue_data.all_queues[0].elements[0].buffer) >= data->element_size && 0 < data->queue_size &&
+            0 < data->element_size)
     {
-		for(int i = 0; i < ARRAY_MAX_COUNT(queue_data.all_queues) && NULL == data->result; i++)
-		{
-			if(false == queue_data.all_queues[i].alocated && ARRAY_MAX_COUNT(queue_data.all_queues[i].elements[0].buffer) >= data->element_size)
-			{
-				queue_data.all_queues[i].alocated = true;
-				data->result = &queue_data.all_queues[i];
-				if(ARRAY_MAX_COUNT(data->result->elements) < data->queue_size)
-				{
-					ST_LOG_ERROR("Warning Queue too large allocating queue of size %u instead of %u\r\n", ARRAY_MAX_COUNT(data->result->elements), data->queue_size);
-					data->queue_size = ARRAY_MAX_COUNT(data->result->elements);
-				}
+        for(int i = 0; i < ARRAY_MAX_COUNT(queue_data.all_queues) && NULL == data->result; i++)
+        {
+            if(false == queue_data.all_queues[i].alocated && ARRAY_MAX_COUNT(queue_data.all_queues[i].elements[0].buffer) >= data->element_size)
+            {
+                queue_data.all_queues[i].alocated = true;
+                data->result = &queue_data.all_queues[i];
+                if(ARRAY_MAX_COUNT(data->result->elements) < data->queue_size)
+                {
+                    ST_LOG_ERROR("Warning Queue too large allocating queue of size %u instead of %u\r\n", ARRAY_MAX_COUNT(data->result->elements), data->queue_size);
+                    data->queue_size = ARRAY_MAX_COUNT(data->result->elements);
+                }
 
-				data->result->element_size = data->element_size;
-				data->result->max_elements = data->queue_size;
-				for(int j = 0; j < ARRAY_MAX_COUNT(data->result->wait_tasks); j++)
-				{
-					data->result->wait_tasks[j].waiting_task = NULL;
-				}
-				for(int j = 0; j < ARRAY_MAX_COUNT(data->result->elements); j++)
-				{
-					data->result->elements[j].in_use = false;
-				}
-				SS_ASSERT(true == data->result->alocated);
-			}
-		}
+                data->result->element_size = data->element_size;
+                data->result->max_elements = data->queue_size;
+                for(int j = 0; j < ARRAY_MAX_COUNT(data->result->wait_tasks); j++)
+                {
+                    data->result->wait_tasks[j].waiting_task = NULL;
+                }
+                for(int j = 0; j < ARRAY_MAX_COUNT(data->result->elements); j++)
+                {
+                    data->result->elements[j].in_use = false;
+                }
+                SS_ASSERT(true == data->result->alocated);
+            }
+        }
     }
     PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
@@ -474,14 +475,14 @@ static inline void handle_queue_send(struct ss_queue_send_data_s *data)
         c_count = queue_used_elements(data->queue);
         if(NULL == data->task && 0 < data->block_time)
         {
-        	PRINT_MSG("\t\tblock_time overwritten\r\n");
+            PRINT_MSG("\t\tblock_time overwritten\r\n");
             data->block_time = 0;
         }
         SS_ASSERT(c_count <= data->queue->max_elements);
 
         if(c_count == data->queue->max_elements)
         {
-        	PRINT_MSG("\t\tWait for send required\r\n");
+            PRINT_MSG("\t\tWait for send required\r\n");
             if(0 != data->block_time)
             {
                 //The Queue is full and wait time is non zero

@@ -42,40 +42,40 @@
 
 struct simp_thread_log_module_data_s
 {
-	pthread_t message_thread;
-	int QueueId;
+    pthread_t message_thread;
+    int QueueId;
     bool initialized;
     pthread_mutex_t mutex;
     bool cleaned_up;
     bool kill_worker;
-};
+}; //! Structure for the local module data
 
 struct message_buffer_s
 {
     char buffer[SIMPLY_THREAD_LOG_BUFFER_SIZE];
     const char *color;
-};
+}; //!< message buffer struct
 
 struct actual_log_message_s
 {
-	struct message_buffer_s * data_ptr;
-};
+    struct message_buffer_s *data_ptr;
+}; //!< Log message
 
 struct internal_log_message_data_s
 {
-	enum
-	{
-		MSG_TYPE_EXIT,
-		MSG_TYPE_PRINT
-	}type;
-	struct actual_log_message_s msg;
-};
+    enum
+    {
+        MSG_TYPE_EXIT,
+        MSG_TYPE_PRINT
+    } type;
+    struct actual_log_message_s msg;
+}; //!< internal log message type
 
 struct formatted_message_s
 {
     long type;
     char msg[sizeof(struct internal_log_message_data_s)];
-};
+}; //!< Raw internal message
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
@@ -89,9 +89,9 @@ static struct simp_thread_log_module_data_s print_module_data =
 {
     .initialized = false,
     .mutex = PTHREAD_MUTEX_INITIALIZER,
-	.cleaned_up = false,
-	.QueueId = -1
-};
+    .cleaned_up = false,
+    .QueueId = -1
+}; //!< The local module data
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
@@ -102,22 +102,22 @@ static struct simp_thread_log_module_data_s print_module_data =
  */
 void ss_log_on_exit(void)
 {
-	struct internal_log_message_data_s msg;
-	struct formatted_message_s raw;
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	pthread_mutex_trylock(&print_module_data.mutex);
-	if(true == print_module_data.initialized)
-	{
-		print_module_data.kill_worker = true;
-		msg.type = MSG_TYPE_EXIT;
-		memcpy(raw.msg, &msg, sizeof(msg));
-		raw.type = 1;
-		assert(0 <=  msgsnd(print_module_data.QueueId, &raw, sizeof(msg), 0));
-		pthread_join(print_module_data.message_thread, NULL);
-		assert(0 == msgctl(print_module_data.QueueId, IPC_RMID, NULL));
-	}
-	 pthread_mutex_unlock(&print_module_data.mutex);
-	 PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    struct internal_log_message_data_s msg;
+    struct formatted_message_s raw;
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    pthread_mutex_trylock(&print_module_data.mutex);
+    if(true == print_module_data.initialized)
+    {
+        print_module_data.kill_worker = true;
+        msg.type = MSG_TYPE_EXIT;
+        memcpy(raw.msg, &msg, sizeof(msg));
+        raw.type = 1;
+        assert(0 <=  msgsnd(print_module_data.QueueId, &raw, sizeof(msg), 0));
+        pthread_join(print_module_data.message_thread, NULL);
+        assert(0 == msgctl(print_module_data.QueueId, IPC_RMID, NULL));
+    }
+    pthread_mutex_unlock(&print_module_data.mutex);
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -125,43 +125,47 @@ void ss_log_on_exit(void)
  * @param message
  * @param message_size
  */
-static void message_printer(struct message_buffer_s * message)
+static void message_printer(struct message_buffer_s *message)
 {
-	char time_buffer[100];
-	time_t t;
-	struct tm tm;
+    char time_buffer[100];
+    time_t t;
+    struct tm tm;
 
     //Setup the time message string
     t = time(NULL);
     tm = *localtime(&t);
     snprintf(time_buffer, ARRAY_MAX_COUNT(time_buffer), "%d:%02d:%02d ", tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-	printf("%s%s%s%s", message->color, time_buffer, message->buffer, COLOR_RESET);
-	free(message);
+    printf("%s%s%s%s", message->color, time_buffer, message->buffer, COLOR_RESET);
+    free(message);
 }
 
-static void * log_worker(void * passed)
+/**
+ * @brief worker function that writes out the data
+ * @param passed
+ */
+static void *log_worker(void *passed)
 {
-	struct formatted_message_s raw;
-	struct internal_log_message_data_s data;
-	int result;
-	while(false == print_module_data.kill_worker)
-	{
-		result = msgrcv(print_module_data.QueueId, &raw, sizeof(struct formatted_message_s), 1, 0);
-		if(result >= sizeof(data))
-		{
-			memcpy(&data, raw.msg, sizeof(data));
-			if( MSG_TYPE_PRINT == data.type )
-			{
-				message_printer(data.msg.data_ptr);
-			}
-			if( MSG_TYPE_EXIT == data.type)
-			{
-				print_module_data.kill_worker = true;
-			}
-		}
-	}
-	return NULL;
+    struct formatted_message_s raw;
+    struct internal_log_message_data_s data;
+    int result;
+    while(false == print_module_data.kill_worker)
+    {
+        result = msgrcv(print_module_data.QueueId, &raw, sizeof(struct formatted_message_s), 1, 0);
+        if(result >= sizeof(data))
+        {
+            memcpy(&data, raw.msg, sizeof(data));
+            if(MSG_TYPE_PRINT == data.type)
+            {
+                message_printer(data.msg.data_ptr);
+            }
+            if(MSG_TYPE_EXIT == data.type)
+            {
+                print_module_data.kill_worker = true;
+            }
+        }
+    }
+    return NULL;
 }
 
 /**
@@ -169,7 +173,7 @@ static void * log_worker(void * passed)
  */
 static inline int init_msg_queue(void)
 {
-	return create_new_queue();
+    return create_new_queue();
 }
 
 /**
@@ -182,8 +186,8 @@ static void init_if_needed(void)
         assert(0 == pthread_mutex_lock(&print_module_data.mutex));
         if(false == print_module_data.initialized)
         {
-        	print_module_data.kill_worker = false;
-        	print_module_data.QueueId = init_msg_queue();
+            print_module_data.kill_worker = false;
+            print_module_data.QueueId = init_msg_queue();
             assert(0 == pthread_create(&print_module_data.message_thread, NULL, log_worker, NULL));
             print_module_data.initialized = true;
         }
@@ -196,24 +200,24 @@ static void init_if_needed(void)
  * @param data
  * @param data_size
  */
-static inline void send_message(struct message_buffer_s * buffer)
+static inline void send_message(struct message_buffer_s *buffer)
 {
-	struct internal_log_message_data_s msg;
-	struct formatted_message_s raw;
-	int result;
-	init_if_needed();
+    struct internal_log_message_data_s msg;
+    struct formatted_message_s raw;
+    int result;
+    init_if_needed();
 
-	msg.type = MSG_TYPE_PRINT;
-	msg.msg.data_ptr = buffer;
-	assert(NULL != msg.msg.data_ptr);
-	memcpy(raw.msg, &msg, sizeof(msg));
-	raw.type = 1;
-	result = msgsnd(print_module_data.QueueId, &raw, sizeof(msg), 0);
-	if(0 > result)
-	{
-		PRINT_MSG("result: %i\r\n", result);
-	}
-	assert(0 <=  result);
+    msg.type = MSG_TYPE_PRINT;
+    msg.msg.data_ptr = buffer;
+    assert(NULL != msg.msg.data_ptr);
+    memcpy(raw.msg, &msg, sizeof(msg));
+    raw.type = 1;
+    result = msgsnd(print_module_data.QueueId, &raw, sizeof(msg), 0);
+    if(0 > result)
+    {
+        PRINT_MSG("result: %i\r\n", result);
+    }
+    assert(0 <=  result);
 }
 
 /**

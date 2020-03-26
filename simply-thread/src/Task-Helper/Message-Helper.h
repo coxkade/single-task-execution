@@ -19,16 +19,16 @@ typedef struct Message_Helper_Instance_t
 {
     int QueueId;
     Message_Helper_On_Message cb;
-    helper_thread_t * Worker_Thread;
-    const char * name;
-} Message_Helper_Instance_t;
+    helper_thread_t *Worker_Thread;
+    const char *name;
+} Message_Helper_Instance_t; //!< structure that holds the data of a message helper instance
 
 /**
  * @brief Create a new message helper
  * @param worker function pointer to the worker task to call when a new message is received
  * @return NULL on error.  Otherwise pointer to the new message helper
  */
-Message_Helper_Instance_t *New_Message_Helper(Message_Helper_On_Message worker, const char * name);
+Message_Helper_Instance_t *New_Message_Helper(Message_Helper_On_Message worker, const char *name);
 
 /**
  * @brief Function that destroys a message helper

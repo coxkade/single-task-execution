@@ -7,7 +7,6 @@
  */
 
 #include <simply-thread.h>
-#include <simply-thread-objects.h>
 
 #ifndef SIMPLY_THREAD_MUTEX_H_
 #define SIMPLY_THREAD_MUTEX_H_

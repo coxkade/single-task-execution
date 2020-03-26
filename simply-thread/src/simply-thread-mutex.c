@@ -47,7 +47,7 @@ struct mutex_wait_task_s
     uint64_t max_count;
     sys_clock_on_tick_handle_t tick_handle;
     bool *result;
-};
+}; //!<structure that holds all the data pertinent to a waiting task
 
 struct single_mutex_data_s
 {
@@ -84,7 +84,7 @@ struct mutex_lock_data_s
     unsigned int wait_time;
     tcb_task_t *task;
     bool *result;
-};
+}; //!< Structure that holds mutex lock data
 
 struct mutex_on_tick_data_s
 {

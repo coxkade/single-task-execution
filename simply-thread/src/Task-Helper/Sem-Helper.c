@@ -48,7 +48,7 @@ struct Sem_Helper_Module_Data_s
         int sem_ids[MAX_SEM_COUNT];
         bool initialized;
     } reg;
-};
+}; //!< Structure that holds this modules local data
 
 struct sem_helper_message_data_s
 {
@@ -61,14 +61,14 @@ struct sem_helper_message_data_s
     } action;
     sem_helper_sem_t *sem;
     bool *finished;
-};
+}; //!<Structure that holds message data
 
 union sem_helper_union
 {
     int val;
     struct semid_ds *buf;
     unsigned short  *array;
-};
+}; //!< union used to set semaphore parameters
 
 struct sem_helper_raw_message_s
 {
@@ -78,7 +78,7 @@ struct sem_helper_raw_message_s
         char msg[sizeof(struct sem_helper_message_data_s)];
         struct sem_helper_message_data_s decoded;
     };
-};
+}; //!<Raw message to send to the handler
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
@@ -96,10 +96,10 @@ struct Sem_Helper_Module_Data_s sem_module_data =
     .reg = {
         .initialized = false
     }
-};
-static struct sembuf sem_helper_sem_dec = { 0, -1, SEM_UNDO};
-static struct sembuf sem_helper_sem_try_dec = { 0, -1, SEM_UNDO | IPC_NOWAIT};
-static struct sembuf sem_helper_sem_inc = { 0, +1, SEM_UNDO};
+}; //!< The modules local data
+static struct sembuf sem_helper_sem_dec = { 0, -1, SEM_UNDO}; //used for dec
+static struct sembuf sem_helper_sem_try_dec = { 0, -1, SEM_UNDO | IPC_NOWAIT}; //used to try dec
+static struct sembuf sem_helper_sem_inc = { 0, +1, SEM_UNDO}; //used to inc
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
@@ -111,7 +111,7 @@ static struct sembuf sem_helper_sem_inc = { 0, +1, SEM_UNDO};
  */
 static inline int init_sm_msg_queue(void)
 {
-	return create_new_queue();
+    return create_new_queue();
 }
 
 /**
@@ -206,9 +206,9 @@ static void internal_sem_delete(sem_helper_sem_t *sem)
  */
 static void internal_sem_clear(void)
 {
-	int result;
-	int error_val;
-	struct sem_helper_raw_message_s in_message;
+    int result;
+    int error_val;
+    struct sem_helper_raw_message_s in_message;
 
     if(false == sem_module_data.reg.initialized)
     {
@@ -228,14 +228,16 @@ static void internal_sem_clear(void)
             sem_module_data.reg.sem_ids[i] = -1;
         }
     }
-	//Clear out any pending messages
-	do{
-		result = msgrcv(sem_module_data.queue_id, &in_message, sizeof(struct sem_helper_raw_message_s), 1, IPC_NOWAIT);
-		if(0 > result)
-		{
-			error_val = errno;
-		}
-	}while(ENOMSG != error_val);
+    //Clear out any pending messages
+    do
+    {
+        result = msgrcv(sem_module_data.queue_id, &in_message, sizeof(struct sem_helper_raw_message_s), 1, IPC_NOWAIT);
+        if(0 > result)
+        {
+            error_val = errno;
+        }
+    }
+    while(ENOMSG != error_val);
 }
 
 /**
@@ -289,6 +291,9 @@ static void *sem_msg_handler_thread(void *data)
     return NULL;
 }
 
+/**
+ * Function that initializes the messaging thread
+ */
 static void init_msg_thread(void)
 {
     if(-1 == sem_module_data.queue_id)
