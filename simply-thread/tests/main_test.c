@@ -28,18 +28,16 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-#define DEBUG_TESTS
+//#define DEBUG_TESTS
 
 
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) SIMPLY_THREAD_PRINT(__VA_ARGS__)
-#define PRINT_TASK_STATE() simply_thread_print_tcb()
 #ifndef USE_SPIN_ASSERT
 #define USE_SPIN_ASSERT
 #endif //USE_SPIN_ASSERT
 #else
 #define PRINT_MSG(...)
-#define PRINT_TASK_STATE()
 #endif //DEBUG_TESTS
 
 //Macro to help debug asserts
@@ -264,24 +262,19 @@ static void mutex_worker_1_task(void *data, uint16_t data_size)
     simply_thread_sleep_ms(25);
     tasks_started[0] = true;
     PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
-    PRINT_TASK_STATE();
     SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
     PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
-    PRINT_TASK_STATE();
     SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[0]));
     PRINT_MSG("%s Unlocked second_mutex\r\n", __FUNCTION__);
     while(1)
     {
         PRINT_MSG("%s Locking second_mutex 2\r\n", __FUNCTION__);
-        PRINT_TASK_STATE();
         SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
         thread_one_ran = true;
         simply_thread_sleep_ms(25);
         PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
-        PRINT_TASK_STATE();
         SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[0]));
         PRINT_MSG("%s Unlocked second_mutex\r\n", __FUNCTION__);
-        PRINT_TASK_STATE();
         simply_thread_sleep_ms(100);
     }
 }
@@ -295,10 +288,8 @@ static void mutex_worker_2_task(void *data, uint16_t data_size)
     simply_thread_sleep_ms(40);
     tasks_started[1] = true;
     PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
-    PRINT_TASK_STATE();
     SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
     PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
-    PRINT_TASK_STATE();
     SS_ASSERT(true == simply_thread_mutex_unlock(mutex_handles[0]));
     PRINT_MSG("%s Unlocked second_mutex\r\n", __FUNCTION__);
     PRINT_MSG("%s Locking third_mutex\r\n", __FUNCTION__);
@@ -310,7 +301,6 @@ static void mutex_worker_2_task(void *data, uint16_t data_size)
     while(1)
     {
         PRINT_MSG("%s Locking second_mutex 2\r\n", __FUNCTION__);
-        PRINT_TASK_STATE();
         SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
         PRINT_MSG("%s Testing timeout\r\n", __FUNCTION__);
         SS_ASSERT( false == simply_thread_mutex_lock(mutex_handles[0], 10));
@@ -318,7 +308,6 @@ static void mutex_worker_2_task(void *data, uint16_t data_size)
         thread_two_ran = true;
         simply_thread_sleep_ms(25);
         PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
-        PRINT_TASK_STATE();
         SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[0]));
         PRINT_MSG("%s Unlocked second_mutex\r\n", __FUNCTION__);
         simply_thread_sleep_ms(100);
@@ -332,10 +321,8 @@ static void mutex_worker_3_task(void *data, uint16_t data_size)
     PRINT_MSG("%s Started\r\n", __FUNCTION__);
     tasks_started[2] = true;
     PRINT_MSG("%s Locking second_mutex\r\n", __FUNCTION__);
-    PRINT_TASK_STATE();
     SS_ASSERT(simply_thread_mutex_lock(mutex_handles[0], 0xFFFFFFFF));
     PRINT_MSG("%s Unlocking second_mutex\r\n", __FUNCTION__);
-    PRINT_TASK_STATE();
     SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[0]));
     PRINT_MSG("%s Unlocked second_mutex\r\n", __FUNCTION__);
     SS_ASSERT(simply_thread_mutex_lock(mutex_handles[1], 0xFFFFFFFF));
@@ -361,9 +348,12 @@ static void mutex_test(void **state)
     thread_one_ran = false;
     thread_two_ran = false;
     simply_thread_reset();
+    PRINT_MSG("Testing simply_thread_mutex_create error condition\r\n");
     mutex_handle = simply_thread_mutex_create(NULL);
     SS_ASSERT(NULL == mutex_handle);
+    PRINT_MSG("Testing unlock error condition\r\n");
     SS_ASSERT( false == simply_thread_mutex_unlock(NULL));
+    PRINT_MSG("Testing lock error condition\r\n");
     SS_ASSERT( false == simply_thread_mutex_lock(NULL, 0));
     PRINT_MSG("\tCreating the test_mutex \r\n");
     mutex_handle = simply_thread_mutex_create("test_mutex");
@@ -388,17 +378,14 @@ static void mutex_test(void **state)
     SS_ASSERT( false == simply_thread_mutex_lock(mutex_handle, 0xFFFFFFFF));
     while(tasks_started[0] == false || tasks_started[1] == false || tasks_started[2] == false)
     {
-        simply_thread_sleep_ms(1000);
+        simply_thread_sleep_ms(200);
     }
     simply_thread_sleep_ms(1000);
     PRINT_MSG("\t%s Unlocking test_mutex\r\n", __FUNCTION__);
-    PRINT_TASK_STATE();
     SS_ASSERT(simply_thread_mutex_unlock(mutex_handle));
     PRINT_MSG("\t%s Unlocking second_mutex\r\n", __FUNCTION__);
-    PRINT_TASK_STATE();
     SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[0]));
     PRINT_MSG("\t%s Unlocking third_mutex\r\n", __FUNCTION__);
-    PRINT_TASK_STATE();
     SS_ASSERT(simply_thread_mutex_unlock(mutex_handles[1]));
     SS_ASSERT(NULL != task_one);
     SS_ASSERT(NULL != task_two);
@@ -406,7 +393,7 @@ static void mutex_test(void **state)
     PRINT_MSG("\t%s Checking that the tasks ran\r\n", __FUNCTION__);
     while(true != thread_one_ran || true != thread_two_ran)
     {
-        simply_thread_sleep_ms(2000);
+        simply_thread_sleep_ms(200);
     }
     PRINT_MSG("!!!!!!! Stopping the Library\r\n");
     SS_ASSERT(true == thread_one_ran);
@@ -600,8 +587,8 @@ int main(void)
         cmocka_unit_test(task_non_null_data_test),
         cmocka_unit_test(main_timer_tests),
         cmocka_unit_test(second_timer_tests),
-//        cmocka_unit_test(first_mutex_test_tests),
-//        cmocka_unit_test(second_mutex_test_tests),
+        cmocka_unit_test(first_mutex_test_tests),
+        cmocka_unit_test(second_mutex_test_tests),
 //        cmocka_unit_test(first_queue_test_tests),
 //        cmocka_unit_test(second_queue_test_tests),
     };

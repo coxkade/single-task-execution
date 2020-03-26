@@ -143,6 +143,7 @@ void simply_thread_cleanup(void)
 	PRINT_MSG("resetting the system clock\r\n");
 	simply_thead_system_clock_reset(); //Reset the system clock
 	simply_thread_timers_cleanup();
+	simply_thread_mutex_cleanup();
 	simply_thread_module_data.cleaning_up = false;
 }
 
@@ -318,31 +319,6 @@ bool simply_thread_in_interrupt(void)
 	return false;
 }
 
-/**
- * @brief Function that creates a new timer
- * @param cb callback function to trigger when time elapses
- * @param name the name of the timer
- * @param period_ms the period in milliseconds
- * @param mode the mode of the timer, repeat etc.
- * @param run_now if true start the timer now
- * @return handle of the new timer, NULL on error
- */
-simply_thread_timer_t simply_thread_create_timer(simply_thread_timer_cb cb, const char *name, unsigned int period_ms, simply_thread_timer_type_e mode,
-        bool run_now);
-
-/**
- * @brief Function that starts a simply thread timer
- * @param timer the handle of the timer to start
- * @return true on success
- */
-bool simply_thread_timer_start(simply_thread_timer_t timer);
-
-/**
- * @brief Function that stops a simply thread timer
- * @param timer the handle of the timer to stop
- * @return true on success
- */
-bool simply_thread_timer_stop(simply_thread_timer_t timer);
 
 /**
  * @brief Function that creates a mutex
