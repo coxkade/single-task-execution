@@ -28,8 +28,6 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-//#define DEBUG_TESTS
-
 
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) SIMPLY_THREAD_PRINT(__VA_ARGS__)
@@ -524,6 +522,7 @@ static void queue_test(void **state)
     while(false == thread_one_ran)
     {
     }
+    PRINT_MSG("Thread one has run\r\n");
     while(false == thread_two_ran)
     {
     }
@@ -589,8 +588,8 @@ int main(void)
         cmocka_unit_test(second_timer_tests),
         cmocka_unit_test(first_mutex_test_tests),
         cmocka_unit_test(second_mutex_test_tests),
-//        cmocka_unit_test(first_queue_test_tests),
-//        cmocka_unit_test(second_queue_test_tests),
+        cmocka_unit_test(first_queue_test_tests),
+        cmocka_unit_test(second_queue_test_tests),
     };
 #ifndef DISABLE_TIME_OUT
     result = pthread_create(&thread, NULL, timeout_worker, &timeout_seconds);
@@ -599,7 +598,6 @@ int main(void)
     result = run_task_helper_tests();
     SS_ASSERT(0 <= result);
     result = cmocka_run_group_tests(tests, NULL, NULL);
-    printf("result: %i\r\n", result);
     SS_ASSERT(0 <= result || 255 == result);
     return result;
 }

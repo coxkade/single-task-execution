@@ -142,14 +142,13 @@ static struct tcb_module_data_s tcb_module_data =
 static void tcb_on_exit(void)
 {
     PRINT_MSG("%s Running\r\n", __FUNCTION__);
-    printf("%s Running\r\n", __FUNCTION__);
     if(true == tcb_module_data.clear_in_progress)
     {
     	void* callstack[256];
 		int i, frames = backtrace(callstack, 256);
 		char** strs = backtrace_symbols(callstack, frames);
 		for (i = 0; i < frames; ++i) {
-			printf("%s\n", strs[i]);
+			PRINT_MSG("%s\n", strs[i]);
 		}
 		free(strs);
     }

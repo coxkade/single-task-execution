@@ -30,8 +30,6 @@
 #define SIMPLY_THREAD_LOG_BUFFER_SIZE 1024
 #endif //SIMPLY_THREAD_LOG_BUFFER_SIZE
 
-#define DEBUG_LOG
-
 #ifdef DEBUG_LOG
 #define PRINT_MSG(...) printf(__VA_ARGS__)
 #else
@@ -225,7 +223,6 @@ static inline void send_message(struct message_buffer_s * buffer)
 void simply_thread_log(const char *color, const char *fmt, ...)
 {
     va_list args;
-//    struct message_buffer_s buffer;
     struct message_buffer_s *out_buffer;
     out_buffer = malloc(sizeof(struct message_buffer_s));
     assert(NULL != out_buffer);
@@ -236,7 +233,6 @@ void simply_thread_log(const char *color, const char *fmt, ...)
     assert(0 < rc);
     va_end(args);
     out_buffer->color = color;
-//    send_message( &out_buffer, sizeof(struct message_buffer_s *));
     send_message(out_buffer);
 }
 

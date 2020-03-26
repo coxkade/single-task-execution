@@ -12,6 +12,7 @@
 #include <simply-thread-log.h>
 #include <simply-thread-timers.h>
 #include <simply-thread-mutex.h>
+#include <simply-thread-queue.h>
 #include <simply_thread_system_clock.h>
 #include <Sem-Helper.h>
 #include <TCB.h>
@@ -29,12 +30,14 @@
 #include <execinfo.h>
 
 //#define DEBUG_SIMPLY_THREAD
+#define ASSERT_SPIN
 
 #ifdef DEBUG_SIMPLY_THREAD
 #define PRINT_MSG(...) simply_thread_log(COLOR_YELLOW, __VA_ARGS__)
 #else
 #define PRINT_MSG(...)
 #endif //DEBUG_SIMPLY_THREAD
+
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -136,14 +139,13 @@ void simply_thread_cleanup(void)
 {
 	simply_thread_module_data.cleaning_up = true;
 
-//	printf("reseting tcb\r\n");
-//	tcb_reset(); //Destroy all running tcb tasks
 	PRINT_MSG("reseting tcb\r\n");
 	tcb_reset(); //Destroy all running tcb tasks
 	PRINT_MSG("resetting the system clock\r\n");
 	simply_thead_system_clock_reset(); //Reset the system clock
 	simply_thread_timers_cleanup();
 	simply_thread_mutex_cleanup();
+	simply_thread_queue_cleanup();
 	simply_thread_module_data.cleaning_up = false;
 }
 
@@ -321,69 +323,6 @@ bool simply_thread_in_interrupt(void)
 
 
 /**
- * @brief Function that creates a mutex
- * @param name The name of the mutex
- * @return NULL on error.  Otherwise the mutex handle
- */
-simply_thread_mutex_t simply_thread_mutex_create(const char *name);
-
-/**
- * @brief Function that unlocks a mutex
- * @param mux the mutex handle in question
- * @return true on success
- */
-bool simply_thread_mutex_unlock(simply_thread_mutex_t mux);
-
-/**
- * @brief Function that locks a mutex
- * @param mux handle of the mutex to lock
- * @param wait_time How long to wait to obtain a lock
- * @return true on success
- */
-bool simply_thread_mutex_lock(simply_thread_mutex_t mux, unsigned int wait_time);
-
-/**
- * @brief Function that creates a queue
- * @param name String containing the name of the queue
- * @param queue_size The number of elements allowed in the queue
- * @param element_size The size of each element in the queue
- * @return NULL on error.  Otherwise the created Queue Handle
- */
-simply_thread_queue_t simply_thread_queue_create(const char *name, unsigned int queue_size, unsigned int element_size);
-
-/**
- * @brief Function that gets the current number of elements on the queue
- * @param queue handle of the queue in question
- * @return 0xFFFFFFFF on error. Otherwise the queue count
- */
-unsigned int simply_thread_queue_get_count(simply_thread_queue_t queue);
-
-/**
- * @brief Function that places data on the queue
- * @param queue handle of the queue in question
- * @param data ptr to the data to place on the queue
- * @param block_time how long to wait on the queue
- * @return true on success, false otherwise
- */
-bool simply_thread_queue_send(simply_thread_queue_t queue, void *data, unsigned int block_time);
-
-
-/**
- * @brief Function that retrieves data from the queue
- * @param queue handle of the queue in question
- * @param data ptr to the object to place the data in
- * @param block_time how long to wait on the queue
- * @return true on success, false otherwise
- */
-bool simply_thread_queue_rcv(simply_thread_queue_t queue, void *data, unsigned int block_time);
-
-/**
- * @brief Function that prints the contents of the tcb
- */
-void simply_thread_print_tcb(void);
-
-
-/**
  * Function that handles our asserts
  * @param result
  * @param file
@@ -403,6 +342,12 @@ void simply_thread_assert(bool result, const char * file, unsigned int line, con
         }
         free(strs);
 		tcb_on_assert();
+#ifdef ASSERT_SPIN
+		while(1)
+		{
+
+		}
+#endif //ASSERT_SPIN
 		printf("Exiting on assert\r\n");
 		exit(-1);
 	}
