@@ -147,6 +147,14 @@ void simply_thread_cleanup(void)
 }
 
 /**
+ * Fetch the current task handle
+ */
+void *simply_thread_current_task_handle(void)
+{
+    return tcb_task_self();
+}
+
+/**
  * @brief Function that creates a new thread
  * @param name The name of the thread
  * @param cb the worker function of the thread

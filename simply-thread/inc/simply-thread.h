@@ -61,6 +61,11 @@ void simply_thread_reset(void);
 void simply_thread_cleanup(void);
 
 /**
+ * Fetch the current task handle
+ */
+void *simply_thread_current_task_handle(void);
+
+/**
  * @brief Function that creates a new thread
  * @param name The name of the thread
  * @param cb the worker function of the thread
@@ -190,18 +195,15 @@ bool simply_thread_queue_send(simply_thread_queue_t queue, void *data, unsigned 
 bool simply_thread_queue_rcv(simply_thread_queue_t queue, void *data, unsigned int block_time);
 
 /**
- * @brief Function that prints the contents of the tcb
- */
-void simply_thread_print_tcb(void);
-
-/**
  * Function that handles our asserts
  * @param result
  * @param file
  * @param line
  * @param expression
  */
-void simply_thread_assert(bool result, const char * file, unsigned int line, const char * expression);
+void simply_thread_assert(bool result, const char *file, unsigned int line, const char *expression);
+
+
 
 
 #endif /* SIMPLY_THREAD_H_ */
