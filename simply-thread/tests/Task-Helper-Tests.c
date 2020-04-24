@@ -16,7 +16,6 @@
 #include <stdio.h>
 #include <time.h>
 #include <pthread.h>
-#include <Message-Helper.h>
 #include <Thread-Helper.h>
 #include <Sem-Helper.h>
 #include <TCB.h>
@@ -49,51 +48,6 @@ void test_thread_sleep_ns(unsigned long ns)
     }
 }
 
-/*********************************************************************
- ************** Message Helper Test Items ****************************
- ********************************************************************/
-
-#define BASIC_MSG_HELPER_TEST_MSG_SIZE 30
-static bool basic_message_helper_wait;
-
-/**
- * The on message callback for the basic message helper test
- * @param message
- * @param message_size
- */
-static void message_helper_test_worker(void *message, uint32_t message_size)
-{
-    char expected_msg[BASIC_MSG_HELPER_TEST_MSG_SIZE];
-    memset(expected_msg, 0xAB, ARRAY_MAX_COUNT(expected_msg));
-    SS_ASSERT(NULL != message);
-    SS_ASSERT(ARRAY_MAX_COUNT(expected_msg) == message_size);
-//    assert_memory_equal(message, expected_msg, message_size);
-    SS_ASSERT(0 == memcmp(message, expected_msg, message_size));
-    basic_message_helper_wait = false;
-}
-
-/**
- * @brief the basic message helper test
- * @param state
- */
-static void basic_message_helper_test(void **state)
-{
-    char test_msg[BASIC_MSG_HELPER_TEST_MSG_SIZE];
-    basic_message_helper_wait = true;
-    memset(test_msg, 0xAB, ARRAY_MAX_COUNT(test_msg));
-    Message_Helper_Instance_t *helper;
-    helper = New_Message_Helper(message_helper_test_worker, "TEST-QUEUE");
-    SS_ASSERT(NULL != helper);
-    Message_Helper_Send(helper, test_msg, ARRAY_MAX_COUNT(test_msg));
-    while(true == basic_message_helper_wait) {}
-    SS_ASSERT(false == basic_message_helper_wait);
-    Remove_Message_Helper(helper);
-    reset_thread_helper();
-    Sem_Helper_clear();
-    thread_helper_cleanup();
-    Message_Helper_Cleanup();
-    Sem_Helper_clean_up();
-}
 
 /*********************************************************************
  *************** Thread Helper Test Items ****************************
@@ -178,7 +132,6 @@ static void basic_thread_helper_test(void **state)
     reset_thread_helper();
     Sem_Helper_clear();
     thread_helper_cleanup();
-    Message_Helper_Cleanup();
     Sem_Helper_clean_up();
 }
 
@@ -187,102 +140,102 @@ static void basic_thread_helper_test(void **state)
  ************************* TCB Test Items ****************************
  ********************************************************************/
 
-static tcb_task_t *tcb_task_one;
-static tcb_task_t *tcb_task_two;
-static unsigned int tcb_one_count;
-static unsigned int tcb_two_count;
-static bool tcb_test_run_ran;
-
-static void tcb_worker_two(void *data, uint16_t data_size)
-{
-    pthread_t me;
-    while(NULL == tcb_task_two) {}
-    me = pthread_self();
-    SS_ASSERT(NULL == data);
-    SS_ASSERT(0 == data_size);
-    while(1)
-    {
-        PRINT_MSG("%s Setting task one to ready\r\n", __FUNCTION__);
-        tcb_set_task_state(SIMPLY_THREAD_TASK_READY, tcb_task_one);
-        tcb_two_count++;
-    }
-}
-
-static void tcb_worker_one(void *data, uint16_t data_size)
-{
-    pthread_t me;
-    unsigned int *typed;
-    tcb_task_t *task_ptr;
-    typed = data;
-
-    while(NULL == tcb_task_one) {}
-
-    me = pthread_self();
-    SS_ASSERT(sizeof(unsigned int) == data_size);
-    SS_ASSERT(NULL != typed);
-    SS_ASSERT(200 == typed[0]);
-
-    task_ptr = tcb_task_self();
-
-    SS_ASSERT(NULL != task_ptr);
-
-    PRINT_MSG("%s Creating Task Two\r\n", __FUNCTION__);
-    SS_ASSERT(NULL == tcb_task_two);
-    tcb_task_two = tcb_create_task("TASK TWO", tcb_worker_two, 1, NULL, 0);
-    SS_ASSERT(NULL != tcb_task_two);
-    while(1)
-    {
-        PRINT_MSG("%s suspending task 1\r\n", __FUNCTION__);
-        tcb_set_task_state(SIMPLY_THREAD_TASK_SUSPENDED, tcb_task_one);
-        tcb_one_count++;
-    }
-}
-
-static void tcb_run_test(void *data)
-{
-    SS_ASSERT(data == (void *)5);
-    tcb_test_run_ran = true;
-}
-
-static void basic_TCB_test(void **state)
-{
-
-    unsigned int value = 200;
-
-    tcb_task_one = NULL;
-    tcb_task_two = NULL;
-    tcb_one_count = 0;
-    tcb_two_count = 0;
-    tcb_test_run_ran = false;
-
-    tcb_reset();
-    printf("Running tcb_run_test in the TCB Context\r\n");
-    run_in_tcb_context(tcb_run_test, (void *)5);
-    //Create tcb worker one
-    PRINT_MSG("Creating Task 1\r\n");
-    tcb_task_one = tcb_create_task("TASK ONE", tcb_worker_one, 2, &value, sizeof(value));
-    PRINT_MSG("Task 1 Created\r\n");
-    SS_ASSERT(NULL != tcb_task_one);
-    while(NULL == tcb_task_two) {}
-    PRINT_MSG("Checking tcb_task_self\r\n");
-    SS_ASSERT(NULL == tcb_task_self());
-    PRINT_MSG("Finishing up the Tests\r\n");
-    while(500 > tcb_two_count) {}
-    SS_ASSERT(500 <= tcb_two_count);
-    SS_ASSERT(500 <= tcb_one_count);
-    tcb_reset();
-    SS_ASSERT(true == tcb_test_run_ran);
-}
-
-static void TCB_Test_One(void **state)
-{
-    basic_TCB_test(state);
-}
-
-static void TCB_Test_Two(void **state)
-{
-    basic_TCB_test(state);
-}
+//static tcb_task_t *tcb_task_one;
+//static tcb_task_t *tcb_task_two;
+//static unsigned int tcb_one_count;
+//static unsigned int tcb_two_count;
+//static bool tcb_test_run_ran;
+//
+//static void tcb_worker_two(void *data, uint16_t data_size)
+//{
+//    pthread_t me;
+//    while(NULL == tcb_task_two) {}
+//    me = pthread_self();
+//    SS_ASSERT(NULL == data);
+//    SS_ASSERT(0 == data_size);
+//    while(1)
+//    {
+//        PRINT_MSG("%s Setting task one to ready\r\n", __FUNCTION__);
+//        tcb_set_task_state(SIMPLY_THREAD_TASK_READY, tcb_task_one);
+//        tcb_two_count++;
+//    }
+//}
+//
+//static void tcb_worker_one(void *data, uint16_t data_size)
+//{
+//    pthread_t me;
+//    unsigned int *typed;
+//    tcb_task_t *task_ptr;
+//    typed = data;
+//
+//    while(NULL == tcb_task_one) {}
+//
+//    me = pthread_self();
+//    SS_ASSERT(sizeof(unsigned int) == data_size);
+//    SS_ASSERT(NULL != typed);
+//    SS_ASSERT(200 == typed[0]);
+//
+//    task_ptr = tcb_task_self();
+//
+//    SS_ASSERT(NULL != task_ptr);
+//
+//    PRINT_MSG("%s Creating Task Two\r\n", __FUNCTION__);
+//    SS_ASSERT(NULL == tcb_task_two);
+//    tcb_task_two = tcb_create_task("TASK TWO", tcb_worker_two, 1, NULL, 0);
+//    SS_ASSERT(NULL != tcb_task_two);
+//    while(1)
+//    {
+//        PRINT_MSG("%s suspending task 1\r\n", __FUNCTION__);
+//        tcb_set_task_state(SIMPLY_THREAD_TASK_SUSPENDED, tcb_task_one);
+//        tcb_one_count++;
+//    }
+//}
+//
+//static void tcb_run_test(void *data)
+//{
+//    SS_ASSERT(data == (void *)5);
+//    tcb_test_run_ran = true;
+//}
+//
+//static void basic_TCB_test(void **state)
+//{
+//
+//    unsigned int value = 200;
+//
+//    tcb_task_one = NULL;
+//    tcb_task_two = NULL;
+//    tcb_one_count = 0;
+//    tcb_two_count = 0;
+//    tcb_test_run_ran = false;
+//
+//    tcb_reset();
+//    printf("Running tcb_run_test in the TCB Context\r\n");
+//    run_in_tcb_context(tcb_run_test, (void *)5);
+//    //Create tcb worker one
+//    PRINT_MSG("Creating Task 1\r\n");
+//    tcb_task_one = tcb_create_task("TASK ONE", tcb_worker_one, 2, &value, sizeof(value));
+//    PRINT_MSG("Task 1 Created\r\n");
+//    SS_ASSERT(NULL != tcb_task_one);
+//    while(NULL == tcb_task_two) {}
+//    PRINT_MSG("Checking tcb_task_self\r\n");
+//    SS_ASSERT(NULL == tcb_task_self());
+//    PRINT_MSG("Finishing up the Tests\r\n");
+//    while(500 > tcb_two_count) {}
+//    SS_ASSERT(500 <= tcb_two_count);
+//    SS_ASSERT(500 <= tcb_one_count);
+//    tcb_reset();
+//    SS_ASSERT(true == tcb_test_run_ran);
+//}
+//
+//static void TCB_Test_One(void **state)
+//{
+//    basic_TCB_test(state);
+//}
+//
+//static void TCB_Test_Two(void **state)
+//{
+//    basic_TCB_test(state);
+//}
 /**
  * @brief run the task helper tests
  */
@@ -291,10 +244,9 @@ int run_task_helper_tests(void)
     int rv;
     const struct CMUnitTest message_helper_tests[] =
     {
-		cmocka_unit_test(basic_message_helper_test),
 		cmocka_unit_test(basic_thread_helper_test),
-        cmocka_unit_test(TCB_Test_One),
-        cmocka_unit_test(TCB_Test_Two)
+//        cmocka_unit_test(TCB_Test_One),
+//        cmocka_unit_test(TCB_Test_Two)
     };
     rv = cmocka_run_group_tests(message_helper_tests, NULL, NULL);
     SS_ASSERT(0 <= rv);

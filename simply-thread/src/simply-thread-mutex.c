@@ -9,7 +9,6 @@
 #include <simply-thread-log.h>
 #include <simply-thread-mutex.h>
 #include <simply_thread_system_clock.h>
-#include <Message-Helper.h>
 #include <TCB.h>
 #include <stdlib.h>
 #include <string.h>

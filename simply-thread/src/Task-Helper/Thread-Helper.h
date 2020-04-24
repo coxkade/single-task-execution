@@ -47,12 +47,6 @@ helper_thread_t *thread_helper_thread_create(void *(* worker)(void *), void *dat
 void thread_helper_thread_destroy(helper_thread_t *thread);
 
 /**
- * Function that destroys thread from the assert context
- * @param thread
- */
-void thread_helper_thread_assert_destroy(helper_thread_t *thread);
-
-/**
  * @brief Check if a thread is running
  * @param thread The thread to check
  * @return True if the thread is running.  False otherwise.
@@ -65,10 +59,6 @@ bool thread_helper_thread_running(helper_thread_t *thread);
  */
 void thread_helper_pause_thread(helper_thread_t *thread);
 
-/**
- * Have a thread enter a critical section
- */
-void thread_exit_critical_section(helper_thread_t *thread);
 
 /**
  * @brief Run a thread

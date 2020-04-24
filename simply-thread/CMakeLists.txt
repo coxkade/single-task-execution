@@ -72,15 +72,14 @@ find_package (Python3 3 REQUIRED)
 set( ENV{CTEST_OUTPUT_ON_FAILURE} TRUE)
 
 LIST(APPEND simply-thread-sources 
-	src/simply-thread.c 
+	#src/simply-thread.c 
     src/simply-thread-log.c 
-    src/simply-thread-timers.c
-	src/simply-thread-mutex.c
-	src/simply-thread-queue.c
-	src/simply_thread_system_clock.c
-	src/Task-Helper/Message-Helper.c
+    #src/simply-thread-timers.c
+	#src/simply-thread-mutex.c
+	#src/simply-thread-queue.c
+	#src/simply_thread_system_clock.c
 	src/Task-Helper/Thread-Helper.c
-	src/Task-Helper/TCB.c
+	#src/Task-Helper/TCB.c
 	src/Task-Helper/Sem-Helper.c
 	src/Task-Helper/que-creator.c
 	)

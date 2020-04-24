@@ -13,7 +13,8 @@
 #ifndef SIMPLY_THREAD_H_
 #define SIMPLY_THREAD_H_
 
-#define SS_ASSERT(...) simply_thread_assert((__VA_ARGS__), __FILE__, __LINE__, #__VA_ARGS__)
+//#define SS_ASSERT(...) simply_thread_assert((__VA_ARGS__), __FILE__, __LINE__, #__VA_ARGS__)
+#define SS_ASSERT(...) assert(__VA_ARGS__)
 
 #define SIMPLY_THREAD_PRINT(...) simply_thread_log(COLOR_RESET, __VA_ARGS__)
 
