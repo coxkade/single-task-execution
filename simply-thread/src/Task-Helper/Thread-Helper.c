@@ -84,7 +84,7 @@ static void m_catch_kill(int signo);
 static struct thread_helper_module_data_s thread_helper_data =
 {
     .signals_initialized = false,
-	.initialized = false
+    .initialized = false
 }; //!<< This modules local data
 
 
@@ -176,14 +176,14 @@ static void init_if_needed(void)
  */
 static void thread_helper_destroy_index(int index)
 {
-	helper_thread_t *thread;
+    helper_thread_t *thread;
 
-	thread = &thread_helper_data.registry[index].thread;
+    thread = &thread_helper_data.registry[index].thread;
 
-	PRINT_MSG("\tDestroying thread at %i %p\r\n", index, thread);
-	pthread_kill(thread->id, KILL_SIGNAL);
-	pthread_join(thread->id, NULL);
-	thread_helper_data.registry[index].in_use = false;
+    PRINT_MSG("\tDestroying thread at %i %p\r\n", index, thread);
+    pthread_kill(thread->id, KILL_SIGNAL);
+    pthread_join(thread->id, NULL);
+    thread_helper_data.registry[index].in_use = false;
 }
 
 /**
@@ -206,21 +206,21 @@ static void *thread_helper_runner(void *data)
  */
 helper_thread_t *thread_helper_self(void)
 {
-	helper_thread_t * rv;
-	pthread_t me;
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	init_if_needed();
-	rv = NULL;
-	me = pthread_self();
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(thread_helper_data.registry) && NULL == rv; i++)
-	{
-		if(true == thread_helper_data.registry[i].in_use && me == thread_helper_data.registry[i].thread.id)
-		{
-			rv = &thread_helper_data.registry[i].thread;
-		}
-	}
-	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
-	return rv;
+    helper_thread_t *rv;
+    pthread_t me;
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    init_if_needed();
+    rv = NULL;
+    me = pthread_self();
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(thread_helper_data.registry) && NULL == rv; i++)
+    {
+        if(true == thread_helper_data.registry[i].in_use && me == thread_helper_data.registry[i].thread.id)
+        {
+            rv = &thread_helper_data.registry[i].thread;
+        }
+    }
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+    return rv;
 }
 
 /**
@@ -231,31 +231,31 @@ helper_thread_t *thread_helper_self(void)
  */
 helper_thread_t *thread_helper_thread_create(void *(* worker)(void *), void *data)
 {
-	helper_thread_t * rv;
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	init_if_needed();
-	rv = NULL;
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(thread_helper_data.registry) && NULL == rv; i++)
-	{
-		if(false == thread_helper_data.registry[i].in_use)
-		{
-			thread_helper_data.registry[i].in_use = true;
-			rv = &thread_helper_data.registry[i].thread;
-		}
-	}
+    helper_thread_t *rv;
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    init_if_needed();
+    rv = NULL;
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(thread_helper_data.registry) && NULL == rv; i++)
+    {
+        if(false == thread_helper_data.registry[i].in_use)
+        {
+            thread_helper_data.registry[i].in_use = true;
+            rv = &thread_helper_data.registry[i].thread;
+        }
+    }
 
-	SS_ASSERT(NULL != rv);
-	rv->thread_running = false;
-	Sem_Helper_sem_init(&rv->wait_sem);
-	rv->worker = worker;
-	rv->worker_data = data;
-	SS_ASSERT(0 == pthread_create(&rv->id, NULL, thread_helper_runner, rv));
-	while(false == rv->thread_running)
-	{
+    SS_ASSERT(NULL != rv);
+    rv->thread_running = false;
+    Sem_Helper_sem_init(&rv->wait_sem);
+    rv->worker = worker;
+    rv->worker_data = data;
+    SS_ASSERT(0 == pthread_create(&rv->id, NULL, thread_helper_runner, rv));
+    while(false == rv->thread_running)
+    {
 
-	}
-	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
-	return rv;
+    }
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+    return rv;
 }
 
 /**
@@ -264,24 +264,24 @@ helper_thread_t *thread_helper_thread_create(void *(* worker)(void *), void *dat
  */
 void thread_helper_thread_destroy(helper_thread_t *thread)
 {
-	bool destroyed;
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	init_if_needed();
-	destroyed = false;
+    bool destroyed;
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    init_if_needed();
+    destroyed = false;
 
-	//We are not allowed to destroy ourself
-	SS_ASSERT(NULL != thread);
-	SS_ASSERT(thread->id != pthread_self());
+    //We are not allowed to destroy ourself
+    SS_ASSERT(NULL != thread);
+    SS_ASSERT(thread->id != pthread_self());
 
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(thread_helper_data.registry) && false == destroyed; i++)
-	{
-		if(true == thread_helper_data.registry[i].in_use && thread == &thread_helper_data.registry[i].thread)
-		{
-			thread_helper_destroy_index(i);
-			destroyed = true;
-		}
-	}
-	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(thread_helper_data.registry) && false == destroyed; i++)
+    {
+        if(true == thread_helper_data.registry[i].in_use && thread == &thread_helper_data.registry[i].thread)
+        {
+            thread_helper_destroy_index(i);
+            destroyed = true;
+        }
+    }
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 
 
@@ -292,16 +292,16 @@ void thread_helper_thread_destroy(helper_thread_t *thread)
  */
 bool thread_helper_thread_running(helper_thread_t *thread)
 {
-	bool rv;
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	init_if_needed();
-	rv = false;
-	if(NULL != thread)
-	{
-		rv = thread->thread_running;
-	}
-	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
-	return rv;
+    bool rv;
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    init_if_needed();
+    rv = false;
+    if(NULL != thread)
+    {
+        rv = thread->thread_running;
+    }
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+    return rv;
 }
 
 /**
@@ -310,20 +310,20 @@ bool thread_helper_thread_running(helper_thread_t *thread)
  */
 void thread_helper_pause_thread(helper_thread_t *thread)
 {
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	init_if_needed();
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    init_if_needed();
 
-	//We are not allowed to pause ourself
-	SS_ASSERT(NULL != thread);
-	SS_ASSERT(thread->id != pthread_self());
-	//We must not be already paused
-	SS_ASSERT(true == thread->thread_running);
+    //We are not allowed to pause ourself
+    SS_ASSERT(NULL != thread);
+    SS_ASSERT(thread->id != pthread_self());
+    //We must not be already paused
+    SS_ASSERT(true == thread->thread_running);
 
-	pthread_kill(thread->id, PAUSE_SIGNAL);
-	//Wait till the thread is paused
-	while(true == thread->thread_running){}
+    pthread_kill(thread->id, PAUSE_SIGNAL);
+    //Wait till the thread is paused
+    while(true == thread->thread_running) {}
 
-	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -332,21 +332,21 @@ void thread_helper_pause_thread(helper_thread_t *thread)
  */
 void thread_helper_run_thread(helper_thread_t *thread)
 {
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	init_if_needed();
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    init_if_needed();
 
-	//We are not allowed to run ourself
-	SS_ASSERT(NULL != thread);
-	SS_ASSERT(thread->id != pthread_self());
+    //We are not allowed to run ourself
+    SS_ASSERT(NULL != thread);
+    SS_ASSERT(thread->id != pthread_self());
 
-	if(false == thread->thread_running)
-	{
-		SS_ASSERT(0 == Sem_Helper_sem_post(&thread->wait_sem));
-		//wait for thread to be running
-		while(false == thread->thread_running){}
-	}
+    if(false == thread->thread_running)
+    {
+        SS_ASSERT(0 == Sem_Helper_sem_post(&thread->wait_sem));
+        //wait for thread to be running
+        while(false == thread->thread_running) {}
+    }
 
-	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -356,15 +356,15 @@ void thread_helper_run_thread(helper_thread_t *thread)
  */
 pthread_t thread_helper_get_id(helper_thread_t *thread)
 {
-	pthread_t rv;
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	init_if_needed();
+    pthread_t rv;
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    init_if_needed();
 
-	SS_ASSERT(NULL != thread);
-	rv = thread->id;
+    SS_ASSERT(NULL != thread);
+    rv = thread->id;
 
-	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
-	return rv;
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+    return rv;
 }
 
 /**
@@ -372,20 +372,20 @@ pthread_t thread_helper_get_id(helper_thread_t *thread)
  */
 void reset_thread_helper(void)
 {
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	if(true == thread_helper_data.initialized)
-	{
-		for(unsigned int i = 0; i < ARRAY_MAX_COUNT(thread_helper_data.registry); i++)
-		{
-			if(true == thread_helper_data.registry[i].in_use)
-			{
-				thread_helper_destroy_index(i);
-			}
-		}
-	}
-	thread_helper_data.initialized = false;
-	init_if_needed();
-	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    if(true == thread_helper_data.initialized)
+    {
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(thread_helper_data.registry); i++)
+        {
+            if(true == thread_helper_data.registry[i].in_use)
+            {
+                thread_helper_destroy_index(i);
+            }
+        }
+    }
+    thread_helper_data.initialized = false;
+    init_if_needed();
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -393,8 +393,8 @@ void reset_thread_helper(void)
  */
 void thread_helper_cleanup(void)
 {
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	reset_thread_helper();
-	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    reset_thread_helper();
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 

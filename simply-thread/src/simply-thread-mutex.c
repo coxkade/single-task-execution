@@ -52,12 +52,12 @@ struct single_mutex_data_s
 {
     struct mutex_wait_task_s wait_tasks [MAX_WAIT_THREADS];
     bool available;
-    const char * name;
+    const char *name;
 } single_mutex_data_s; //!< Structure for a single mutex
 
 struct mutex_module_data_s
 {
-	bool initialized;
+    bool initialized;
     struct
     {
         struct single_mutex_data_s mutex;
@@ -123,7 +123,7 @@ struct mutex_message_s
 
 static struct mutex_module_data_s mutex_mod_data =
 {
-		.initialized = false
+    .initialized = false
 }; //!< This modules local data
 
 /***********************************************************************************/
@@ -134,12 +134,12 @@ static struct mutex_module_data_s mutex_mod_data =
  * Handle the mutex tick message
  * @param data
  */
-static void handle_mutex_on_tick(void * data_in)
+static void handle_mutex_on_tick(void *data_in)
 {
-	struct mutex_on_tick_data_s * data;
-	struct mutex_wait_task_s *typed;
+    struct mutex_on_tick_data_s *data;
+    struct mutex_wait_task_s *typed;
 
-	data = (struct mutex_on_tick_data_s *)data_in;
+    data = (struct mutex_on_tick_data_s *)data_in;
     typed = data->args;
 
     SS_ASSERT(NULL != typed);
@@ -149,7 +149,7 @@ static void handle_mutex_on_tick(void * data_in)
         if(SIMPLY_THREAD_TASK_BLOCKED == tcb_get_task_state_from_tcb_context(typed->waiting_task))
         {
             PRINT_MSG("\tMutex Timed out\r\n");
-            tcv_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_READY, typed->waiting_task);
+            tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_READY, typed->waiting_task);
             simply_thead_system_clock_deregister_on_tick_from_tcb_context(data->handle);
             typed->waiting_task = NULL;
         }
@@ -191,7 +191,7 @@ static void mutexlock_on_tick(sys_clock_on_tick_handle_t handle, uint64_t tickva
 static void handle_mutex_lock(void *data)
 {
     struct single_mutex_data_s *mux;
-	struct mutex_lock_data_s * typed;
+    struct mutex_lock_data_s *typed;
 
     PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
     SS_ASSERT(NULL != data);
@@ -234,7 +234,7 @@ static void handle_mutex_lock(void *data)
             {
                 //block the task
                 PRINT_MSG("\t\tSetting task %s to blocked %i %i\r\n", typed->task->name, i, SIMPLY_THREAD_TASK_BLOCKED);
-                tcv_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_BLOCKED, typed->task);
+                tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_BLOCKED, typed->task);
                 mux->wait_tasks[i].count = 0;
                 mux->wait_tasks[i].max_count = typed->wait_time;
                 mux->wait_tasks[i].waiting_task = typed->task;
@@ -286,7 +286,7 @@ static inline tcb_task_t *fetch_start_task(struct single_mutex_data_s *mux)
     }
     if(NULL != rv)
     {
-    	simply_thead_system_clock_deregister_on_tick_from_tcb_context(mux->wait_tasks[used_index].tick_handle);
+        simply_thead_system_clock_deregister_on_tick_from_tcb_context(mux->wait_tasks[used_index].tick_handle);
         mux->wait_tasks[used_index].waiting_task = NULL;
         mux->wait_tasks[used_index].result[0] = true;
     }
@@ -298,14 +298,14 @@ static inline tcb_task_t *fetch_start_task(struct single_mutex_data_s *mux)
  * Unlock a mutex from the tcb context
  * @param data
  */
-static void handle_mutex_unlock(void * data)
+static void handle_mutex_unlock(void *data)
 {
-	struct mutex_unlock_data_s * typed;
+    struct mutex_unlock_data_s *typed;
     struct single_mutex_data_s *mux;
 
     PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
     SS_ASSERT(NULL != data);
-    typed = (struct mutex_unlock_data_s * )data;
+    typed = (struct mutex_unlock_data_s *)data;
     mux = typed->mutex;
     PRINT_MSG("\t\tWorking with mutex at %p\r\n", mux);
     mux->available = false;
@@ -320,7 +320,7 @@ static void handle_mutex_unlock(void * data)
         if(NULL != typed->start_task)
         {
             PRINT_MSG("\t\tSetting task %s to ready\r\n", typed->start_task->name);
-            tcv_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_READY, typed->start_task);
+            tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_READY, typed->start_task);
         }
         else
         {
@@ -338,7 +338,7 @@ static void handle_mutex_unlock(void * data)
  */
 static void handle_mutex_create(void *data)
 {
-	struct mutex_create_data_s * typed;
+    struct mutex_create_data_s *typed;
     PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
     SS_ASSERT(NULL != data);
     typed = (struct mutex_create_data_s *)data;
@@ -346,8 +346,8 @@ static void handle_mutex_create(void *data)
     {
         if(true == mutex_mod_data.all_mutexs[i].available)
         {
-        	mutex_mod_data.all_mutexs[i].mutex.name = typed->name;
-        	typed->result = &mutex_mod_data.all_mutexs[i].mutex;
+            mutex_mod_data.all_mutexs[i].mutex.name = typed->name;
+            typed->result = &mutex_mod_data.all_mutexs[i].mutex;
             mutex_mod_data.all_mutexs[i].mutex.available = true;
             for(int j = 0; j < ARRAY_MAX_COUNT(mutex_mod_data.all_mutexs[i].mutex.wait_tasks); j++)
             {
@@ -394,7 +394,7 @@ static void simply_thread_mutex_init(void)
  */
 void simply_thread_mutex_cleanup(void)
 {
-	mutex_mod_data.initialized = false;
+    mutex_mod_data.initialized = false;
 }
 
 

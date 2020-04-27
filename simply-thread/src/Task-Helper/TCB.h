@@ -48,7 +48,7 @@ void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *tas
  * @param state
  * @param task
  */
-void tcv_set_task_state_from_tcb_context(enum simply_thread_thread_state_e state, tcb_task_t *task);
+void tcb_set_task_state_from_tcb_context(enum simply_thread_thread_state_e state, tcb_task_t *task);
 
 /**
  * @brief Fetch the current state of a task

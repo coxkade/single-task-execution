@@ -37,7 +37,8 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
  * @param args argument to pass to the on tick handler when it is called
  * @return NULL on error.  Otherwise the registered id
  */
-sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick_from_tcb_context(void (*on_tick)(sys_clock_on_tick_handle_t handle, uint64_t tickval,
+sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick_from_tcb_context(void (*on_tick)(sys_clock_on_tick_handle_t handle,
+        uint64_t tickval,
         void *args), void *args);
 
 /**

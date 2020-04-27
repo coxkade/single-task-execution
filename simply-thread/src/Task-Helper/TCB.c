@@ -61,9 +61,10 @@ struct tcb_module_data_s
     bool clear_in_progress;
     bool Sched_Waiting; //!< Flag that says the schedualler is waiting to exicute
     pthread_mutex_t clear_mutex; //!< Mutex that provides mutual exclusion for the clear function
-    struct {
-    	sem_helper_sem_t tcb_mutex; //!< Mutex that protects the TCB context
-    	bool initialized; //!< Tells if this component has been initialized
+    struct
+    {
+        sem_helper_sem_t tcb_mutex; //!< Mutex that protects the TCB context
+        bool initialized; //!< Tells if this component has been initialized
     } mutex; //!< Structure that holds the data needed to protect the TCB context
 }; //!< Structure for the local module data
 
@@ -81,9 +82,9 @@ static struct tcb_module_data_s tcb_module_data =
     .clear_in_progress = false,
     .Sched_Waiting = false,
     .clear_mutex = PTHREAD_MUTEX_INITIALIZER,
-	.mutex = {
-			.initialized = false,
-	}
+    .mutex = {
+        .initialized = false,
+    }
 }; //!< The modules local data
 
 /***********************************************************************************/
@@ -94,19 +95,19 @@ static struct tcb_module_data_s tcb_module_data =
  * @brief worker function that initializes the mutex
  * @param unused
  */
-static void * init_tcb_mux(void * unused)
+static void *init_tcb_mux(void *unused)
 {
-	SS_ASSERT(0 == pthread_mutex_lock(&tcb_module_data.clear_mutex));
-	if(false == tcb_module_data.mutex.initialized)
-	{
-		Sem_Helper_sem_init(&tcb_module_data.mutex.tcb_mutex);
+    SS_ASSERT(0 == pthread_mutex_lock(&tcb_module_data.clear_mutex));
+    if(false == tcb_module_data.mutex.initialized)
+    {
+        Sem_Helper_sem_init(&tcb_module_data.mutex.tcb_mutex);
 
-		SS_ASSERT(0 == Sem_Helper_sem_post(&tcb_module_data.mutex.tcb_mutex));
+        SS_ASSERT(0 == Sem_Helper_sem_post(&tcb_module_data.mutex.tcb_mutex));
 
-		tcb_module_data.mutex.initialized = true;
-	}
-	pthread_mutex_unlock(&tcb_module_data.clear_mutex);
-	return NULL;
+        tcb_module_data.mutex.initialized = true;
+    }
+    pthread_mutex_unlock(&tcb_module_data.clear_mutex);
+    return NULL;
 }
 
 /**
@@ -114,21 +115,21 @@ static void * init_tcb_mux(void * unused)
  */
 static void init_tcm_mux_if_needed(void)
 {
-	if(false == tcb_module_data.mutex.initialized)
-	{
-		pthread_t id;
-		SS_ASSERT(0 == pthread_create(&id, NULL, init_tcb_mux, NULL));
-		pthread_join(id, NULL);
-	}
+    if(false == tcb_module_data.mutex.initialized)
+    {
+        pthread_t id;
+        SS_ASSERT(0 == pthread_create(&id, NULL, init_tcb_mux, NULL));
+        pthread_join(id, NULL);
+    }
 }
 
 /**
  * Internal function for waiting on a semaphore
  * @param sem
  */
-static void _int_sem_lock(sem_helper_sem_t * sem)
+static void _int_sem_lock(sem_helper_sem_t *sem)
 {
-	int result = -1;
+    int result = -1;
     while(0 != result)
     {
         result = Sem_Helper_sem_wait(sem);
@@ -140,9 +141,9 @@ static void _int_sem_lock(sem_helper_sem_t * sem)
  */
 static void tcb_mutex_obtain(void)
 {
-	init_tcm_mux_if_needed();
-	PRINT_MSG("%s Running\r\n", __FUNCTION__);
-	_int_sem_lock(&tcb_module_data.mutex.tcb_mutex);
+    init_tcm_mux_if_needed();
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    _int_sem_lock(&tcb_module_data.mutex.tcb_mutex);
 }
 
 /**
@@ -150,11 +151,11 @@ static void tcb_mutex_obtain(void)
  */
 static void tcb_mutex_release(void)
 {
-	init_tcm_mux_if_needed();
+    init_tcm_mux_if_needed();
 
 
-	SS_ASSERT(0 == Sem_Helper_sem_post(&tcb_module_data.mutex.tcb_mutex));
-	while(true == tcb_module_data.Sched_Waiting) {}
+    SS_ASSERT(0 == Sem_Helper_sem_post(&tcb_module_data.mutex.tcb_mutex));
+    while(true == tcb_module_data.Sched_Waiting) {}
 
 }
 
@@ -222,10 +223,10 @@ static void *tcb_sched_clear(void *unused)
     thread_helper_cleanup();
     if(NULL != tcb_module_data.sched_id)
     {
-    	PRINT_MSG("\tKilling the scheduler task\r\n");
-    	pthread_kill(tcb_module_data.sched_id, KILL_SIGNAL);
-    	pthread_join(tcb_module_data.sched_id, NULL);
-    	tcb_module_data.sched_id = NULL;
+        PRINT_MSG("\tKilling the scheduler task\r\n");
+        pthread_kill(tcb_module_data.sched_id, KILL_SIGNAL);
+        pthread_join(tcb_module_data.sched_id, NULL);
+        tcb_module_data.sched_id = NULL;
     }
     Sem_Helper_clean_up();
     tcb_module_data.mutex.initialized = false;
@@ -242,73 +243,73 @@ static void tcb_clear(void)
     int result;
     pthread_t killer_thread;
 
-	result = pthread_create(&killer_thread, NULL, tcb_sched_clear, NULL);
-	if(0 != result)
-	{
-		ST_LOG_ERROR("%s failed to launch kill thread\r\n");
-		assert(true == false);
-	}
-	//Wait for the kill thread to complete
-	pthread_join(killer_thread, NULL);
+    result = pthread_create(&killer_thread, NULL, tcb_sched_clear, NULL);
+    if(0 != result)
+    {
+        ST_LOG_ERROR("%s failed to launch kill thread\r\n");
+        assert(true == false);
+    }
+    //Wait for the kill thread to complete
+    pthread_join(killer_thread, NULL);
 }
 
 /**
  * @brief Function that runs the scheduler
  * @param unused
  */
-static void * tcb_sched_exe(void * unused)
+static void *tcb_sched_exe(void *unused)
 {
-	tcb_task_t * starttask;
-	tcb_mutex_obtain();
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-	//First lets pause all running threads
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)
-	{
-		if(true == tcb_module_data.tasks[i].in_use)
-		{
-			if(true == thread_helper_thread_running(tcb_module_data.tasks[i].task.thread))
-			{
-				PRINT_MSG("Stopping task %s\r\n", tcb_module_data.tasks[i].task.name);
-				thread_helper_pause_thread(tcb_module_data.tasks[i].task.thread);
-			}
-			if(SIMPLY_THREAD_TASK_RUNNING == tcb_module_data.tasks[i].task.state)
-			{
-				tcb_module_data.tasks[i].task.state = SIMPLY_THREAD_TASK_READY;
-			}
-		}
-	}
+    tcb_task_t *starttask;
+    tcb_mutex_obtain();
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    //First lets pause all running threads
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)
+    {
+        if(true == tcb_module_data.tasks[i].in_use)
+        {
+            if(true == thread_helper_thread_running(tcb_module_data.tasks[i].task.thread))
+            {
+                PRINT_MSG("Stopping task %s\r\n", tcb_module_data.tasks[i].task.name);
+                thread_helper_pause_thread(tcb_module_data.tasks[i].task.thread);
+            }
+            if(SIMPLY_THREAD_TASK_RUNNING == tcb_module_data.tasks[i].task.state)
+            {
+                tcb_module_data.tasks[i].task.state = SIMPLY_THREAD_TASK_READY;
+            }
+        }
+    }
 
-	starttask = NULL;
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)
-	{
-		if(true == tcb_module_data.tasks[i].in_use)
-		{
-			if(SIMPLY_THREAD_TASK_READY == tcb_module_data.tasks[i].task.state)
-			{
-				if(NULL == starttask)
-				{
-					starttask = &tcb_module_data.tasks[i].task;
-				}
-				else if(starttask->priority < tcb_module_data.tasks[i].task.priority)
-				{
-					starttask = &tcb_module_data.tasks[i].task;
-				}
-			}
-		}
-	}
+    starttask = NULL;
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)
+    {
+        if(true == tcb_module_data.tasks[i].in_use)
+        {
+            if(SIMPLY_THREAD_TASK_READY == tcb_module_data.tasks[i].task.state)
+            {
+                if(NULL == starttask)
+                {
+                    starttask = &tcb_module_data.tasks[i].task;
+                }
+                else if(starttask->priority < tcb_module_data.tasks[i].task.priority)
+                {
+                    starttask = &tcb_module_data.tasks[i].task;
+                }
+            }
+        }
+    }
 
-	if(NULL != starttask)
-	{
-		PRINT_MSG("Starting task %s\r\n", starttask->name);
-		starttask->state = SIMPLY_THREAD_TASK_RUNNING;
-		thread_helper_run_thread(starttask->thread);
-	}
+    if(NULL != starttask)
+    {
+        PRINT_MSG("Starting task %s\r\n", starttask->name);
+        starttask->state = SIMPLY_THREAD_TASK_RUNNING;
+        thread_helper_run_thread(starttask->thread);
+    }
 
-	tcb_module_data.Sched_Waiting = false;
-	tcb_module_data.sched_id = NULL;
-	tcb_mutex_release();
-	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
-	return NULL;
+    tcb_module_data.Sched_Waiting = false;
+    tcb_module_data.sched_id = NULL;
+    tcb_mutex_release();
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+    return NULL;
 }
 
 /**
@@ -316,13 +317,13 @@ static void * tcb_sched_exe(void * unused)
  */
 static void tcb_launch_scheduler(void)
 {
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-	if(false == tcb_module_data.Sched_Waiting)
-	{
-		tcb_module_data.Sched_Waiting = true;
-		SS_ASSERT(0 == pthread_create(&tcb_module_data.sched_id, NULL, tcb_sched_exe, NULL));
-	}
-	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    if(false == tcb_module_data.Sched_Waiting)
+    {
+        tcb_module_data.Sched_Waiting = true;
+        SS_ASSERT(0 == pthread_create(&tcb_module_data.sched_id, NULL, tcb_sched_exe, NULL));
+    }
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -330,29 +331,29 @@ static void tcb_launch_scheduler(void)
  */
 void tcb_reset(void)
 {
-	static bool first_time = true;
-	struct tcb_entry_s *c_task;
+    static bool first_time = true;
+    struct tcb_entry_s *c_task;
 
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
 
-	tcb_mutex_obtain();
-	if(true == first_time)
-	{
-		PRINT_MSG("\tSetting up on exit\r\n");
-		atexit(tcb_on_exit);
-		first_time = false;
-	}
+    tcb_mutex_obtain();
+    if(true == first_time)
+    {
+        PRINT_MSG("\tSetting up on exit\r\n");
+        atexit(tcb_on_exit);
+        first_time = false;
+    }
 
-	tcb_clear(); //This will wipe out our mutex so we need to obtain it again after
-	tcb_mutex_obtain();
-	//Initialize the module data
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)
-	{
-		c_task = &tcb_module_data.tasks[i];
-		c_task->in_use = false;
-	}
-	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-	tcb_mutex_release();
+    tcb_clear(); //This will wipe out our mutex so we need to obtain it again after
+    tcb_mutex_obtain();
+    //Initialize the module data
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)
+    {
+        c_task = &tcb_module_data.tasks[i];
+        c_task->in_use = false;
+    }
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    tcb_mutex_release();
 }
 
 /**
@@ -362,19 +363,19 @@ void tcb_reset(void)
  */
 void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *task)
 {
-	tcb_mutex_obtain();
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != task);
-	SS_ASSERT(SIMPLY_THREAD_TASK_RUNNING != state);
+    tcb_mutex_obtain();
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != task);
+    SS_ASSERT(SIMPLY_THREAD_TASK_RUNNING != state);
 
-	if(task->state != state)
-	{
-		task->state = state;
-		PRINT_MSG("State set to %i\r\n", state);
-		tcb_launch_scheduler();
-	}
-	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-	tcb_mutex_release();
+    if(task->state != state)
+    {
+        task->state = state;
+        PRINT_MSG("State set to %i\r\n", state);
+        tcb_launch_scheduler();
+    }
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    tcb_mutex_release();
 }
 
 /**
@@ -382,19 +383,19 @@ void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *tas
  * @param state
  * @param task
  */
-void tcv_set_task_state_from_tcb_context(enum simply_thread_thread_state_e state, tcb_task_t *task)
+void tcb_set_task_state_from_tcb_context(enum simply_thread_thread_state_e state, tcb_task_t *task)
 {
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-	SS_ASSERT(NULL != task);
-	SS_ASSERT(SIMPLY_THREAD_TASK_RUNNING != state);
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != task);
+    SS_ASSERT(SIMPLY_THREAD_TASK_RUNNING != state);
 
-	if(task->state != state)
-	{
-		task->state = state;
-		PRINT_MSG("State set to %i\r\n", state);
-		tcb_launch_scheduler();
-	}
-	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    if(task->state != state)
+    {
+        task->state = state;
+        PRINT_MSG("State set to %i\r\n", state);
+        tcb_launch_scheduler();
+    }
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -404,15 +405,15 @@ void tcv_set_task_state_from_tcb_context(enum simply_thread_thread_state_e state
  */
 enum simply_thread_thread_state_e tcb_get_task_state(tcb_task_t *task)
 {
-	enum simply_thread_thread_state_e rv;
+    enum simply_thread_thread_state_e rv;
 
-	SS_ASSERT(NULL != task);
-	tcb_mutex_obtain();
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-	rv = task->state;
-	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-	tcb_mutex_release();
-	return rv;
+    SS_ASSERT(NULL != task);
+    tcb_mutex_obtain();
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    rv = task->state;
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    tcb_mutex_release();
+    return rv;
 }
 
 /**
@@ -422,13 +423,13 @@ enum simply_thread_thread_state_e tcb_get_task_state(tcb_task_t *task)
  */
 enum simply_thread_thread_state_e tcb_get_task_state_from_tcb_context(tcb_task_t *task)
 {
-	enum simply_thread_thread_state_e rv;
+    enum simply_thread_thread_state_e rv;
 
-	SS_ASSERT(NULL != task);
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-	rv = task->state;
-	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-	return rv;
+    SS_ASSERT(NULL != task);
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    rv = task->state;
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    return rv;
 }
 
 
@@ -443,43 +444,43 @@ enum simply_thread_thread_state_e tcb_get_task_state_from_tcb_context(tcb_task_t
  */
 tcb_task_t *tcb_create_task(const char *name, simply_thread_task_fnct cb, unsigned int priority, void *data, uint16_t data_size)
 {
-	tcb_task_t * rv;
-	struct tcb_entry_s * c_task;
+    tcb_task_t *rv;
+    struct tcb_entry_s *c_task;
 
-	tcb_mutex_obtain();
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    tcb_mutex_obtain();
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
 
-	rv = NULL;
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks) && NULL == rv; i++)
-	{
-		c_task = &tcb_module_data.tasks[i];
-		if(false == c_task->in_use)
-		{
-			c_task->in_use = true;
-			rv = &c_task->task;
-		}
-	}
+    rv = NULL;
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks) && NULL == rv; i++)
+    {
+        c_task = &tcb_module_data.tasks[i];
+        if(false == c_task->in_use)
+        {
+            c_task->in_use = true;
+            rv = &c_task->task;
+        }
+    }
 
-	if(NULL != rv)
-	{
-		rv->cb = cb;
-		rv->continue_on_run = false;
-		rv->data = data;
-		rv->data_size = data_size;
-		rv->name = name;
-		rv->priority = priority;
-		rv->state = SIMPLY_THREAD_TASK_READY;
-		rv->thread = thread_helper_thread_create(task_runner_function, rv);
-		SS_ASSERT(NULL != rv->thread);
-		//Pause the newly created task
-		thread_helper_pause_thread(rv->thread);
-		//set continue_on_run so that the thread can resume when unpaused
-		rv->continue_on_run = true;
-		tcb_launch_scheduler();
-	}
-	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-	tcb_mutex_release();
-	return rv;
+    if(NULL != rv)
+    {
+        rv->cb = cb;
+        rv->continue_on_run = false;
+        rv->data = data;
+        rv->data_size = data_size;
+        rv->name = name;
+        rv->priority = priority;
+        rv->state = SIMPLY_THREAD_TASK_READY;
+        rv->thread = thread_helper_thread_create(task_runner_function, rv);
+        SS_ASSERT(NULL != rv->thread);
+        //Pause the newly created task
+        thread_helper_pause_thread(rv->thread);
+        //set continue_on_run so that the thread can resume when unpaused
+        rv->continue_on_run = true;
+        tcb_launch_scheduler();
+    }
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    tcb_mutex_release();
+    return rv;
 }
 
 /**
@@ -488,27 +489,27 @@ tcb_task_t *tcb_create_task(const char *name, simply_thread_task_fnct cb, unsign
  */
 tcb_task_t *tcb_task_self(void)
 {
-	tcb_task_t * rv;
-	helper_thread_t * me;
+    tcb_task_t *rv;
+    helper_thread_t *me;
 
-	tcb_mutex_obtain();
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-	rv = NULL;
-	me = thread_helper_self();
-	for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks) && NULL == rv; i++)
-	{
-		if(true == tcb_module_data.tasks[i].in_use)
-		{
-			if(me == tcb_module_data.tasks[i].task.thread)
-			{
-				rv = &tcb_module_data.tasks[i].task;
-			}
-		}
-	}
+    tcb_mutex_obtain();
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    rv = NULL;
+    me = thread_helper_self();
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks) && NULL == rv; i++)
+    {
+        if(true == tcb_module_data.tasks[i].in_use)
+        {
+            if(me == tcb_module_data.tasks[i].task.thread)
+            {
+                rv = &tcb_module_data.tasks[i].task;
+            }
+        }
+    }
 
-	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-	tcb_mutex_release();
-	return rv;
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    tcb_mutex_release();
+    return rv;
 }
 
 /**
@@ -518,14 +519,14 @@ tcb_task_t *tcb_task_self(void)
  */
 void run_in_tcb_context(void (*fnct)(void *), void *data)
 {
-	SS_ASSERT(NULL != fnct);
+    SS_ASSERT(NULL != fnct);
 
-	tcb_mutex_obtain();
-	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__,fnct);
-	fnct(data);
-	PRINT_MSG("\t%s Finishing %p\r\n", __FUNCTION__, fnct);
-	tcb_mutex_release();
-	PRINT_MSG("%s Finished %p\r\n", __FUNCTION__, fnct);
+    tcb_mutex_obtain();
+    PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, fnct);
+    fnct(data);
+    PRINT_MSG("\t%s Finishing %p\r\n", __FUNCTION__, fnct);
+    tcb_mutex_release();
+    PRINT_MSG("%s Finished %p\r\n", __FUNCTION__, fnct);
 }
 
 /**
@@ -533,6 +534,6 @@ void run_in_tcb_context(void (*fnct)(void *), void *data)
  */
 void tcb_on_assert(void)
 {
-	tcb_clear();
+    tcb_clear();
 }
 

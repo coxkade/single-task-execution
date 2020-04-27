@@ -85,6 +85,7 @@ struct single_queue_data_s
 
 struct ss_queue_module_data_s
 {
+    bool initialized;
     struct single_queue_data_s all_queues[MAX_NUM_QUEUES];
 }; //!< Structure that holds all the data local to the queue
 
@@ -120,27 +121,6 @@ struct ss_queue_rcv_data_s
     unsigned int block_time;
 } ss_queue_rcv_data_s; //!< Data used in a queue rcv
 
-struct ss_queue_msg_s
-{
-    enum
-    {
-        SS_QUEUE_CREATE,
-        SS_QUEUE_COUNT,
-        SS_QUEUE_SEND,
-        SS_QUEUE_RCV,
-        SS_QUEUE_TIMEOUT
-    } type;
-    union
-    {
-        struct ss_queue_create_data_s *create;
-        struct ss_queue_get_count_data_s *count;
-        struct ss_queue_send_data_s *send;
-        struct ss_queue_rcv_data_s *rcv;
-        struct queue_wait_task_s *time_out;
-    } data;
-    bool *finished;
-}; //!< Structures to use with the queue helpers worker message queue
-
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
 /***********************************************************************************/
@@ -151,6 +131,7 @@ struct ss_queue_msg_s
 
 static struct ss_queue_module_data_s queue_data =
 {
+    .initialized = false
 }; //!< variable holding the local module data
 
 /***********************************************************************************/
@@ -276,8 +257,8 @@ static bool resume_waiting_rcv(struct single_queue_data_s *queue)
     {
         //Set the task state to ready
         ss_queue_pop(queue, queue->wait_tasks[used_index].wait_data.rcv);
-        simply_thead_system_clock_deregister_on_tick(queue->wait_tasks[used_index].tick_handle);
-        tcb_set_task_state(SIMPLY_THREAD_TASK_READY, best_task);
+        simply_thead_system_clock_deregister_on_tick_from_tcb_context(queue->wait_tasks[used_index].tick_handle);
+        tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_READY, best_task);
         queue->wait_tasks[used_index].waiting_task = NULL;
         rv = true;
     }
@@ -327,8 +308,8 @@ static bool resume_waiting_send(struct single_queue_data_s *queue)
     {
         //Set the task state to ready
         ss_queue_push(queue, queue->wait_tasks[used_index].wait_data.send);
-        simply_thead_system_clock_deregister_on_tick(queue->wait_tasks[used_index].tick_handle);
-        tcb_set_task_state(SIMPLY_THREAD_TASK_READY, best_task);
+        simply_thead_system_clock_deregister_on_tick_from_tcb_context(queue->wait_tasks[used_index].tick_handle);
+        tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_READY, best_task);
         queue->wait_tasks[used_index].waiting_task = NULL;
         rv = true;
     }
@@ -347,6 +328,37 @@ static inline void resume_queue_tasks(struct single_queue_data_s *queue)
 }
 
 /**
+ * @brief handle the on tick message type
+ * @param data
+ */
+static void handle_queue_on_tick(void *data_in)
+{
+    struct queue_wait_task_s *data;
+
+    data = (struct queue_wait_task_s *)data_in;
+    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
+    if(NULL != data)
+    {
+        if(NULL != data->waiting_task)
+        {
+            simply_thead_system_clock_deregister_on_tick_from_tcb_context(data->tick_handle);
+            if(SS_QUEUE_FULL == data->wait_reason)
+            {
+                data->wait_data.send->result = false;
+            }
+            else
+            {
+                data->wait_data.rcv->result = false;
+            }
+
+            tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_READY, data->waiting_task);
+            data->waiting_task = NULL;
+        }
+    }
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+}
+
+/**
  * on tick handler for queue operations
  * @param handle
  * @param tickval
@@ -354,8 +366,6 @@ static inline void resume_queue_tasks(struct single_queue_data_s *queue)
  */
 static void ss_queue_on_tick(sys_clock_on_tick_handle_t handle, uint64_t tickval, void *args)
 {
-    bool comp;
-    struct ss_queue_msg_s message;
     struct queue_wait_task_s *typed;
     typed = args;
 
@@ -367,51 +377,22 @@ static void ss_queue_on_tick(sys_clock_on_tick_handle_t handle, uint64_t tickval
         if(typed->count >= typed->max_count)
         {
             //Ok we need to handle the timeout
-            comp = false;
-            message.type = SS_QUEUE_TIMEOUT;
-            message.data.time_out = typed;
-            message.finished = &comp;
-//            Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
-//            while(false == comp) {}
+            run_in_tcb_context(handle_queue_on_tick, typed);
         }
     }
 }
 
-/**
- * @brief handle the on tick message type
- * @param data
- */
-static void handle_queue_on_tick(struct queue_wait_task_s *data)
-{
-    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
-    if(NULL != data)
-    {
-        if(NULL != data->waiting_task)
-        {
-            simply_thead_system_clock_deregister_on_tick(data->tick_handle);
-            if(SS_QUEUE_FULL == data->wait_reason)
-            {
-                data->wait_data.send->result = false;
-            }
-            else
-            {
-                data->wait_data.rcv->result = false;
-            }
-
-            tcb_set_task_state(SIMPLY_THREAD_TASK_READY, data->waiting_task);
-            data->waiting_task = NULL;
-        }
-    }
-    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
-}
 
 /**
  * @brief Function that allocates a new queue
  * @param data
  */
-static inline void handle_queue_create(struct ss_queue_create_data_s *data)
+static inline void handle_queue_create(void *data_in)
 {
+    struct ss_queue_create_data_s *data;
+
     PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
+    data = (struct ss_queue_create_data_s *)data_in;
     data->result = NULL;
     if(NULL != data->name && ARRAY_MAX_COUNT(queue_data.all_queues[0].elements[0].buffer) >= data->element_size && 0 < data->queue_size &&
             0 < data->element_size)
@@ -449,8 +430,11 @@ static inline void handle_queue_create(struct ss_queue_create_data_s *data)
  * @brief Function that handles the queue count command
  * @param data
  */
-static inline void handle_queue_count(struct ss_queue_get_count_data_s *data)
+static inline void handle_queue_count(void *data_in)
 {
+    struct ss_queue_get_count_data_s *data;
+    data = (struct ss_queue_get_count_data_s *)data_in;
+
     PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
     data->count = queue_used_elements(data->queue);
     PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
@@ -460,11 +444,13 @@ static inline void handle_queue_count(struct ss_queue_get_count_data_s *data)
  * @brief Handle the queue send
  * @param data
  */
-static inline void handle_queue_send(struct ss_queue_send_data_s *data)
+static inline void handle_queue_send(void *data_in)
 {
     bool wait_started;
     unsigned int c_count;
+    struct ss_queue_send_data_s *data;
 
+    data = (struct ss_queue_send_data_s *)data_in;
     PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
     data->result = false;
     if(NULL != data->queue && NULL != data->data)
@@ -496,8 +482,8 @@ static inline void handle_queue_send(struct ss_queue_send_data_s *data)
                         data->queue->wait_tasks[i].wait_data.send = data;
                         data->queue->wait_tasks[i].wait_reason = SS_QUEUE_FULL;
                         PRINT_MSG("\t\tSetting %s to SIMPLY_THREAD_TASK_BLOCKED\r\n", data->queue->wait_tasks[i].waiting_task->name);
-                        tcb_set_task_state(SIMPLY_THREAD_TASK_BLOCKED, data->queue->wait_tasks[i].waiting_task);
-                        data->queue->wait_tasks[i].tick_handle = simply_thead_system_clock_register_on_tick(ss_queue_on_tick, &data->queue->wait_tasks[i]);
+                        tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_BLOCKED, data->queue->wait_tasks[i].waiting_task);
+                        data->queue->wait_tasks[i].tick_handle = simply_thead_system_clock_register_on_tick_from_tcb_context(ss_queue_on_tick, &data->queue->wait_tasks[i]);
                         //We do not set the result at this point as there may have been a timeout
                     }
                 }
@@ -517,8 +503,10 @@ static inline void handle_queue_send(struct ss_queue_send_data_s *data)
  * @brief Function for handling queue receive
  * @param data
  */
-static void handle_queue_rcv(struct ss_queue_rcv_data_s *data)
+static void handle_queue_rcv(void *data_in)
 {
+    struct ss_queue_rcv_data_s *data;
+    data = (struct ss_queue_rcv_data_s *)data_in;
     PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
     bool wait_started;
     unsigned int c_count;
@@ -550,8 +538,8 @@ static void handle_queue_rcv(struct ss_queue_rcv_data_s *data)
                         data->queue->wait_tasks[i].max_count = data->block_time;
                         data->queue->wait_tasks[i].wait_data.rcv = data;
                         data->queue->wait_tasks[i].wait_reason = SS_QUEUE_EMPTY;
-                        tcb_set_task_state(SIMPLY_THREAD_TASK_BLOCKED, data->queue->wait_tasks[i].waiting_task);
-                        data->queue->wait_tasks[i].tick_handle = simply_thead_system_clock_register_on_tick(ss_queue_on_tick, &data->queue->wait_tasks[i]);
+                        tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_BLOCKED, data->queue->wait_tasks[i].waiting_task);
+                        data->queue->wait_tasks[i].tick_handle = simply_thead_system_clock_register_on_tick_from_tcb_context(ss_queue_on_tick, &data->queue->wait_tasks[i]);
                         //We do not set the result at this point as there may have been a timeout
                     }
                 }
@@ -567,43 +555,6 @@ static void handle_queue_rcv(struct ss_queue_rcv_data_s *data)
     PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 
-/**
- * @brief function that handles queue work
- * @param message
- * @param message_size
- */
-static void ss_queue_on_message(void *message, uint32_t message_size)
-{
-    struct ss_queue_msg_s *typed;
-    typed = message;
-    SS_ASSERT(NULL != typed && sizeof(struct ss_queue_msg_s) == message_size);
-    switch(typed->type)
-    {
-        case SS_QUEUE_CREATE:
-            handle_queue_create(typed->data.create);
-            typed->finished[0] = true;
-            break;
-        case SS_QUEUE_COUNT:
-            handle_queue_count(typed->data.count);
-            typed->finished[0] = true;
-            break;
-        case SS_QUEUE_SEND:
-            handle_queue_send(typed->data.send);
-            typed->finished[0] = true;
-            break;
-        case SS_QUEUE_RCV:
-            handle_queue_rcv(typed->data.rcv);
-            typed->finished[0] = true;
-            break;
-        case SS_QUEUE_TIMEOUT:
-            handle_queue_on_tick(typed->data.time_out);
-            typed->finished[0] = true;
-            break;
-        default:
-            SS_ASSERT(true == false);
-            break;
-    }
-}
 
 /**
  * Initialize the module in the TCB context
@@ -612,15 +563,14 @@ static void ss_queue_on_message(void *message, uint32_t message_size)
 static void ss_queue_init_in_tcb(void *data)
 {
     SS_ASSERT(NULL == data);
-//    if(NULL == queue_data.m_helper)
-//    {
-//        for(int i = 0; i < ARRAY_MAX_COUNT(queue_data.all_queues); i++)
-//        {
-//            queue_data.all_queues[i].alocated = false;
-//        }
-//        queue_data.m_helper = New_Message_Helper(ss_queue_on_message, "SS_QUEUE_MESSAGE_HANDLER");
-//        SS_ASSERT(NULL != queue_data.m_helper);
-//    }
+    if(false == queue_data.initialized)
+    {
+        for(int i = 0; i < ARRAY_MAX_COUNT(queue_data.all_queues); i++)
+        {
+            queue_data.all_queues[i].alocated = false;
+        }
+        queue_data.initialized = true;
+    }
 }
 
 /**
@@ -628,10 +578,10 @@ static void ss_queue_init_in_tcb(void *data)
  */
 static void ss_queue_init_if_needed(void)
 {
-//    if(NULL == queue_data.m_helper)
-//    {
-//        run_in_tcb_context(ss_queue_init_in_tcb, NULL);
-//    }
+    if(false == queue_data.initialized)
+    {
+        run_in_tcb_context(ss_queue_init_in_tcb, NULL);
+    }
 }
 
 /**
@@ -639,7 +589,7 @@ static void ss_queue_init_if_needed(void)
  */
 void simply_thread_queue_cleanup(void)
 {
-//    queue_data.m_helper = NULL;
+    queue_data.initialized = false;
 }
 
 /**
@@ -652,24 +602,17 @@ void simply_thread_queue_cleanup(void)
 simply_thread_queue_t simply_thread_queue_create(const char *name, unsigned int queue_size, unsigned int element_size)
 {
     struct ss_queue_create_data_s data;
-    struct ss_queue_msg_s message;
-    bool comp;
 
     PRINT_MSG("%s Running\r\n", __FUNCTION__);
 
     ss_queue_init_if_needed();
 
-    comp = false;
     data.element_size = element_size;
     data.queue_size = queue_size;
     data.name = name;
-    message.type = SS_QUEUE_CREATE;
-    message.data.create = &data;
-    message.finished = &comp;
     data.result = NULL;
 
-//    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
-//    while(false == comp) {}
+    run_in_tcb_context(handle_queue_create, &data);
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
     return data.result;
 }
@@ -682,23 +625,15 @@ simply_thread_queue_t simply_thread_queue_create(const char *name, unsigned int 
 unsigned int simply_thread_queue_get_count(simply_thread_queue_t queue)
 {
     struct ss_queue_get_count_data_s data;
-    struct ss_queue_msg_s message;
-    bool comp;
 
     PRINT_MSG("%s Running\r\n", __FUNCTION__);
 
     ss_queue_init_if_needed();
-    comp = false;
-    data.queue = queue;
-    message.type = SS_QUEUE_COUNT;
-    message.data.count = &data;
-    message.finished = &comp;
 
-//    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
-    while(false == comp) {}
+    data.queue = queue;
+    run_in_tcb_context(handle_queue_count, &data);
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-//    return data.count;
-    return 0;
+    return data.count;
 }
 
 /**
@@ -711,26 +646,19 @@ unsigned int simply_thread_queue_get_count(simply_thread_queue_t queue)
 bool simply_thread_queue_send(simply_thread_queue_t queue, void *data, unsigned int block_time)
 {
     struct ss_queue_send_data_s worker;
-    struct ss_queue_msg_s message;
-    bool comp;
 
     PRINT_MSG("%s Running\r\n", __FUNCTION__);
 
     ss_queue_init_if_needed();
-    comp = false;
+
     worker.task = tcb_task_self();
     worker.block_time = block_time;
     worker.data = data;
     worker.queue = queue;
-    message.type = SS_QUEUE_SEND;
-    message.finished = &comp;
-    message.data.send = &worker;
 
-//    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
-//    while(false == comp) {}
-//    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-//    return worker.result;
-    return false;
+    run_in_tcb_context(handle_queue_send, &worker);
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    return worker.result;
 }
 
 
@@ -744,25 +672,18 @@ bool simply_thread_queue_send(simply_thread_queue_t queue, void *data, unsigned 
 bool simply_thread_queue_rcv(simply_thread_queue_t queue, void *data, unsigned int block_time)
 {
     struct ss_queue_rcv_data_s worker;
-    struct ss_queue_msg_s message;
-    bool comp;
 
     PRINT_MSG("%s Running\r\n", __FUNCTION__);
 
     ss_queue_init_if_needed();
-    comp = false;
+
     worker.block_time = block_time;
     worker.task = tcb_task_self();
     worker.queue = queue;
     worker.data = data;
-    message.type = SS_QUEUE_RCV;
-    message.data.rcv = &worker;
-    message.finished = &comp;
 
 
-//    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
-//    while(false == comp) {}
-//    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-//    return worker.result;
-    return false;
+    run_in_tcb_context(handle_queue_rcv, &worker);
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    return worker.result;
 }

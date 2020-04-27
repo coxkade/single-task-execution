@@ -72,7 +72,7 @@ static simply_thread_timer_t timer_2; //The handle for timer two
 static bool timer_1_ran = false; //Tells if timer 1 executed
 static unsigned int timer_2_count = 0; //The count of timer 2
 static simply_thread_mutex_t mutex_handles[10]; // Array of mutex handles I can use in the tests
-//static simply_thread_queue_t queue_handles[10]; // array of queue handles
+static simply_thread_queue_t queue_handles[10]; // array of queue handles
 static bool tasks_started[10]; //array of task started flags
 
 /***********************************************************************************/
@@ -417,134 +417,134 @@ static void second_mutex_test_tests(void **state)
  *********************** Queue Test Items ****************************
  ********************************************************************/
 
-//static void first_queue_task(void *data, uint16_t data_size)
-//{
-//    PRINT_MSG("%s Started\r\n", __FUNCTION__);
-//
-//    unsigned int val = 1;
-//    //Test the timeout condition
-//    tasks_started[0] = true;
-//    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 0);
-//    LOCAL_ASSERT(false == simply_thread_queue_send(queue_handles[0], &val, 15));
-//    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 1);
-//    LOCAL_ASSERT(true == simply_thread_queue_rcv(queue_handles[1], &val, 0xFFFFFFFF));
-//    PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
-//    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 0);
-//    SS_ASSERT(simply_thread_queue_rcv(queue_handles[0], &val, 500));
-//    PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
-//    LOCAL_ASSERT(7 == val);
-//    val = 1;
-//    PRINT_MSG("%s sending 2\r\n", __FUNCTION__);
-//    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 2);
-//    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[2], &val, 0xFFFFFFFF));
-//    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 2);
-//    SS_ASSERT(simply_thread_queue_rcv(queue_handles[2], &val, 0xFFFFFFFF));
-//    LOCAL_ASSERT(1 == val);
-//    while(1)
-//    {
-//        thread_one_ran = true;
-//        val = 1;
-//        PRINT_MSG("%s sending 1\r\n", __FUNCTION__);
-//        PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
-//        SS_ASSERT(simply_thread_queue_send(queue_handles[1], &val, 0xFFFFFFFF));
-//    }
-//}
-//
-//static void second_queue_task(void *data, uint16_t data_size)
-//{
-//    PRINT_MSG("%s Started\r\n", __FUNCTION__);
-//    tasks_started[1] = true;
-//    simply_thread_sleep_ms(300);
-//    unsigned int val = 2;
-//
-//    PRINT_MSG("%s sending 2\r\n", __FUNCTION__);
-//    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 2);
-//    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[2], &val, 0xFFFFFFFF));
-//    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 2);
-//    SS_ASSERT(simply_thread_queue_rcv(queue_handles[2], &val, 0xFFFFFFFF));
-//    LOCAL_ASSERT(2 == val);
-//    while(1)
-//    {
-//        thread_two_ran = true;
-//        PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 1);
-//        SS_ASSERT(simply_thread_queue_rcv(queue_handles[1], &val, 0xFFFFFFFF));
-//        PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
-//        SS_ASSERT(1 == val);
-//    }
-//}
-//
-//static void queue_test(void **state)
-//{
-//    unsigned int val = 7;
-//    thread_one_ran = false;
-//    thread_two_ran = false;
-//    tasks_started[0] = false;
-//    tasks_started[1] = false;
-//    simply_thread_reset();
-//
-//    SS_ASSERT(NULL == simply_thread_queue_create(NULL, 1, sizeof(unsigned int)));
-//    SS_ASSERT(NULL == simply_thread_queue_create("test", 0, sizeof(unsigned int)));
-//    SS_ASSERT(NULL == simply_thread_queue_create("test", 5, 0));
-//
-//    queue_handles[0] = simply_thread_queue_create("Queue1", 3, sizeof(unsigned int));
-//    queue_handles[1] = simply_thread_queue_create("Queue2", 1, sizeof(unsigned int));
-//    queue_handles[2] = simply_thread_queue_create("Queue3", 1, sizeof(unsigned int));
-//    SS_ASSERT(NULL != queue_handles[0]);
-//    SS_ASSERT(NULL != queue_handles[1]);
-//    SS_ASSERT(NULL != queue_handles[2]);
-//
-//    SS_ASSERT( false == simply_thread_queue_rcv(queue_handles[0], &val, 5));
-//    SS_ASSERT( false == simply_thread_queue_rcv(NULL, &val, 5));
-//    SS_ASSERT( false == simply_thread_queue_send(NULL, &val, 0));
-//
-//    SS_ASSERT(simply_thread_queue_send(queue_handles[0], &val, 0));
-//    SS_ASSERT(simply_thread_queue_send(queue_handles[2], &val, 0));
-//    val++;
-//    SS_ASSERT(simply_thread_queue_send(queue_handles[0], &val, 0));
-//    val++;
-//    SS_ASSERT(simply_thread_queue_send(queue_handles[0], &val, 0));
-//    SS_ASSERT( false == simply_thread_queue_send(queue_handles[0], &val, 0));
-//    SS_ASSERT(3 == simply_thread_queue_get_count(queue_handles[0]));
-//    SS_ASSERT(0 == simply_thread_queue_get_count(queue_handles[1]));
-//
-//    PRINT_MSG("Launching the Tasks\r\n");
-//
-//    SS_ASSERT(NULL != simply_thread_new_thread("TASK1", first_queue_task, 4, NULL, 0));
-//    SS_ASSERT(NULL != simply_thread_new_thread("TASK2", second_queue_task, 3, NULL, 0));
-//    while(tasks_started[0] == false || tasks_started[1] == false)
-//    {
-//        simply_thread_sleep_ms(1000);
-//    }
-//    val = 6;
-//    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
-//    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[1], &val, 0));
-//    simply_thread_sleep_ms(1000);
-//    SS_ASSERT(simply_thread_queue_rcv(queue_handles[2], &val, 0));
-//    SS_ASSERT(7 == val);
-//    PRINT_MSG("Waiting for Cleanup\r\n");
-//    simply_thread_sleep_ms(2000);
-//    while(false == thread_one_ran)
-//    {
-//    }
-//    PRINT_MSG("Thread one has run\r\n");
-//    while(false == thread_two_ran)
-//    {
-//    }
-//    PRINT_MSG("%s Shutting down test\r\n", __FUNCTION__);
-//    simply_thread_cleanup();
-//    SS_ASSERT(thread_one_ran);
-//    SS_ASSERT(thread_two_ran);
-//}
-//
-//static void first_queue_test_tests(void **state)
-//{
-//    queue_test(state);
-//}
-//
-//static void second_queue_test_tests(void **state)
-//{
-//    queue_test(state);
-//}
+static void first_queue_task(void *data, uint16_t data_size)
+{
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+
+    unsigned int val = 1;
+    //Test the timeout condition
+    tasks_started[0] = true;
+    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 0);
+    LOCAL_ASSERT(false == simply_thread_queue_send(queue_handles[0], &val, 15));
+    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 1);
+    LOCAL_ASSERT(true == simply_thread_queue_rcv(queue_handles[1], &val, 0xFFFFFFFF));
+    PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
+    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 0);
+    SS_ASSERT(simply_thread_queue_rcv(queue_handles[0], &val, 500));
+    PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
+    LOCAL_ASSERT(7 == val);
+    val = 1;
+    PRINT_MSG("%s sending 2\r\n", __FUNCTION__);
+    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 2);
+    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[2], &val, 0xFFFFFFFF));
+    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 2);
+    SS_ASSERT(simply_thread_queue_rcv(queue_handles[2], &val, 0xFFFFFFFF));
+    LOCAL_ASSERT(1 == val);
+    while(1)
+    {
+        thread_one_ran = true;
+        val = 1;
+        PRINT_MSG("%s sending 1\r\n", __FUNCTION__);
+        PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
+        SS_ASSERT(simply_thread_queue_send(queue_handles[1], &val, 0xFFFFFFFF));
+    }
+}
+
+static void second_queue_task(void *data, uint16_t data_size)
+{
+    PRINT_MSG("%s Started\r\n", __FUNCTION__);
+    tasks_started[1] = true;
+    simply_thread_sleep_ms(300);
+    unsigned int val = 2;
+
+    PRINT_MSG("%s sending 2\r\n", __FUNCTION__);
+    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 2);
+    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[2], &val, 0xFFFFFFFF));
+    PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 2);
+    SS_ASSERT(simply_thread_queue_rcv(queue_handles[2], &val, 0xFFFFFFFF));
+    LOCAL_ASSERT(2 == val);
+    while(1)
+    {
+        thread_two_ran = true;
+        PRINT_MSG("%s Receiving on queue %u\r\n", __FUNCTION__, 1);
+        SS_ASSERT(simply_thread_queue_rcv(queue_handles[1], &val, 0xFFFFFFFF));
+        PRINT_MSG("%s received %u\r\n", __FUNCTION__, val);
+        SS_ASSERT(1 == val);
+    }
+}
+
+static void queue_test(void **state)
+{
+    unsigned int val = 7;
+    thread_one_ran = false;
+    thread_two_ran = false;
+    tasks_started[0] = false;
+    tasks_started[1] = false;
+    simply_thread_reset();
+
+    SS_ASSERT(NULL == simply_thread_queue_create(NULL, 1, sizeof(unsigned int)));
+    SS_ASSERT(NULL == simply_thread_queue_create("test", 0, sizeof(unsigned int)));
+    SS_ASSERT(NULL == simply_thread_queue_create("test", 5, 0));
+
+    queue_handles[0] = simply_thread_queue_create("Queue1", 3, sizeof(unsigned int));
+    queue_handles[1] = simply_thread_queue_create("Queue2", 1, sizeof(unsigned int));
+    queue_handles[2] = simply_thread_queue_create("Queue3", 1, sizeof(unsigned int));
+    SS_ASSERT(NULL != queue_handles[0]);
+    SS_ASSERT(NULL != queue_handles[1]);
+    SS_ASSERT(NULL != queue_handles[2]);
+
+    SS_ASSERT( false == simply_thread_queue_rcv(queue_handles[0], &val, 5));
+    SS_ASSERT( false == simply_thread_queue_rcv(NULL, &val, 5));
+    SS_ASSERT( false == simply_thread_queue_send(NULL, &val, 0));
+
+    SS_ASSERT(simply_thread_queue_send(queue_handles[0], &val, 0));
+    SS_ASSERT(simply_thread_queue_send(queue_handles[2], &val, 0));
+    val++;
+    SS_ASSERT(simply_thread_queue_send(queue_handles[0], &val, 0));
+    val++;
+    SS_ASSERT(simply_thread_queue_send(queue_handles[0], &val, 0));
+    SS_ASSERT( false == simply_thread_queue_send(queue_handles[0], &val, 0));
+    SS_ASSERT(3 == simply_thread_queue_get_count(queue_handles[0]));
+    SS_ASSERT(0 == simply_thread_queue_get_count(queue_handles[1]));
+
+    PRINT_MSG("Launching the Tasks\r\n");
+
+    SS_ASSERT(NULL != simply_thread_new_thread("TASK1", first_queue_task, 4, NULL, 0));
+    SS_ASSERT(NULL != simply_thread_new_thread("TASK2", second_queue_task, 3, NULL, 0));
+    while(tasks_started[0] == false || tasks_started[1] == false)
+    {
+        simply_thread_sleep_ms(1000);
+    }
+    val = 6;
+    PRINT_MSG("%s sending to Queue %u\r\n", __FUNCTION__, 1);
+    LOCAL_ASSERT(true == simply_thread_queue_send(queue_handles[1], &val, 0));
+    simply_thread_sleep_ms(1000);
+    SS_ASSERT(simply_thread_queue_rcv(queue_handles[2], &val, 0));
+    SS_ASSERT(7 == val);
+    PRINT_MSG("Waiting for Cleanup\r\n");
+    simply_thread_sleep_ms(2000);
+    while(false == thread_one_ran)
+    {
+    }
+    PRINT_MSG("Thread one has run\r\n");
+    while(false == thread_two_ran)
+    {
+    }
+    PRINT_MSG("%s Shutting down test\r\n", __FUNCTION__);
+    simply_thread_cleanup();
+    SS_ASSERT(thread_one_ran);
+    SS_ASSERT(thread_two_ran);
+}
+
+static void first_queue_test_tests(void **state)
+{
+    queue_test(state);
+}
+
+static void second_queue_test_tests(void **state)
+{
+    queue_test(state);
+}
 
 #ifndef DISABLE_TIME_OUT
 /**
@@ -592,15 +592,15 @@ int main(void)
         cmocka_unit_test(second_timer_tests),
         cmocka_unit_test(first_mutex_test_tests),
         cmocka_unit_test(second_mutex_test_tests),
-//        cmocka_unit_test(first_queue_test_tests),
-//        cmocka_unit_test(second_queue_test_tests),
+        cmocka_unit_test(first_queue_test_tests),
+        cmocka_unit_test(second_queue_test_tests),
     };
 #ifndef DISABLE_TIME_OUT
     result = pthread_create(&thread, NULL, timeout_worker, &timeout_seconds);
     SS_ASSERT(0 == result);
 #endif //DISABLE_TIME_OUT
-//    result = run_task_helper_tests();
-//    SS_ASSERT(0 <= result);
+    result = run_task_helper_tests();
+    SS_ASSERT(0 <= result);
     result = cmocka_run_group_tests(tests, NULL, NULL);
     printf("%i \r\n", result);
     SS_ASSERT(0 <= result || 255 == result);
