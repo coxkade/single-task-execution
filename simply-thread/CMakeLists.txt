@@ -74,7 +74,7 @@ set( ENV{CTEST_OUTPUT_ON_FAILURE} TRUE)
 LIST(APPEND simply-thread-sources 
 	src/simply-thread.c 
     src/simply-thread-log.c 
-    #src/simply-thread-timers.c
+    src/simply-thread-timers.c
 	#src/simply-thread-mutex.c
 	#src/simply-thread-queue.c
 	src/simply_thread_system_clock.c

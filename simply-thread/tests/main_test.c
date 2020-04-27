@@ -68,10 +68,10 @@ static simply_thread_task_t task_one = NULL;  //The First tasks task handle
 static simply_thread_task_t task_two = NULL; //The Second tasks task handle
 static bool thread_one_ran = false; //Tells if thread one ever ran
 static bool thread_two_ran = false; //Tells if thread two ever ran
-//static simply_thread_timer_t timer_1; //The handle for timer one
-//static simply_thread_timer_t timer_2; //The handle for timer two
-//static bool timer_1_ran = false; //Tells if timer 1 executed
-//static unsigned int timer_2_count = 0; //The count of timer 2
+static simply_thread_timer_t timer_1; //The handle for timer one
+static simply_thread_timer_t timer_2; //The handle for timer two
+static bool timer_1_ran = false; //Tells if timer 1 executed
+static unsigned int timer_2_count = 0; //The count of timer 2
 //static simply_thread_mutex_t mutex_handles[10]; // Array of mutex handles I can use in the tests
 //static simply_thread_queue_t queue_handles[10]; // array of queue handles
 //static bool tasks_started[10]; //array of task started flags
@@ -186,68 +186,68 @@ static void task_non_null_data_test(void **state)
  *********************** Timer Test Items ****************************
  ********************************************************************/
 
-//static void first_timer_worker(simply_thread_timer_t timer)
-//{
-//    PRINT_MSG("%s running\r\n", __FUNCTION__);
-//    SS_ASSERT(timer_1 == timer);
-//    timer_1_ran = true;
-//}
-//
-//static void second_timer_worker(simply_thread_timer_t timer)
-//{
-//    PRINT_MSG("%s running\r\n", __FUNCTION__);
-//    timer_2_count++;
-//}
-//
-//static void timer_test(void **state)
-//{
-//    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
-//    simply_thread_reset();
-//    PRINT_MSG("\tperforming task tests\r\n");
-//    task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
-//    task_two = simply_thread_new_thread("TASK2", thread_two_worker, 3, NULL, 0);
-//
-//    SS_ASSERT(NULL != task_one);
-//    SS_ASSERT(NULL != task_two);
-//    SS_ASSERT( false == simply_thread_task_suspend(NULL));
-//    SS_ASSERT( false == simply_thread_task_resume(NULL));
-//
-//    PRINT_MSG("\tCreating timer 1\r\n");
-//    SS_ASSERT(NULL == simply_thread_create_timer(NULL, "Hello", 5, SIMPLY_THREAD_TIMER_ONE_SHOT, true));
-//    timer_1 = simply_thread_create_timer(first_timer_worker, "Timer One", 100, SIMPLY_THREAD_TIMER_ONE_SHOT, true);
-//    SS_ASSERT(NULL != timer_1);
-//    PRINT_MSG("\tTesting timer start and stop\r\n");
-//    SS_ASSERT(simply_thread_timer_stop(timer_1));
-//    SS_ASSERT( false == simply_thread_timer_start(NULL));
-//    SS_ASSERT( false == simply_thread_timer_stop(NULL));
-//    SS_ASSERT(simply_thread_timer_start(timer_1));
-//    PRINT_MSG("\tCreating timer 2\r\n");
-//    timer_2 = simply_thread_create_timer(second_timer_worker, "Timer two", 100, SIMPLY_THREAD_TIMER_REPEAT, true);
-//    SS_ASSERT(NULL != timer_2);
-//    PRINT_MSG("\tSleeping main test task\r\n");
-//    simply_thread_sleep_ms(540);
-//    PRINT_MSG("\tStopping timer 2\r\n");
-//    SS_ASSERT(simply_thread_timer_stop(timer_2));
-//    PRINT_MSG("\tTimer 2 stopped\r\n");
-//    SS_ASSERT(5 == timer_2_count);
-//    simply_thread_cleanup();
-//    SS_ASSERT(thread_one_ran);
-//    SS_ASSERT(thread_two_ran);
-//    SS_ASSERT(timer_1_ran);
-//    PRINT_MSG("%s finnished\r\n", __FUNCTION__);
-//}
-//
-//static void main_timer_tests(void **state)
-//{
-//    timer_2_count = 0;
-//    timer_test(state);
-//}
-//
-//static void second_timer_tests(void **state)
-//{
-//    timer_2_count = 0;
-//    timer_test(state);
-//}
+static void first_timer_worker(simply_thread_timer_t timer)
+{
+    PRINT_MSG("%s running\r\n", __FUNCTION__);
+    SS_ASSERT(timer_1 == timer);
+    timer_1_ran = true;
+}
+
+static void second_timer_worker(simply_thread_timer_t timer)
+{
+    PRINT_MSG("%s running\r\n", __FUNCTION__);
+    timer_2_count++;
+}
+
+static void timer_test(void **state)
+{
+    PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+    simply_thread_reset();
+    PRINT_MSG("\tperforming task tests\r\n");
+    task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
+    task_two = simply_thread_new_thread("TASK2", thread_two_worker, 3, NULL, 0);
+
+    SS_ASSERT(NULL != task_one);
+    SS_ASSERT(NULL != task_two);
+    SS_ASSERT( false == simply_thread_task_suspend(NULL));
+    SS_ASSERT( false == simply_thread_task_resume(NULL));
+
+    PRINT_MSG("\tCreating timer 1\r\n");
+    SS_ASSERT(NULL == simply_thread_create_timer(NULL, "Hello", 5, SIMPLY_THREAD_TIMER_ONE_SHOT, true));
+    timer_1 = simply_thread_create_timer(first_timer_worker, "Timer One", 100, SIMPLY_THREAD_TIMER_ONE_SHOT, true);
+    SS_ASSERT(NULL != timer_1);
+    PRINT_MSG("\tTesting timer start and stop\r\n");
+    SS_ASSERT(simply_thread_timer_stop(timer_1));
+    SS_ASSERT( false == simply_thread_timer_start(NULL));
+    SS_ASSERT( false == simply_thread_timer_stop(NULL));
+    SS_ASSERT(simply_thread_timer_start(timer_1));
+    PRINT_MSG("\tCreating timer 2\r\n");
+    timer_2 = simply_thread_create_timer(second_timer_worker, "Timer two", 100, SIMPLY_THREAD_TIMER_REPEAT, true);
+    SS_ASSERT(NULL != timer_2);
+    PRINT_MSG("\tSleeping main test task\r\n");
+    simply_thread_sleep_ms(540);
+    PRINT_MSG("\tStopping timer 2\r\n");
+    SS_ASSERT(simply_thread_timer_stop(timer_2));
+    PRINT_MSG("\tTimer 2 stopped\r\n");
+    SS_ASSERT(5 == timer_2_count);
+    simply_thread_cleanup();
+    SS_ASSERT(thread_one_ran);
+    SS_ASSERT(thread_two_ran);
+    SS_ASSERT(timer_1_ran);
+    PRINT_MSG("%s finnished\r\n", __FUNCTION__);
+}
+
+static void main_timer_tests(void **state)
+{
+    timer_2_count = 0;
+    timer_test(state);
+}
+
+static void second_timer_tests(void **state)
+{
+    timer_2_count = 0;
+    timer_test(state);
+}
 
 
 /*********************************************************************
@@ -587,8 +587,8 @@ int main(void)
     {
         cmocka_unit_test(task_test_success),
         cmocka_unit_test(task_non_null_data_test),
-//        cmocka_unit_test(main_timer_tests),
-//        cmocka_unit_test(second_timer_tests),
+        cmocka_unit_test(main_timer_tests),
+        cmocka_unit_test(second_timer_tests),
 //        cmocka_unit_test(first_mutex_test_tests),
 //        cmocka_unit_test(second_mutex_test_tests),
 //        cmocka_unit_test(first_queue_test_tests),
