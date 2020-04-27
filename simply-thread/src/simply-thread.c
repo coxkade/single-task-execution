@@ -11,7 +11,7 @@
 #include <simply-thread-log.h>
 #include <simply-thread-timers.h>
 #include <simply-thread-mutex.h>
-//#include <simply-thread-queue.h>
+#include <simply-thread-queue.h>
 #include <simply_thread_system_clock.h>
 #include <Sem-Helper.h>
 #include <TCB.h>
@@ -142,7 +142,7 @@ void simply_thread_cleanup(void)
     simply_thead_system_clock_reset(); //Reset the system clock
     simply_thread_timers_cleanup();
     simply_thread_mutex_cleanup();
-//    simply_thread_queue_cleanup();
+    simply_thread_queue_cleanup();
     simply_thread_module_data.cleaning_up = false;
 }
 
