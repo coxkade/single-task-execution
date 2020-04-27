@@ -32,10 +32,25 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
         void *args), void *args);
 
 /**
+ * @brief Function that registers a function to be called on a tick from withint the TCB context
+ * @param on_tick pointer to the function to call on tick
+ * @param args argument to pass to the on tick handler when it is called
+ * @return NULL on error.  Otherwise the registered id
+ */
+sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick_from_tcb_context(void (*on_tick)(sys_clock_on_tick_handle_t handle, uint64_t tickval,
+        void *args), void *args);
+
+/**
  * @brief Function the deregisters a function on tick
  * @param handle the handle to deregister
  */
 void simply_thead_system_clock_deregister_on_tick(sys_clock_on_tick_handle_t handle);
+
+/**
+ * @brief Function that deregisters an ontick fromt the tcb context
+ * @param handle
+ */
+void simply_thead_system_clock_deregister_on_tick_from_tcb_context(sys_clock_on_tick_handle_t handle);
 
 /**
  * Function used to disable the on tick from the on tick handler

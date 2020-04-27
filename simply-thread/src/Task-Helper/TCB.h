@@ -44,12 +44,26 @@ void tcb_reset(void);
 void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *task);
 
 /**
+ * @brief Function that changes a tasks state from within the TCB context
+ * @param state
+ * @param task
+ */
+void tcv_set_task_state_from_tcb_context(enum simply_thread_thread_state_e state, tcb_task_t *task);
+
+/**
  * @brief Fetch the current state of a task
  * @param task
  * @return the current state of the task
  */
 enum simply_thread_thread_state_e tcb_get_task_state(tcb_task_t *task);
 
+
+/**
+ * @brief Fetch the current state of a task
+ * @param task
+ * @return the current state of the task
+ */
+enum simply_thread_thread_state_e tcb_get_task_state_from_tcb_context(tcb_task_t *task);
 
 /**
  * @brief Function that creates a new task

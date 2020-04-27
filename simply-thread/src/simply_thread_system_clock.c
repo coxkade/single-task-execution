@@ -243,6 +243,28 @@ sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick(void (*on_
 }
 
 /**
+ * @brief Function that registers a function to be called on a tick from withint the TCB context
+ * @param on_tick pointer to the function to call on tick
+ * @param args argument to pass to the on tick handler when it is called
+ * @return NULL on error.  Otherwise the registered id
+ */
+sys_clock_on_tick_handle_t simply_thead_system_clock_register_on_tick_from_tcb_context(void (*on_tick)(sys_clock_on_tick_handle_t handle, uint64_t tickval,
+        void *args), void *args)
+{
+    struct system_clock_reg_data_s worker_data;
+
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    init_thread_worker(NULL);
+    worker_data.rv = NULL;
+    SS_ASSERT(NULL != on_tick);
+    worker_data.on_tick = on_tick;
+    worker_data.args = args;
+    stsc_reg_in_tcb(&worker_data);
+    PRINT_MSG("%s Succeeded\r\n", __FUNCTION__);
+    return worker_data.rv;
+}
+
+/**
  * @brief deregister from the task control block context
  * @param data
  */
@@ -269,6 +291,18 @@ void simply_thead_system_clock_deregister_on_tick(sys_clock_on_tick_handle_t han
     PRINT_MSG("%s Running\r\n", __FUNCTION__);
     init_if_required();
     run_in_tcb_context(stsc_dereg_in_tcb, handle);
+    PRINT_MSG("%s Succeeded\r\n", __FUNCTION__);
+}
+
+/**
+ * @brief Function that deregisters an ontick fromt the tcb context
+ * @param handle
+ */
+void simply_thead_system_clock_deregister_on_tick_from_tcb_context(sys_clock_on_tick_handle_t handle)
+{
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+    init_thread_worker(NULL);
+    stsc_dereg_in_tcb(handle);
     PRINT_MSG("%s Succeeded\r\n", __FUNCTION__);
 }
 

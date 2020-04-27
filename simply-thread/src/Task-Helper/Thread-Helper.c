@@ -29,8 +29,6 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-//#define DEBUG_THREAD_HELPER
-
 #ifdef DEBUG_THREAD_HELPER
 #define PRINT_MSG(...) simply_thread_log(COLOR_MAGENTA, __VA_ARGS__)
 //#define PRINT_MSG(...) printf(__VA_ARGS__)

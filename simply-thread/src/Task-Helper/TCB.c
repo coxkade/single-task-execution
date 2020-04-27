@@ -20,7 +20,6 @@
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
-//#define DEBUG_SIMPLY_THREAD
 
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
@@ -267,13 +266,13 @@ static void * tcb_sched_exe(void * unused)
 	{
 		if(true == tcb_module_data.tasks[i].in_use)
 		{
+			if(true == thread_helper_thread_running(tcb_module_data.tasks[i].task.thread))
+			{
+				PRINT_MSG("Stopping task %s\r\n", tcb_module_data.tasks[i].task.name);
+				thread_helper_pause_thread(tcb_module_data.tasks[i].task.thread);
+			}
 			if(SIMPLY_THREAD_TASK_RUNNING == tcb_module_data.tasks[i].task.state)
 			{
-				if(true == thread_helper_thread_running(tcb_module_data.tasks[i].task.thread))
-				{
-					PRINT_MSG("Stopping task %s\r\n", tcb_module_data.tasks[i].task.name);
-					thread_helper_pause_thread(tcb_module_data.tasks[i].task.thread);
-				}
 				tcb_module_data.tasks[i].task.state = SIMPLY_THREAD_TASK_READY;
 			}
 		}
@@ -379,6 +378,26 @@ void tcb_set_task_state(enum simply_thread_thread_state_e state, tcb_task_t *tas
 }
 
 /**
+ * @brief Function that changes a tasks state from within the TCB context
+ * @param state
+ * @param task
+ */
+void tcv_set_task_state_from_tcb_context(enum simply_thread_thread_state_e state, tcb_task_t *task)
+{
+	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+	SS_ASSERT(NULL != task);
+	SS_ASSERT(SIMPLY_THREAD_TASK_RUNNING != state);
+
+	if(task->state != state)
+	{
+		task->state = state;
+		PRINT_MSG("State set to %i\r\n", state);
+		tcb_launch_scheduler();
+	}
+	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+}
+
+/**
  * @brief Fetch the current state of a task
  * @param task
  * @return the current state of the task
@@ -387,11 +406,28 @@ enum simply_thread_thread_state_e tcb_get_task_state(tcb_task_t *task)
 {
 	enum simply_thread_thread_state_e rv;
 
+	SS_ASSERT(NULL != task);
 	tcb_mutex_obtain();
 	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
 	rv = task->state;
 	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 	tcb_mutex_release();
+	return rv;
+}
+
+/**
+ * @brief Fetch the current state of a task
+ * @param task
+ * @return the current state of the task
+ */
+enum simply_thread_thread_state_e tcb_get_task_state_from_tcb_context(tcb_task_t *task)
+{
+	enum simply_thread_thread_state_e rv;
+
+	SS_ASSERT(NULL != task);
+	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+	rv = task->state;
+	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
 	return rv;
 }
 
@@ -485,10 +521,11 @@ void run_in_tcb_context(void (*fnct)(void *), void *data)
 	SS_ASSERT(NULL != fnct);
 
 	tcb_mutex_obtain();
-	PRINT_MSG("%s Starting\r\n", __FUNCTION__);
+	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__,fnct);
 	fnct(data);
-	PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+	PRINT_MSG("\t%s Finishing %p\r\n", __FUNCTION__, fnct);
 	tcb_mutex_release();
+	PRINT_MSG("%s Finished %p\r\n", __FUNCTION__, fnct);
 }
 
 /**

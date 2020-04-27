@@ -9,8 +9,8 @@
 #include <simply-thread.h>
 #include <priv-simply-thread.h>
 #include <simply-thread-log.h>
-//#include <simply-thread-timers.h>
-//#include <simply-thread-mutex.h>
+#include <simply-thread-timers.h>
+#include <simply-thread-mutex.h>
 //#include <simply-thread-queue.h>
 #include <simply_thread_system_clock.h>
 #include <Sem-Helper.h>
@@ -140,8 +140,8 @@ void simply_thread_cleanup(void)
     tcb_reset(); //Destroy all running tcb tasks
     PRINT_MSG("resetting the system clock\r\n");
     simply_thead_system_clock_reset(); //Reset the system clock
-//    simply_thread_timers_cleanup();
-//    simply_thread_mutex_cleanup();
+    simply_thread_timers_cleanup();
+    simply_thread_mutex_cleanup();
 //    simply_thread_queue_cleanup();
     simply_thread_module_data.cleaning_up = false;
 }
