@@ -12,7 +12,7 @@
 //#include <simply-thread-timers.h>
 //#include <simply-thread-mutex.h>
 //#include <simply-thread-queue.h>
-//#include <simply_thread_system_clock.h>
+#include <simply_thread_system_clock.h>
 #include <Sem-Helper.h>
 #include <TCB.h>
 #include <pthread.h>
@@ -83,248 +83,248 @@ static struct simply_thread_main_module_data_s simply_thread_module_data =
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
-//
-///**
-// * @brief Function that sleeps for the specified number of nanoseconds
-// * @param ns number of nanoseconds to sleep
-// */
-//void simply_thread_sleep_ns(unsigned long ns)
-//{
-//    struct timespec time_data =
-//    {
-//        .tv_sec = 0,
-//        .tv_nsec = ns
-//    };
-//
-//    while(0 != nanosleep(&time_data, &time_data))
-//    {
-//        if(true == simply_thread_module_data.cleaning_up)
-//        {
-//            PRINT_MSG("Cleaning up.  Bail on sleep\r\n");
-//            return;
-//        }
-//    }
-//}
-//
-///**
-// * @brief Function that sleeps for the specified number of milliseconds
-// * @param ms The number of milliseconds to sleep
-// */
-//void m_simply_thread_sleep_ms(unsigned long ms)
-//{
-//    static const unsigned long ns_in_ms = ST_NS_PER_MS;
-//    //Sleep 1 ms at a time
-//    for(unsigned long i = 0; i < ms; i++)
-//    {
-//        simply_thread_sleep_ns(ns_in_ms);
-//    }
-//}
-//
-//
-///**
-// * Function that resets the simply thread library.  Closes all existing created threads
-// */
-//void simply_thread_reset(void)
-//{
-//    simply_thread_cleanup();
-//}
-//
-///**
-// * @brief cleanup the simply thread module;  Will kill all running tasks
-// */
-//void simply_thread_cleanup(void)
-//{
-//    simply_thread_module_data.cleaning_up = true;
-//
-//    PRINT_MSG("reseting tcb\r\n");
-//    tcb_reset(); //Destroy all running tcb tasks
-//    PRINT_MSG("resetting the system clock\r\n");
-//    simply_thead_system_clock_reset(); //Reset the system clock
+
+/**
+ * @brief Function that sleeps for the specified number of nanoseconds
+ * @param ns number of nanoseconds to sleep
+ */
+void simply_thread_sleep_ns(unsigned long ns)
+{
+    struct timespec time_data =
+    {
+        .tv_sec = 0,
+        .tv_nsec = ns
+    };
+
+    while(0 != nanosleep(&time_data, &time_data))
+    {
+        if(true == simply_thread_module_data.cleaning_up)
+        {
+            PRINT_MSG("Cleaning up.  Bail on sleep\r\n");
+            return;
+        }
+    }
+}
+
+/**
+ * @brief Function that sleeps for the specified number of milliseconds
+ * @param ms The number of milliseconds to sleep
+ */
+void m_simply_thread_sleep_ms(unsigned long ms)
+{
+    static const unsigned long ns_in_ms = ST_NS_PER_MS;
+    //Sleep 1 ms at a time
+    for(unsigned long i = 0; i < ms; i++)
+    {
+        simply_thread_sleep_ns(ns_in_ms);
+    }
+}
+
+
+/**
+ * Function that resets the simply thread library.  Closes all existing created threads
+ */
+void simply_thread_reset(void)
+{
+    simply_thread_cleanup();
+}
+
+/**
+ * @brief cleanup the simply thread module;  Will kill all running tasks
+ */
+void simply_thread_cleanup(void)
+{
+    simply_thread_module_data.cleaning_up = true;
+
+    PRINT_MSG("reseting tcb\r\n");
+    tcb_reset(); //Destroy all running tcb tasks
+    PRINT_MSG("resetting the system clock\r\n");
+    simply_thead_system_clock_reset(); //Reset the system clock
 //    simply_thread_timers_cleanup();
 //    simply_thread_mutex_cleanup();
 //    simply_thread_queue_cleanup();
-//    simply_thread_module_data.cleaning_up = false;
-//}
-//
-///**
-// * Fetch the current task handle
-// */
-//void *simply_thread_current_task_handle(void)
-//{
-//    return tcb_task_self();
-//}
-//
-///**
-// * @brief Function that creates a new thread
-// * @param name The name of the thread
-// * @param cb the worker function of the thread
-// * @param priority the priority of the thread
-// * @param data the data to pass to the thread
-// * @param data_size the size of the data to pass to the thread
-// * @return handle of the new thread
-// */
-//simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_task_fnct cb, unsigned int priority, void *data, uint16_t data_size)
-//{
-//    simply_thread_task_t rv;
-//    if(NULL == name || NULL == cb || (data == NULL && 0 != data_size))
-//    {
-//        ST_LOG_ERROR("Name: %p, cb: %p, data: %p, data size: %u\r\n", name, cb, data, data_size);
-//        return NULL;
-//    }
-//    rv = tcb_create_task(name, cb, priority, data, data_size);
-//    return rv;
-//}
-//
-///**
-// * @brief the Sleep Tick Handler
-// * @param handle
-// * @param tickval
-// * @param args
-// */
-//void simply_thread_sleep_tick_handler(sys_clock_on_tick_handle_t handle, uint64_t tickval, void *args)
-//{
-//    struct sleep_tick_data_s *typed;
-//    enum simply_thread_thread_state_e cstate;
-//    typed = args;
-//    SS_ASSERT(NULL != typed);
-//
-//    if(NULL != typed->task)
-//    {
-//        //Interrupt context is sleeping
-//        cstate = tcb_get_task_state(typed->task);
-//        PRINT_MSG("tcb_get_task_state retunred %i\r\n", cstate);
-//        if(SIMPLY_THREAD_TASK_SUSPENDED != cstate)
-//        {
-//            PRINT_MSG("%s Waiting on SIMPLY_THREAD_TASK_SUSPENDED \r\n", __FUNCTION__);
-//            return;
-//        }
-//    }
-//    if(typed->count < typed->max_count)
-//    {
-//        typed->count++;
-//        if(typed->count == typed->max_count)
-//        {
-//            PRINT_MSG("%s Reached Count: %u \r\n", __FUNCTION__, typed->count);
-//            //We have finished sleeping and need to let the sleeping context know
-//            if(NULL == typed->task)
-//            {
-//                PRINT_MSG("%s Posting to the interrupt semaphore\r\n", __FUNCTION__);
-//                SS_ASSERT(0 == Sem_Helper_sem_post(&typed->sem));
-//            }
-//            else
-//            {
-//                PRINT_MSG("%s Setting task %s to SIMPLY_THREAD_TASK_READY\r\n", __FUNCTION__, typed->task->name);
-//                tcb_set_task_state(SIMPLY_THREAD_TASK_READY, typed->task);
-//            }
-//        }
-//    }
-//}
-//
-///**
-// * @brief Function that sleeps for the specified number of milliseconds
-// * @param ms The number of milliseconds to sleep
-// */
-//void simply_thread_sleep_ms(unsigned long ms)
-//{
-//    PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
-//    sys_clock_on_tick_handle_t tick_handle;
-//    struct sleep_tick_data_s sleep_data;
-//    int result;
-//    sleep_data.task = tcb_task_self();
-//    sleep_data.count = 0;
-//    sleep_data.max_count = ms;
-//    if(NULL == sleep_data.task)
-//    {
-//        PRINT_MSG("\t%s Handling unknown task %p\r\n", __FUNCTION__, pthread_self());
-//        //We are in the interrupt context
-//        Sem_Helper_sem_init(&sleep_data.sem);
-//        result = Sem_Helper_sem_trywait(&sleep_data.sem);
-//        if(EAGAIN != result)
-//        {
-//            SS_ASSERT(EAGAIN == result);
-//        }
-//        tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_sleep_tick_handler, &sleep_data);
-//        SS_ASSERT(NULL != tick_handle);
-//        PRINT_MSG("\t%s Waiting on semaphore %p\r\n", __FUNCTION__, pthread_self());
-//        while(0 != Sem_Helper_sem_wait(&sleep_data.sem)) {}
-//        PRINT_MSG("\t%s Finished waiting on semaphore %p\r\n", __FUNCTION__, pthread_self());
-//        //finished waiting destroy the semaphore
-//        Sem_Helper_sem_destroy(&sleep_data.sem);
-//    }
-//    else
-//    {
-//        PRINT_MSG("\t%s Handling known task %p\r\n", __FUNCTION__, pthread_self());
-//        //We are not in the interrupt context
-//        tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_sleep_tick_handler, &sleep_data);
-//        SS_ASSERT(NULL != tick_handle);
-//        tcb_set_task_state(SIMPLY_THREAD_TASK_SUSPENDED, sleep_data.task);
-//    }
-//    SS_ASSERT(NULL != tick_handle);
-//    simply_thead_system_clock_deregister_on_tick(tick_handle);
-//    PRINT_MSG("%s Finishing %p\r\n", __FUNCTION__, pthread_self());
-//}
-//
-///**
-// * @brief Function that suspends a task
-// * @param handle
-// * @return true on success
-// */
-//bool simply_thread_task_suspend(simply_thread_task_t handle)
-//{
-//    tcb_task_t *typed;
-//    typed = handle;
-//    if(NULL == typed)
-//    {
-//        typed = tcb_task_self();
-//        if(NULL == typed)
-//        {
-//            return false;
-//        }
-//    }
-//    tcb_set_task_state(SIMPLY_THREAD_TASK_SUSPENDED, typed);
-//    return true;
-//}
-//
-///**
-// * @brief Function that resumes a task
-// * @param handle
-// * @return true on success
-// */
-//bool simply_thread_task_resume(simply_thread_task_t handle)
-//{
-//    if(NULL == handle)
-//    {
-//        return false;
-//    }
-//    tcb_set_task_state(SIMPLY_THREAD_TASK_READY, handle);
-//    return true;
-//}
-//
-///**
-// * @brief Function that gets a tasks state
-// * @param handle Handle of the task to get the state
-// * @return The state of the task
-// */
-//enum simply_thread_thread_state_e simply_thread_task_state(simply_thread_task_t handle)
-//{
-//    SS_ASSERT(NULL != handle);
-//    return tcb_get_task_state(handle);
-//}
-//
-//
-///**
-// * @brief Function that checks if we are currently in an interrupt
-// * @return true currently in the interrupt context.
-// * @return false  Not Currently in the interrupt context.
-// */
-//bool simply_thread_in_interrupt(void)
-//{
-//    if(NULL == tcb_task_self())
-//    {
-//        return true;
-//    }
-//    return false;
-//}
+    simply_thread_module_data.cleaning_up = false;
+}
+
+/**
+ * Fetch the current task handle
+ */
+void *simply_thread_current_task_handle(void)
+{
+    return tcb_task_self();
+}
+
+/**
+ * @brief Function that creates a new thread
+ * @param name The name of the thread
+ * @param cb the worker function of the thread
+ * @param priority the priority of the thread
+ * @param data the data to pass to the thread
+ * @param data_size the size of the data to pass to the thread
+ * @return handle of the new thread
+ */
+simply_thread_task_t simply_thread_new_thread(const char *name, simply_thread_task_fnct cb, unsigned int priority, void *data, uint16_t data_size)
+{
+    simply_thread_task_t rv;
+    if(NULL == name || NULL == cb || (data == NULL && 0 != data_size))
+    {
+        ST_LOG_ERROR("Name: %p, cb: %p, data: %p, data size: %u\r\n", name, cb, data, data_size);
+        return NULL;
+    }
+    rv = tcb_create_task(name, cb, priority, data, data_size);
+    return rv;
+}
+
+/**
+ * @brief the Sleep Tick Handler
+ * @param handle
+ * @param tickval
+ * @param args
+ */
+void simply_thread_sleep_tick_handler(sys_clock_on_tick_handle_t handle, uint64_t tickval, void *args)
+{
+    struct sleep_tick_data_s *typed;
+    enum simply_thread_thread_state_e cstate;
+    typed = args;
+    SS_ASSERT(NULL != typed);
+
+    if(NULL != typed->task)
+    {
+        //Interrupt context is sleeping
+        cstate = tcb_get_task_state(typed->task);
+        PRINT_MSG("tcb_get_task_state retunred %i\r\n", cstate);
+        if(SIMPLY_THREAD_TASK_SUSPENDED != cstate)
+        {
+            PRINT_MSG("%s Waiting on SIMPLY_THREAD_TASK_SUSPENDED \r\n", __FUNCTION__);
+            return;
+        }
+    }
+    if(typed->count < typed->max_count)
+    {
+        typed->count++;
+        if(typed->count == typed->max_count)
+        {
+            PRINT_MSG("%s Reached Count: %u \r\n", __FUNCTION__, typed->count);
+            //We have finished sleeping and need to let the sleeping context know
+            if(NULL == typed->task)
+            {
+                PRINT_MSG("%s Posting to the interrupt semaphore\r\n", __FUNCTION__);
+                SS_ASSERT(0 == Sem_Helper_sem_post(&typed->sem));
+            }
+            else
+            {
+                PRINT_MSG("%s Setting task %s to SIMPLY_THREAD_TASK_READY\r\n", __FUNCTION__, typed->task->name);
+                tcb_set_task_state(SIMPLY_THREAD_TASK_READY, typed->task);
+            }
+        }
+    }
+}
+
+/**
+ * @brief Function that sleeps for the specified number of milliseconds
+ * @param ms The number of milliseconds to sleep
+ */
+void simply_thread_sleep_ms(unsigned long ms)
+{
+    PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
+    sys_clock_on_tick_handle_t tick_handle;
+    struct sleep_tick_data_s sleep_data;
+    int result;
+    sleep_data.task = tcb_task_self();
+    sleep_data.count = 0;
+    sleep_data.max_count = ms;
+    if(NULL == sleep_data.task)
+    {
+        PRINT_MSG("\t%s Handling unknown task %p\r\n", __FUNCTION__, pthread_self());
+        //We are in the interrupt context
+        Sem_Helper_sem_init(&sleep_data.sem);
+        result = Sem_Helper_sem_trywait(&sleep_data.sem);
+        if(EAGAIN != result)
+        {
+            SS_ASSERT(EAGAIN == result);
+        }
+        tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_sleep_tick_handler, &sleep_data);
+        SS_ASSERT(NULL != tick_handle);
+        PRINT_MSG("\t%s Waiting on semaphore %p\r\n", __FUNCTION__, pthread_self());
+        while(0 != Sem_Helper_sem_wait(&sleep_data.sem)) {}
+        PRINT_MSG("\t%s Finished waiting on semaphore %p\r\n", __FUNCTION__, pthread_self());
+        //finished waiting destroy the semaphore
+        Sem_Helper_sem_destroy(&sleep_data.sem);
+    }
+    else
+    {
+        PRINT_MSG("\t%s Handling known task %p\r\n", __FUNCTION__, pthread_self());
+        //We are not in the interrupt context
+        tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_sleep_tick_handler, &sleep_data);
+        SS_ASSERT(NULL != tick_handle);
+        tcb_set_task_state(SIMPLY_THREAD_TASK_SUSPENDED, sleep_data.task);
+    }
+    SS_ASSERT(NULL != tick_handle);
+    simply_thead_system_clock_deregister_on_tick(tick_handle);
+    PRINT_MSG("%s Finishing %p\r\n", __FUNCTION__, pthread_self());
+}
+
+/**
+ * @brief Function that suspends a task
+ * @param handle
+ * @return true on success
+ */
+bool simply_thread_task_suspend(simply_thread_task_t handle)
+{
+    tcb_task_t *typed;
+    typed = handle;
+    if(NULL == typed)
+    {
+        typed = tcb_task_self();
+        if(NULL == typed)
+        {
+            return false;
+        }
+    }
+    tcb_set_task_state(SIMPLY_THREAD_TASK_SUSPENDED, typed);
+    return true;
+}
+
+/**
+ * @brief Function that resumes a task
+ * @param handle
+ * @return true on success
+ */
+bool simply_thread_task_resume(simply_thread_task_t handle)
+{
+    if(NULL == handle)
+    {
+        return false;
+    }
+    tcb_set_task_state(SIMPLY_THREAD_TASK_READY, handle);
+    return true;
+}
+
+/**
+ * @brief Function that gets a tasks state
+ * @param handle Handle of the task to get the state
+ * @return The state of the task
+ */
+enum simply_thread_thread_state_e simply_thread_task_state(simply_thread_task_t handle)
+{
+    SS_ASSERT(NULL != handle);
+    return tcb_get_task_state(handle);
+}
+
+
+/**
+ * @brief Function that checks if we are currently in an interrupt
+ * @return true currently in the interrupt context.
+ * @return false  Not Currently in the interrupt context.
+ */
+bool simply_thread_in_interrupt(void)
+{
+    if(NULL == tcb_task_self())
+    {
+        return true;
+    }
+    return false;
+}
 
 
 /**

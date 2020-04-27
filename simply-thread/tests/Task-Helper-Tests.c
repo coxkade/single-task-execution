@@ -20,7 +20,7 @@
 #include <Sem-Helper.h>
 #include <TCB.h>
 
-#define DEBUG_TESTS
+//#define DEBUG_TESTS
 
 #ifdef DEBUG_TESTS
 #define PRINT_MSG(...) SIMPLY_THREAD_PRINT(__VA_ARGS__)
@@ -247,7 +247,7 @@ int run_task_helper_tests(void)
     {
 		cmocka_unit_test(basic_thread_helper_test),
         cmocka_unit_test(TCB_Test_One),
-//        cmocka_unit_test(TCB_Test_Two)
+        cmocka_unit_test(TCB_Test_Two)
     };
     rv = cmocka_run_group_tests(message_helper_tests, NULL, NULL);
     SS_ASSERT(0 <= rv);

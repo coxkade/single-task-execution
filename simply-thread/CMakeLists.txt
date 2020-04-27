@@ -77,7 +77,7 @@ LIST(APPEND simply-thread-sources
     #src/simply-thread-timers.c
 	#src/simply-thread-mutex.c
 	#src/simply-thread-queue.c
-	#src/simply_thread_system_clock.c
+	src/simply_thread_system_clock.c
 	src/Task-Helper/Thread-Helper.c
 	src/Task-Helper/TCB.c
 	src/Task-Helper/Sem-Helper.c

@@ -50,7 +50,7 @@
 
 
 
-#define DISABLE_TIME_OUT 1
+//#define DISABLE_TIME_OUT 1
 
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
@@ -64,10 +64,10 @@
 /***************************** Static Variables ************************************/
 /***********************************************************************************/
 
-//static simply_thread_task_t task_one = NULL;  //The First tasks task handle
-//static simply_thread_task_t task_two = NULL; //The Second tasks task handle
-//static bool thread_one_ran = false; //Tells if thread one ever ran
-//static bool thread_two_ran = false; //Tells if thread two ever ran
+static simply_thread_task_t task_one = NULL;  //The First tasks task handle
+static simply_thread_task_t task_two = NULL; //The Second tasks task handle
+static bool thread_one_ran = false; //Tells if thread one ever ran
+static bool thread_two_ran = false; //Tells if thread two ever ran
 //static simply_thread_timer_t timer_1; //The handle for timer one
 //static simply_thread_timer_t timer_2; //The handle for timer two
 //static bool timer_1_ran = false; //Tells if timer 1 executed
@@ -81,106 +81,106 @@
 /***********************************************************************************/
 
 
-///**
-// * @brief the task function for the second task
-// * @param data UNUSED
-// * @param data_size UNUSED
-// */
-//static void thread_two_worker(void *data, uint16_t data_size)
-//{
-//	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
-//    simply_thread_sleep_ms(100);
-//    while(1)
-//    {
-//        SS_ASSERT(true == simply_thread_task_suspend(NULL));
-//        thread_two_ran = true;
-//    }
-//}
-//
-///**
-// * @brief The function for the first task
-// * @param data UNUSED
-// * @param data_size UNUSED
-// */
-//static void thread_one_worker(void *data, uint16_t data_size)
-//{
-//	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
-//    simply_thread_sleep_ms(100);
-//    while(1)
-//    {
-//        SS_ASSERT(true == simply_thread_task_resume(task_two));
-//        simply_thread_sleep_ms(10);
-//        thread_one_ran = true;
-//    }
-//}
-//
-//
-//
-//static void task_test_success(void **state)
-//{
-//    simply_thread_reset();
-//    PRINT_MSG("Creating Task1\r\n");
-//    task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
-//    PRINT_MSG("Creating Task2\r\n");
-//    task_two = simply_thread_new_thread("TASK2", thread_two_worker, 3, NULL, 0);
-//    PRINT_MSG("Checking Creation Results\r\n");
-//    SS_ASSERT(NULL != task_one);
-//    SS_ASSERT(NULL != task_two);
-//    PRINT_MSG("Checking Error Results\r\n");
-//    SS_ASSERT( false == simply_thread_task_suspend(NULL));
-//    SS_ASSERT( false == simply_thread_task_resume(NULL));
-//    PRINT_MSG("----SLEEPING Test\r\n");
-//    simply_thread_sleep_ms(1000);
-//    PRINT_MSG("----sleep test finished\r\n");
-//    PRINT_MSG("Cleaning UP\r\n");
-//    simply_thread_cleanup();
-//    SS_ASSERT(thread_one_ran);
-//    SS_ASSERT(thread_two_ran);
-//}
-//
-//
-//static bool task_non_null_data_test_continue = false;
-///**
-// * Third worker thread to test tasks with data
-// * @param data
-// * @param data_size
-// */
-//static void thread_three_worker(void *data, uint16_t data_size)
-//{
-//    simply_thread_sleep_ms(100);
-//    int test_val;
-//    SS_ASSERT(data_size == sizeof(test_val));
-//    SS_ASSERT(NULL != data);
-//    memcpy(&test_val, data, sizeof(test_val));
-//    SS_ASSERT(5 == test_val);
-//    task_non_null_data_test_continue = true;
-//    while(1)
-//    {
-//        simply_thread_sleep_ms(100);
-//    }
-//}
-//
-///**
-// * @brief Test for non NULL data
-// * @param state
-// */
-//static void task_non_null_data_test(void **state)
-//{
-//    simply_thread_task_t test_task;
-//    int test_val = 5;
-//    task_non_null_data_test_continue = false;
-//    simply_thread_reset();
-//    PRINT_MSG("Creating test task\r\n");
-//    test_task = simply_thread_new_thread("DataTask", thread_three_worker, 1, &test_val, sizeof(test_val));
-//    PRINT_MSG("Checking the result\r\n");
-//    SS_ASSERT(NULL != test_task);
-//    PRINT_MSG("Sleeping\r\n");
-//    simply_thread_sleep_ms(1000);
-//    PRINT_MSG("Checking value\r\n");
-//    SS_ASSERT(true == task_non_null_data_test_continue);
-//    PRINT_MSG("Cleaning Up\r\n");
-//    simply_thread_cleanup();
-//}
+/**
+ * @brief the task function for the second task
+ * @param data UNUSED
+ * @param data_size UNUSED
+ */
+static void thread_two_worker(void *data, uint16_t data_size)
+{
+	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
+    simply_thread_sleep_ms(100);
+    while(1)
+    {
+        SS_ASSERT(true == simply_thread_task_suspend(NULL));
+        thread_two_ran = true;
+    }
+}
+
+/**
+ * @brief The function for the first task
+ * @param data UNUSED
+ * @param data_size UNUSED
+ */
+static void thread_one_worker(void *data, uint16_t data_size)
+{
+	PRINT_MSG("%s Starting %p\r\n", __FUNCTION__, pthread_self());
+    simply_thread_sleep_ms(100);
+    while(1)
+    {
+        SS_ASSERT(true == simply_thread_task_resume(task_two));
+        simply_thread_sleep_ms(10);
+        thread_one_ran = true;
+    }
+}
+
+
+
+static void task_test_success(void **state)
+{
+    simply_thread_reset();
+    PRINT_MSG("Creating Task1\r\n");
+    task_one = simply_thread_new_thread("TASK1", thread_one_worker, 1, NULL, 0);
+    PRINT_MSG("Creating Task2\r\n");
+    task_two = simply_thread_new_thread("TASK2", thread_two_worker, 3, NULL, 0);
+    PRINT_MSG("Checking Creation Results\r\n");
+    SS_ASSERT(NULL != task_one);
+    SS_ASSERT(NULL != task_two);
+    PRINT_MSG("Checking Error Results\r\n");
+    SS_ASSERT( false == simply_thread_task_suspend(NULL));
+    SS_ASSERT( false == simply_thread_task_resume(NULL));
+    PRINT_MSG("----SLEEPING Test\r\n");
+    simply_thread_sleep_ms(1000);
+    PRINT_MSG("----sleep test finished\r\n");
+    PRINT_MSG("Cleaning UP\r\n");
+    simply_thread_cleanup();
+    SS_ASSERT(thread_one_ran);
+    SS_ASSERT(thread_two_ran);
+}
+
+
+static bool task_non_null_data_test_continue = false;
+/**
+ * Third worker thread to test tasks with data
+ * @param data
+ * @param data_size
+ */
+static void thread_three_worker(void *data, uint16_t data_size)
+{
+    simply_thread_sleep_ms(100);
+    int test_val;
+    SS_ASSERT(data_size == sizeof(test_val));
+    SS_ASSERT(NULL != data);
+    memcpy(&test_val, data, sizeof(test_val));
+    SS_ASSERT(5 == test_val);
+    task_non_null_data_test_continue = true;
+    while(1)
+    {
+        simply_thread_sleep_ms(100);
+    }
+}
+
+/**
+ * @brief Test for non NULL data
+ * @param state
+ */
+static void task_non_null_data_test(void **state)
+{
+    simply_thread_task_t test_task;
+    int test_val = 5;
+    task_non_null_data_test_continue = false;
+    simply_thread_reset();
+    PRINT_MSG("Creating test task\r\n");
+    test_task = simply_thread_new_thread("DataTask", thread_three_worker, 1, &test_val, sizeof(test_val));
+    PRINT_MSG("Checking the result\r\n");
+    SS_ASSERT(NULL != test_task);
+    PRINT_MSG("Sleeping\r\n");
+    simply_thread_sleep_ms(1000);
+    PRINT_MSG("Checking value\r\n");
+    SS_ASSERT(true == task_non_null_data_test_continue);
+    PRINT_MSG("Cleaning Up\r\n");
+    simply_thread_cleanup();
+}
 
 /*********************************************************************
  *********************** Timer Test Items ****************************
@@ -583,25 +583,25 @@ int main(void)
     pthread_t thread;
     unsigned int timeout_seconds = 30;
 #endif //DISABLE_TIME_OUT
-//    const struct CMUnitTest tests[] =
-//    {
-//        cmocka_unit_test(task_test_success),
-//        cmocka_unit_test(task_non_null_data_test),
+    const struct CMUnitTest tests[] =
+    {
+        cmocka_unit_test(task_test_success),
+        cmocka_unit_test(task_non_null_data_test),
 //        cmocka_unit_test(main_timer_tests),
 //        cmocka_unit_test(second_timer_tests),
 //        cmocka_unit_test(first_mutex_test_tests),
 //        cmocka_unit_test(second_mutex_test_tests),
 //        cmocka_unit_test(first_queue_test_tests),
 //        cmocka_unit_test(second_queue_test_tests),
-//    };
+    };
 #ifndef DISABLE_TIME_OUT
     result = pthread_create(&thread, NULL, timeout_worker, &timeout_seconds);
     SS_ASSERT(0 == result);
 #endif //DISABLE_TIME_OUT
     result = run_task_helper_tests();
     SS_ASSERT(0 <= result);
-//    result = cmocka_run_group_tests(tests, NULL, NULL);
-//    SS_ASSERT(0 <= result || 255 == result);
+    result = cmocka_run_group_tests(tests, NULL, NULL);
+    SS_ASSERT(0 <= result || 255 == result);
     return result;
 }
 
