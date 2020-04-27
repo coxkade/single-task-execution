@@ -80,16 +80,5 @@ void run_in_tcb_context(void (*fnct)(void *), void *data);
  */
 void tcb_on_assert(void);
 
-/**
- * @brief Function to check and see if the task control block is executing
- * @return True it the TCB context is running an opperation
- */
-bool tcb_context_executing(void);
-
-/**
- * @brief Function that tells if we are executing from the TCB context
- * @return true if the calling function is in the TCB Context
- */
-bool in_tcb_context(void);
 
 #endif /* SIMPLY_THREAD_SRC_TASK_HELPER_TCB_H_ */

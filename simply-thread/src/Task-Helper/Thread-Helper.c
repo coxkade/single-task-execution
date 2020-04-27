@@ -29,7 +29,7 @@
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-#define DEBUG_THREAD_HELPER
+//#define DEBUG_THREAD_HELPER
 
 #ifdef DEBUG_THREAD_HELPER
 #define PRINT_MSG(...) simply_thread_log(COLOR_MAGENTA, __VA_ARGS__)
@@ -400,8 +400,3 @@ void thread_helper_cleanup(void)
 	PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 
-void tcb_on_assert(void)
-{
-	//Place holder remove latter
-	thread_helper_cleanup();
-}

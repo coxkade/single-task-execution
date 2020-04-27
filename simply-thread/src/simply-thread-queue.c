@@ -9,7 +9,6 @@
 #include <simply-thread-log.h>
 #include <simply-thread-queue.h>
 #include <simply_thread_system_clock.h>
-#include <Message-Helper.h>
 #include <TCB.h>
 #include <stdlib.h>
 #include <string.h>
@@ -86,7 +85,6 @@ struct single_queue_data_s
 
 struct ss_queue_module_data_s
 {
-    Message_Helper_Instance_t *m_helper;
     struct single_queue_data_s all_queues[MAX_NUM_QUEUES];
 }; //!< Structure that holds all the data local to the queue
 
@@ -153,7 +151,6 @@ struct ss_queue_msg_s
 
 static struct ss_queue_module_data_s queue_data =
 {
-    .m_helper = NULL
 }; //!< variable holding the local module data
 
 /***********************************************************************************/
@@ -374,8 +371,8 @@ static void ss_queue_on_tick(sys_clock_on_tick_handle_t handle, uint64_t tickval
             message.type = SS_QUEUE_TIMEOUT;
             message.data.time_out = typed;
             message.finished = &comp;
-            Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
-            while(false == comp) {}
+//            Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
+//            while(false == comp) {}
         }
     }
 }
@@ -615,15 +612,15 @@ static void ss_queue_on_message(void *message, uint32_t message_size)
 static void ss_queue_init_in_tcb(void *data)
 {
     SS_ASSERT(NULL == data);
-    if(NULL == queue_data.m_helper)
-    {
-        for(int i = 0; i < ARRAY_MAX_COUNT(queue_data.all_queues); i++)
-        {
-            queue_data.all_queues[i].alocated = false;
-        }
-        queue_data.m_helper = New_Message_Helper(ss_queue_on_message, "SS_QUEUE_MESSAGE_HANDLER");
-        SS_ASSERT(NULL != queue_data.m_helper);
-    }
+//    if(NULL == queue_data.m_helper)
+//    {
+//        for(int i = 0; i < ARRAY_MAX_COUNT(queue_data.all_queues); i++)
+//        {
+//            queue_data.all_queues[i].alocated = false;
+//        }
+//        queue_data.m_helper = New_Message_Helper(ss_queue_on_message, "SS_QUEUE_MESSAGE_HANDLER");
+//        SS_ASSERT(NULL != queue_data.m_helper);
+//    }
 }
 
 /**
@@ -631,10 +628,10 @@ static void ss_queue_init_in_tcb(void *data)
  */
 static void ss_queue_init_if_needed(void)
 {
-    if(NULL == queue_data.m_helper)
-    {
-        run_in_tcb_context(ss_queue_init_in_tcb, NULL);
-    }
+//    if(NULL == queue_data.m_helper)
+//    {
+//        run_in_tcb_context(ss_queue_init_in_tcb, NULL);
+//    }
 }
 
 /**
@@ -642,7 +639,7 @@ static void ss_queue_init_if_needed(void)
  */
 void simply_thread_queue_cleanup(void)
 {
-    queue_data.m_helper = NULL;
+//    queue_data.m_helper = NULL;
 }
 
 /**
@@ -669,9 +666,10 @@ simply_thread_queue_t simply_thread_queue_create(const char *name, unsigned int 
     message.type = SS_QUEUE_CREATE;
     message.data.create = &data;
     message.finished = &comp;
+    data.result = NULL;
 
-    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
-    while(false == comp) {}
+//    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
+//    while(false == comp) {}
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
     return data.result;
 }
@@ -696,10 +694,11 @@ unsigned int simply_thread_queue_get_count(simply_thread_queue_t queue)
     message.data.count = &data;
     message.finished = &comp;
 
-    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
+//    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
     while(false == comp) {}
     PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-    return data.count;
+//    return data.count;
+    return 0;
 }
 
 /**
@@ -727,10 +726,11 @@ bool simply_thread_queue_send(simply_thread_queue_t queue, void *data, unsigned 
     message.finished = &comp;
     message.data.send = &worker;
 
-    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
-    while(false == comp) {}
-    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-    return worker.result;
+//    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
+//    while(false == comp) {}
+//    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+//    return worker.result;
+    return false;
 }
 
 
@@ -760,8 +760,9 @@ bool simply_thread_queue_rcv(simply_thread_queue_t queue, void *data, unsigned i
     message.finished = &comp;
 
 
-    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
-    while(false == comp) {}
-    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-    return worker.result;
+//    Message_Helper_Send(queue_data.m_helper, &message, sizeof(message));
+//    while(false == comp) {}
+//    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+//    return worker.result;
+    return false;
 }

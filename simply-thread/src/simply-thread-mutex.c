@@ -56,7 +56,6 @@ struct single_mutex_data_s
 
 struct mutex_module_data_s
 {
-    Message_Helper_Instance_t *msg_hlper;
     struct
     {
         struct single_mutex_data_s mutex;
@@ -122,7 +121,6 @@ struct mutex_message_s
 
 static struct mutex_module_data_s mutex_mod_data =
 {
-    .msg_hlper = NULL
 }; //!< This modules local data
 
 /***********************************************************************************/
@@ -138,30 +136,30 @@ static struct mutex_module_data_s mutex_mod_data =
 static void mutexlock_on_tick(sys_clock_on_tick_handle_t handle, uint64_t tickval, void *args)
 {
 
-    struct mutex_wait_task_s *typed;
-    typed = args;
-    if(NULL != typed->waiting_task)
-    {
-        if(typed->count < typed->max_count)
-        {
-            typed->count++;
-            if(typed->count == typed->max_count)
-            {
-                struct mutex_message_s message;
-                struct mutex_on_tick_data_s worker;
-                bool comp;
-                comp = false;
-                worker.args = args;
-                worker.handle = handle;
-                worker.tickval = tickval;
-                message.type = MUTEX_ON_TICK;
-                message.finished = &comp;
-                message.data.on_tick = &worker;
-                Message_Helper_Send(mutex_mod_data.msg_hlper, &message, sizeof(message));
-                while(false == comp) {} //Spin untill the message has been handled
-            }
-        }
-    }
+//    struct mutex_wait_task_s *typed;
+//    typed = args;
+//    if(NULL != typed->waiting_task)
+//    {
+//        if(typed->count < typed->max_count)
+//        {
+//            typed->count++;
+//            if(typed->count == typed->max_count)
+//            {
+//                struct mutex_message_s message;
+//                struct mutex_on_tick_data_s worker;
+//                bool comp;
+//                comp = false;
+//                worker.args = args;
+//                worker.handle = handle;
+//                worker.tickval = tickval;
+//                message.type = MUTEX_ON_TICK;
+//                message.finished = &comp;
+//                message.data.on_tick = &worker;
+//                Message_Helper_Send(mutex_mod_data.msg_hlper, &message, sizeof(message));
+//                while(false == comp) {} //Spin untill the message has been handled
+//            }
+//        }
+//    }
 
 
 }
@@ -173,20 +171,20 @@ static void mutexlock_on_tick(sys_clock_on_tick_handle_t handle, uint64_t tickva
  */
 static void handle_mutex_on_tick(struct mutex_on_tick_data_s *data)
 {
-    struct mutex_wait_task_s *typed;
-    typed = data->args;
-    SS_ASSERT(NULL != typed);
-
-    if(NULL != typed->waiting_task)
-    {
-        if(SIMPLY_THREAD_TASK_BLOCKED == tcb_get_task_state(typed->waiting_task))
-        {
-            PRINT_MSG("\tMutex Timed out\r\n");
-            tcb_set_task_state(SIMPLY_THREAD_TASK_READY, typed->waiting_task);
-            simply_thead_system_clock_deregister_on_tick(data->handle);
-            typed->waiting_task = NULL;
-        }
-    }
+//    struct mutex_wait_task_s *typed;
+//    typed = data->args;
+//    SS_ASSERT(NULL != typed);
+//
+//    if(NULL != typed->waiting_task)
+//    {
+//        if(SIMPLY_THREAD_TASK_BLOCKED == tcb_get_task_state(typed->waiting_task))
+//        {
+//            PRINT_MSG("\tMutex Timed out\r\n");
+//            tcb_set_task_state(SIMPLY_THREAD_TASK_READY, typed->waiting_task);
+//            simply_thead_system_clock_deregister_on_tick(data->handle);
+//            typed->waiting_task = NULL;
+//        }
+//    }
 }
 
 /**
@@ -195,60 +193,60 @@ static void handle_mutex_on_tick(struct mutex_on_tick_data_s *data)
  */
 static void handle_mutex_lock(struct mutex_lock_data_s *data)
 {
-    struct single_mutex_data_s *mux;
-
-    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
-    SS_ASSERT(NULL != data);
-    mux = data->mutex;
-    if(NULL == mux)
-    {
-        PRINT_MSG("\tMutex is NULL\r\n");
-        data->result[0] = false;
-        return;
-    }
-    if(data->wait_time > 0 && NULL == data->task)
-    {
-        data->wait_time = 0;
-    }
-
-    if(mux->available == true)
-    {
-        PRINT_MSG("\t\tMutex obtained\r\n");
-        mux->available =  false;
-        PRINT_MSG("\t\tSetting result\r\n");
-        data->result[0] = true;
-        PRINT_MSG("\t\tResult set\r\n");
-    }
-    else if(data->wait_time == 0)
-    {
-        PRINT_MSG("\t\tMutex not available and not blocking\r\n");
-        data->result[0] = false;
-    }
-    else
-    {
-        PRINT_MSG("\t\tBlock and wait for mutex\r\n");
-        bool wait_started  = false;
-        SS_ASSERT(NULL != data->task);
-        //Add the blocked task to the waiting task list
-        for(int i = 0; i < ARRAY_MAX_COUNT(mux->wait_tasks) && false == wait_started; i++)
-        {
-            if(NULL == mux->wait_tasks[i].waiting_task)
-            {
-                //block the task
-                PRINT_MSG("\t\tSetting task %s to blocked %i\r\n", data->task->name, i);
-                tcb_set_task_state(SIMPLY_THREAD_TASK_BLOCKED, data->task);
-                mux->wait_tasks[i].count = 0;
-                mux->wait_tasks[i].max_count = data->wait_time;
-                mux->wait_tasks[i].waiting_task = data->task;
-                mux->wait_tasks[i].result = data->result;
-                mux->wait_tasks[i].result[0] = false;
-                mux->wait_tasks[i].tick_handle = simply_thead_system_clock_register_on_tick(mutexlock_on_tick, &mux->wait_tasks[i]);
-                PRINT_MSG("\t\tWait Started\r\n");
-                wait_started = true;
-            }
-        }
-    }
-    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+//    struct single_mutex_data_s *mux;
+//
+//    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
+//    SS_ASSERT(NULL != data);
+//    mux = data->mutex;
+//    if(NULL == mux)
+//    {
+//        PRINT_MSG("\tMutex is NULL\r\n");
+//        data->result[0] = false;
+//        return;
+//    }
+//    if(data->wait_time > 0 && NULL == data->task)
+//    {
+//        data->wait_time = 0;
+//    }
+//
+//    if(mux->available == true)
+//    {
+//        PRINT_MSG("\t\tMutex obtained\r\n");
+//        mux->available =  false;
+//        PRINT_MSG("\t\tSetting result\r\n");
+//        data->result[0] = true;
+//        PRINT_MSG("\t\tResult set\r\n");
+//    }
+//    else if(data->wait_time == 0)
+//    {
+//        PRINT_MSG("\t\tMutex not available and not blocking\r\n");
+//        data->result[0] = false;
+//    }
+//    else
+//    {
+//        PRINT_MSG("\t\tBlock and wait for mutex\r\n");
+//        bool wait_started  = false;
+//        SS_ASSERT(NULL != data->task);
+//        //Add the blocked task to the waiting task list
+//        for(int i = 0; i < ARRAY_MAX_COUNT(mux->wait_tasks) && false == wait_started; i++)
+//        {
+//            if(NULL == mux->wait_tasks[i].waiting_task)
+//            {
+//                //block the task
+//                PRINT_MSG("\t\tSetting task %s to blocked %i\r\n", data->task->name, i);
+//                tcb_set_task_state(SIMPLY_THREAD_TASK_BLOCKED, data->task);
+//                mux->wait_tasks[i].count = 0;
+//                mux->wait_tasks[i].max_count = data->wait_time;
+//                mux->wait_tasks[i].waiting_task = data->task;
+//                mux->wait_tasks[i].result = data->result;
+//                mux->wait_tasks[i].result[0] = false;
+//                mux->wait_tasks[i].tick_handle = simply_thead_system_clock_register_on_tick(mutexlock_on_tick, &mux->wait_tasks[i]);
+//                PRINT_MSG("\t\tWait Started\r\n");
+//                wait_started = true;
+//            }
+//        }
+//    }
+//    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -258,42 +256,42 @@ static void handle_mutex_lock(struct mutex_lock_data_s *data)
  */
 static inline tcb_task_t *fetch_start_task(struct single_mutex_data_s *mux)
 {
-    tcb_task_t *rv;
-    int used_index = 0xFFFFFFFF;
-    rv = NULL;
-    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
-    for(int i = 0; i < ARRAY_MAX_COUNT(mux->wait_tasks); i++)
-    {
-        if(NULL != mux->wait_tasks[i].waiting_task)
-        {
-            if(SIMPLY_THREAD_TASK_BLOCKED != mux->wait_tasks[i].waiting_task->state)
-            {
-                PRINT_MSG("\t\tTask %s State is %i\r\n", mux->wait_tasks[i].waiting_task->name, mux->wait_tasks[i].waiting_task->state);
-            }
-            SS_ASSERT(SIMPLY_THREAD_TASK_BLOCKED == mux->wait_tasks[i].waiting_task->state);
-            if(NULL == rv)
-            {
-                rv = mux->wait_tasks[i].waiting_task;
-                used_index = i;
-            }
-            else
-            {
-                if(mux->wait_tasks[i].waiting_task->priority > rv->priority)
-                {
-                    rv = mux->wait_tasks[i].waiting_task;
-                    used_index = i;
-                }
-            }
-        }
-    }
-    if(NULL != rv)
-    {
-        simply_thead_system_clock_deregister_on_tick(mux->wait_tasks[used_index].tick_handle);
-        mux->wait_tasks[used_index].waiting_task = NULL;
-        mux->wait_tasks[used_index].result[0] = true;
-    }
-    PRINT_MSG("\t%s Finishing with %p\r\n", __FUNCTION__, rv);
-    return rv;
+//    tcb_task_t *rv;
+//    int used_index = 0xFFFFFFFF;
+//    rv = NULL;
+//    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
+//    for(int i = 0; i < ARRAY_MAX_COUNT(mux->wait_tasks); i++)
+//    {
+//        if(NULL != mux->wait_tasks[i].waiting_task)
+//        {
+//            if(SIMPLY_THREAD_TASK_BLOCKED != mux->wait_tasks[i].waiting_task->state)
+//            {
+//                PRINT_MSG("\t\tTask %s State is %i\r\n", mux->wait_tasks[i].waiting_task->name, mux->wait_tasks[i].waiting_task->state);
+//            }
+//            SS_ASSERT(SIMPLY_THREAD_TASK_BLOCKED == mux->wait_tasks[i].waiting_task->state);
+//            if(NULL == rv)
+//            {
+//                rv = mux->wait_tasks[i].waiting_task;
+//                used_index = i;
+//            }
+//            else
+//            {
+//                if(mux->wait_tasks[i].waiting_task->priority > rv->priority)
+//                {
+//                    rv = mux->wait_tasks[i].waiting_task;
+//                    used_index = i;
+//                }
+//            }
+//        }
+//    }
+//    if(NULL != rv)
+//    {
+//        simply_thead_system_clock_deregister_on_tick(mux->wait_tasks[used_index].tick_handle);
+//        mux->wait_tasks[used_index].waiting_task = NULL;
+//        mux->wait_tasks[used_index].result[0] = true;
+//    }
+//    PRINT_MSG("\t%s Finishing with %p\r\n", __FUNCTION__, rv);
+//    return rv;
 }
 
 /**
@@ -302,33 +300,33 @@ static inline tcb_task_t *fetch_start_task(struct single_mutex_data_s *mux)
  */
 static void handle_mutex_unlock(struct mutex_unlock_data_s *data)
 {
-    struct single_mutex_data_s *mux;
-    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
-    SS_ASSERT(NULL != data);
-    mux = data->mutex;
-    PRINT_MSG("\t\tWorking with mutex at %p\r\n", mux);
-    mux->available = false;
-    data->result = false;
-    data->start_task = NULL;
-    if(NULL != mux)
-    {
-        SS_ASSERT(false == mux->available);
-        data->start_task = fetch_start_task(mux);
-        PRINT_MSG("\t\tStart Task Now %p\r\n", data->start_task);
-        mux->available = true;
-        if(NULL != data->start_task)
-        {
-            PRINT_MSG("\t\tSetting task %s to ready\r\n", data->start_task->name);
-            tcb_set_task_state(SIMPLY_THREAD_TASK_READY, data->start_task);
-        }
-        else
-        {
-            PRINT_MSG("\t\tMutex is now available\r\n");
-            mux->available = true; //The mutex is available
-        }
-    }
-    data->result = true;
-    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+//    struct single_mutex_data_s *mux;
+//    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
+//    SS_ASSERT(NULL != data);
+//    mux = data->mutex;
+//    PRINT_MSG("\t\tWorking with mutex at %p\r\n", mux);
+//    mux->available = false;
+//    data->result = false;
+//    data->start_task = NULL;
+//    if(NULL != mux)
+//    {
+//        SS_ASSERT(false == mux->available);
+//        data->start_task = fetch_start_task(mux);
+//        PRINT_MSG("\t\tStart Task Now %p\r\n", data->start_task);
+//        mux->available = true;
+//        if(NULL != data->start_task)
+//        {
+//            PRINT_MSG("\t\tSetting task %s to ready\r\n", data->start_task->name);
+//            tcb_set_task_state(SIMPLY_THREAD_TASK_READY, data->start_task);
+//        }
+//        else
+//        {
+//            PRINT_MSG("\t\tMutex is now available\r\n");
+//            mux->available = true; //The mutex is available
+//        }
+//    }
+//    data->result = true;
+//    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -337,22 +335,22 @@ static void handle_mutex_unlock(struct mutex_unlock_data_s *data)
  */
 static void handle_mutex_create(struct mutex_create_data_s *data)
 {
-    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
-    SS_ASSERT(NULL != data);
-    for(int i = 0; i < ARRAY_MAX_COUNT(mutex_mod_data.all_mutexs) && NULL == data->result; i++)
-    {
-        if(true == mutex_mod_data.all_mutexs[i].available)
-        {
-            data->result = &mutex_mod_data.all_mutexs[i].mutex;
-            mutex_mod_data.all_mutexs[i].mutex.available = true;
-            for(int j = 0; j < ARRAY_MAX_COUNT(mutex_mod_data.all_mutexs[i].mutex.wait_tasks); j++)
-            {
-                mutex_mod_data.all_mutexs[i].mutex.wait_tasks[j].waiting_task = NULL;
-            }
-            mutex_mod_data.all_mutexs[i].available = false;
-        }
-    }
-    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+//    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
+//    SS_ASSERT(NULL != data);
+//    for(int i = 0; i < ARRAY_MAX_COUNT(mutex_mod_data.all_mutexs) && NULL == data->result; i++)
+//    {
+//        if(true == mutex_mod_data.all_mutexs[i].available)
+//        {
+//            data->result = &mutex_mod_data.all_mutexs[i].mutex;
+//            mutex_mod_data.all_mutexs[i].mutex.available = true;
+//            for(int j = 0; j < ARRAY_MAX_COUNT(mutex_mod_data.all_mutexs[i].mutex.wait_tasks); j++)
+//            {
+//                mutex_mod_data.all_mutexs[i].mutex.wait_tasks[j].waiting_task = NULL;
+//            }
+//            mutex_mod_data.all_mutexs[i].available = false;
+//        }
+//    }
+//    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
@@ -362,31 +360,31 @@ static void handle_mutex_create(struct mutex_create_data_s *data)
  */
 static void mutex_message_handler(void *message, uint32_t message_size)
 {
-    struct mutex_message_s typed;
-    SS_ASSERT(sizeof(typed) == message_size);
-    SS_ASSERT(NULL != message);
-    memcpy(&typed, message, message_size);
-    switch(typed.type)
-    {
-        case MUTEX_CREATE:
-            handle_mutex_create(typed.data.create);
-            typed.finished[0] = true;
-            break;
-        case MUTEX_LOCK:
-            handle_mutex_lock(typed.data.lock);
-            typed.finished[0] = true;
-            break;
-        case MUTEX_UNLOCK:
-            handle_mutex_unlock(typed.data.unlock);
-            typed.finished[0] = true;
-            break;
-        case MUTEX_ON_TICK:
-            handle_mutex_on_tick(typed.data.on_tick);
-            typed.finished[0] = true;
-            break;
-        default:
-            SS_ASSERT(true == false);
-    }
+//    struct mutex_message_s typed;
+//    SS_ASSERT(sizeof(typed) == message_size);
+//    SS_ASSERT(NULL != message);
+//    memcpy(&typed, message, message_size);
+//    switch(typed.type)
+//    {
+//        case MUTEX_CREATE:
+//            handle_mutex_create(typed.data.create);
+//            typed.finished[0] = true;
+//            break;
+//        case MUTEX_LOCK:
+//            handle_mutex_lock(typed.data.lock);
+//            typed.finished[0] = true;
+//            break;
+//        case MUTEX_UNLOCK:
+//            handle_mutex_unlock(typed.data.unlock);
+//            typed.finished[0] = true;
+//            break;
+//        case MUTEX_ON_TICK:
+//            handle_mutex_on_tick(typed.data.on_tick);
+//            typed.finished[0] = true;
+//            break;
+//        default:
+//            SS_ASSERT(true == false);
+//    }
 }
 
 /**
@@ -395,16 +393,16 @@ static void mutex_message_handler(void *message, uint32_t message_size)
  */
 static void tcb_mutex_init(void *data)
 {
-    if(NULL == mutex_mod_data.msg_hlper)
-    {
-        PRINT_MSG("%s Running\r\n", __FUNCTION__);
-        for(int i = 0; i < ARRAY_MAX_COUNT(mutex_mod_data.all_mutexs); i++)
-        {
-            mutex_mod_data.all_mutexs[i].available = true;
-        }
-        mutex_mod_data.msg_hlper = New_Message_Helper(mutex_message_handler, "Mutex-Handler");
-        PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-    }
+//    if(NULL == mutex_mod_data.msg_hlper)
+//    {
+//        PRINT_MSG("%s Running\r\n", __FUNCTION__);
+//        for(int i = 0; i < ARRAY_MAX_COUNT(mutex_mod_data.all_mutexs); i++)
+//        {
+//            mutex_mod_data.all_mutexs[i].available = true;
+//        }
+//        mutex_mod_data.msg_hlper = New_Message_Helper(mutex_message_handler, "Mutex-Handler");
+//        PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+//    }
 }
 
 /**
@@ -412,10 +410,10 @@ static void tcb_mutex_init(void *data)
  */
 static void simply_thread_mutex_init(void)
 {
-    if(NULL == mutex_mod_data.msg_hlper)
-    {
-        run_in_tcb_context(tcb_mutex_init, NULL);
-    }
+//    if(NULL == mutex_mod_data.msg_hlper)
+//    {
+//        run_in_tcb_context(tcb_mutex_init, NULL);
+//    }
 }
 
 /**
@@ -423,7 +421,7 @@ static void simply_thread_mutex_init(void)
  */
 void simply_thread_mutex_cleanup(void)
 {
-    mutex_mod_data.msg_hlper = NULL;
+//    mutex_mod_data.msg_hlper = NULL;
 }
 
 
@@ -435,31 +433,32 @@ void simply_thread_mutex_cleanup(void)
  */
 simply_thread_mutex_t simply_thread_mutex_create(const char *name)
 {
-    struct mutex_message_s message;
-    struct mutex_create_data_s worker;
-    bool comp;
-
-    PRINT_MSG("%s Running\r\n", __FUNCTION__);
-
-    simply_thread_mutex_init();
-
-    if(NULL == name)
-    {
-        PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-        return NULL;
-    }
-
-    comp = false;
-    worker.name = name;
-    worker.result = NULL;
-    message.type = MUTEX_CREATE;
-    message.data.create = &worker;
-    message.finished = &comp;
-    Message_Helper_Send(mutex_mod_data.msg_hlper, &message, sizeof(message));
-    while(false == comp) {} //Spin untill the message has been handled
-    PRINT_MSG("\tCreated mutex at %p\r\n", worker.result);
-    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-    return worker.result;
+//    struct mutex_message_s message;
+//    struct mutex_create_data_s worker;
+//    bool comp;
+//
+//    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+//
+//    simply_thread_mutex_init();
+//
+//    if(NULL == name)
+//    {
+//        PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+//        return NULL;
+//    }
+//
+//    comp = false;
+//    worker.name = name;
+//    worker.result = NULL;
+//    message.type = MUTEX_CREATE;
+//    message.data.create = &worker;
+//    message.finished = &comp;
+//    Message_Helper_Send(mutex_mod_data.msg_hlper, &message, sizeof(message));
+//    while(false == comp) {} //Spin untill the message has been handled
+//    PRINT_MSG("\tCreated mutex at %p\r\n", worker.result);
+//    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+//    return worker.result;
+	return NULL;
 }
 
 
@@ -471,30 +470,31 @@ simply_thread_mutex_t simply_thread_mutex_create(const char *name)
  */
 bool simply_thread_mutex_unlock(simply_thread_mutex_t mux)
 {
-    struct mutex_message_s message;
-    struct mutex_unlock_data_s worker;
-    bool comp;
-
-    PRINT_MSG("%s Running\r\n", __FUNCTION__);
-
-    simply_thread_mutex_init();
-
-    if(NULL == mux)
-    {
-        PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-        return false;
-    }
-
-    worker.mutex = mux;
-    worker.result = false;
-    comp = false;
-    message.type = MUTEX_UNLOCK;
-    message.finished = &comp;
-    message.data.unlock = &worker;
-    Message_Helper_Send(mutex_mod_data.msg_hlper, &message, sizeof(message));
-    while(false == comp) {} //Spin untill the message has been handled
-    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-    return worker.result;
+//    struct mutex_message_s message;
+//    struct mutex_unlock_data_s worker;
+//    bool comp;
+//
+//    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+//
+//    simply_thread_mutex_init();
+//
+//    if(NULL == mux)
+//    {
+//        PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+//        return false;
+//    }
+//
+//    worker.mutex = mux;
+//    worker.result = false;
+//    comp = false;
+//    message.type = MUTEX_UNLOCK;
+//    message.finished = &comp;
+//    message.data.unlock = &worker;
+//    Message_Helper_Send(mutex_mod_data.msg_hlper, &message, sizeof(message));
+//    while(false == comp) {} //Spin untill the message has been handled
+//    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+//    return worker.result;
+	return false;
 }
 
 /**
@@ -505,24 +505,26 @@ bool simply_thread_mutex_unlock(simply_thread_mutex_t mux)
  */
 bool simply_thread_mutex_lock(simply_thread_mutex_t mux, unsigned int wait_time)
 {
-    struct mutex_message_s message;
-    struct mutex_lock_data_s worker;
-    bool comp;
-    bool result;
+//    struct mutex_message_s message;
+//    struct mutex_lock_data_s worker;
+//    bool comp;
+//    bool result;
+//
+//    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+//
+//    simply_thread_mutex_init();
+//    comp = false;
+//    worker.result = &result;
+//    worker.mutex = mux;
+//    worker.task = tcb_task_self();
+//    worker.wait_time = wait_time;
+//    message.type = MUTEX_LOCK;
+//    message.finished = &comp;
+//    message.data.lock = &worker;
+//    Message_Helper_Send(mutex_mod_data.msg_hlper, &message, sizeof(message));
+//    while(false == comp) {} //Spin untill the message has been handled
+//    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+//    return worker.result[0];
 
-    PRINT_MSG("%s Running\r\n", __FUNCTION__);
-
-    simply_thread_mutex_init();
-    comp = false;
-    worker.result = &result;
-    worker.mutex = mux;
-    worker.task = tcb_task_self();
-    worker.wait_time = wait_time;
-    message.type = MUTEX_LOCK;
-    message.finished = &comp;
-    message.data.lock = &worker;
-    Message_Helper_Send(mutex_mod_data.msg_hlper, &message, sizeof(message));
-    while(false == comp) {} //Spin untill the message has been handled
-    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
-    return worker.result[0];
+	return false;
 }
