@@ -185,7 +185,7 @@ static void ss_queue_pop(struct single_queue_data_s *queue, struct ss_queue_rcv_
     PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
     SS_ASSERT(true == queue->elements[0].in_use);
     SS_ASSERT(NULL != data->data);
-    memcpy(data->data, queue->elements[0].buffer, ARRAY_MAX_COUNT(queue->elements[0].buffer));
+    memcpy(data->data, queue->elements[0].buffer, queue->element_size);
     data->result = true;
     queue->elements[0].in_use = false;
     ss_queue_tidy(queue);
@@ -209,7 +209,7 @@ static void ss_queue_push(struct single_queue_data_s *queue, struct ss_queue_sen
         if(false == queue->elements[i].in_use)
         {
             queue->elements[i].in_use = true;
-            memcpy(queue->elements[i].buffer, data->data, ARRAY_MAX_COUNT(queue->elements[i].buffer));
+            memcpy(queue->elements[i].buffer, data->data, queue->element_size);
             data->result = true;
             added = true;
         }
