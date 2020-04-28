@@ -8,9 +8,16 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <assert.h>
+#include <simply-thread-log.h>
+#include <Sem-Helper.h>
 
 #ifndef SIMPLY_THREAD_H_
 #define SIMPLY_THREAD_H_
+
+#define SS_ASSERT(...) simply_thread_assert((__VA_ARGS__), __FILE__, __LINE__, #__VA_ARGS__)
+
+#define SIMPLY_THREAD_PRINT(...) simply_thread_log(COLOR_RESET, __VA_ARGS__)
 
 //Typedefs for tasks
 typedef void *simply_thread_task_t; //!< Typedef for a handle for a task created with simply thread
@@ -56,6 +63,11 @@ void simply_thread_reset(void);
 void simply_thread_cleanup(void);
 
 /**
+ * Fetch the current task handle
+ */
+void *simply_thread_current_task_handle(void);
+
+/**
  * @brief Function that creates a new thread
  * @param name The name of the thread
  * @param cb the worker function of the thread
@@ -93,12 +105,6 @@ bool simply_thread_task_resume(simply_thread_task_t handle);
  * @return The state of the task
  */
 enum simply_thread_thread_state_e simply_thread_task_state(simply_thread_task_t handle);
-
-/**
- * @brief Fetch the current task handle
- * @return void*
- */
-void *simply_thread_current_task_handle(void);
 
 /**
  * @brief Function that checks if we are currently in an interrupt
@@ -191,9 +197,15 @@ bool simply_thread_queue_send(simply_thread_queue_t queue, void *data, unsigned 
 bool simply_thread_queue_rcv(simply_thread_queue_t queue, void *data, unsigned int block_time);
 
 /**
- * @brief Function that prints the contents of the tcb
+ * Function that handles our asserts
+ * @param result
+ * @param file
+ * @param line
+ * @param expression
  */
-void simply_thread_print_tcb(void);
+void simply_thread_assert(bool result, const char *file, unsigned int line, const char *expression);
+
+
 
 
 #endif /* SIMPLY_THREAD_H_ */

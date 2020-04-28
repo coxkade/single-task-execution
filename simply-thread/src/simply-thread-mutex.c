@@ -1,190 +1,391 @@
 /**
  * @file simply-thread-mutex.c
  * @author Kade Cox
- * @date Created: Jan 21, 2020
+ * @date Created: Mar 25, 2020
  * @details
- * module that handles mutexes for the simply thread library.
+ *
  */
 
-
-#include <simply-thread-mutex.h>
 #include <simply-thread-log.h>
-#include <priv-simply-thread.h>
-#include <simply-thread.h>
-#include <simply-thread-linked-list.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <assert.h>
+#include <simply-thread-mutex.h>
+#include <simply_thread_system_clock.h>
+#include <TCB.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <errno.h>
+
+#ifndef MAX_WAIT_THREADS
+#define MAX_WAIT_THREADS 25
+#endif //MAX_WAIT_THREADS
+
+#ifndef MAX_NUM_MUTEXES
+#define MAX_NUM_MUTEXES 100
+#endif //MAX_NUM_MUTEXES
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
 /***********************************************************************************/
 
-
-#ifndef SIMPLY_THREAD_MUTEX_DEBUG
-#ifdef DEBUG_SIMPLY_THREAD
-#define SIMPLY_THREAD_MUTEX_DEBUG
-#endif //DEBUG_SIMPLY_THREAD
-#endif //SIMPLY_THREAD_MUTEX_DEBUG
-
 //Macro that gets the number of elements supported by the array
 #define ARRAY_MAX_COUNT(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-#ifdef SIMPLY_THREAD_MUTEX_DEBUG
-#define PRINT_MSG(...) simply_thread_log(COLOR_LIGHT_GREEN, __VA_ARGS__)
+#ifdef DEBUG_SIMPLY_THREAD
+#define PRINT_MSG(...) simply_thread_log(COLOR_ORANGE, __VA_ARGS__)
 #else
 #define PRINT_MSG(...)
-#endif //SIMPLY_THREAD_MUTEX_DEBUG
-
-//Mutex to make pointer casting cleaner
-#define HANDLE_DATA(X) ((struct mutex_data_s *)X)
-
-//The maximum number of supported mutex
-#ifndef SIMPLE_THREAD_MAX_MUTEX
-#define SIMPLE_THREAD_MAX_MUTEX (250)
-#endif //SIMPLE_THREAD_MAX_MUTEX
+#endif //DEBUG_SIMPLY_THREAD
 
 /***********************************************************************************/
 /***************************** Type Defs *******************************************/
 /***********************************************************************************/
 
 
-struct mutex_local_block_data_element_s
+struct mutex_wait_task_s
 {
-    struct simply_thread_task_s *task;  //!<Pointer to the blocked task
-}; //!< Structure for use with struct mutex_data_s->block_list
+    tcb_task_t *waiting_task;  //!< Hold the number of threads waiting on the mutex
+    uint64_t count;
+    uint64_t max_count;
+    sys_clock_on_tick_handle_t tick_handle;
+    bool *result;
+}; //!<structure that holds all the data pertinent to a waiting task
 
-struct mutex_data_s
+struct single_mutex_data_s
 {
-    const char *name;  //!< The Name of this mutex
-    bool available; //!< Tells if the mutex is available
-    struct mutex_local_block_data_element_s block_list[SIMPLE_THREAD_MAX_MUTEX]; //!< List of tasks waiting on this mutex
-};//!< Structure for holding data unique to a mutex
-
-struct mutex_wrapper_s
-{
-    struct mutex_data_s *ptr_mtx;  //!< Pointer to the mutex
-};//!< Convenience structure for use with the linked lists
-
-struct mutex_block_list_service_element_s
-{
-    struct
-    {
-        struct simply_thread_task_s *task;  //!< The blocked task
-        struct mutex_data_s *mutex;  //!< The blocking mutex
-        unsigned int max_count; //!< The max count
-        unsigned int current_count; //!< The current count
-        bool result; //!< The result of the mutex wait
-    } task_data; //!< Structure containing the information that the timeout handler needs
-    bool in_use; //!< Tells if the element is in use
-};
+    struct mutex_wait_task_s wait_tasks [MAX_WAIT_THREADS];
+    bool available;
+    const char *name;
+} single_mutex_data_s; //!< Structure for a single mutex
 
 struct mutex_module_data_s
 {
-    struct simply_thread_lib_data_s *lib_data;  //!< Pointer to the root library data
-    simply_thread_linked_list_t mutex_list; //!< List of known mutexes
-    struct mutex_block_list_service_element_s block_list[SIMPLE_THREAD_MAX_MUTEX]; //!< List of blocked tasks that need to be serviced
-};//!< Structure for holding the data private to this module
+    bool initialized;
+    struct
+    {
+        struct single_mutex_data_s mutex;
+        bool  available;
+    } all_mutexs[MAX_NUM_MUTEXES];
+}; //!< Data for this modules data
 
+struct mutex_create_data_s
+{
+    simply_thread_mutex_t result;
+    const char *name;
+}; //!< Structure used to create a mutex
+
+struct mutex_unlock_data_s
+{
+    bool result;
+    tcb_task_t *start_task;
+    simply_thread_mutex_t mutex;
+}; //!< Structure used to hold the mutex unlock data
+
+struct mutex_lock_data_s
+{
+    simply_thread_mutex_t mutex;
+    unsigned int wait_time;
+    tcb_task_t *task;
+    bool *result;
+}; //!< Structure that holds mutex lock data
+
+struct mutex_on_tick_data_s
+{
+    sys_clock_on_tick_handle_t handle;
+    uint64_t tickval;
+    void *args;
+}; //!< Structure to use on the mutex on tick message
+
+struct mutex_message_s
+{
+    enum
+    {
+        MUTEX_CREATE,
+        MUTEX_LOCK,
+        MUTEX_UNLOCK,
+        MUTEX_ON_TICK
+    } type;
+    union
+    {
+        struct mutex_unlock_data_s *unlock;
+        struct mutex_create_data_s *create;
+        struct mutex_lock_data_s *lock;
+        struct mutex_on_tick_data_s *on_tick;
+    } data;
+    bool *finished;
+}; //!< Structure for holding mutex messages
 
 
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
 /***********************************************************************************/
 
-/**
- * @brief Function that makes sure a mutexes block list is sound
- * @param mux pointer to the mutex in question
- */
-static void simply_thread_check_mutex_block_list(struct mutex_data_s *mux);
-
-/**
- * @brief cleanup and sort the block list for a mutex
- * @param mux pointer to the mutex data
- */
-static void simply_thread_mutex_list_cleanup(struct mutex_data_s *mux);
-
-
-/**
- * @brief Function that removes a task from the task blocked list.
- * @param mux
- * @param task
- */
-static void simply_thread_remove_task_blocked(struct mutex_data_s *mux, struct simply_thread_task_s *task);
-
-/**
- * @brief get the number of tasks currently waiting on the mutex
- * @param mux pointer to the mutex data
- * @return
- */
-static unsigned int mutex_get_wait_task_count(struct mutex_data_s *mux);
-
 /***********************************************************************************/
 /***************************** Static Variables ************************************/
 /***********************************************************************************/
 
-static struct mutex_module_data_s m_mutex_module_data =
+static struct mutex_module_data_s mutex_mod_data =
 {
-    .lib_data = NULL,
-    .mutex_list = NULL,
-}; //!< Variable that holds the modules private data
+    .initialized = false
+}; //!< This modules local data
 
 /***********************************************************************************/
 /***************************** Function Definitions ********************************/
 /***********************************************************************************/
 
 /**
- * @brief Function that destroys a single mutex
- * @param ptr_mtx pointer to the mutex to destroy and free
+ * Handle the mutex tick message
+ * @param data
  */
-static inline void destroy_mutex(struct mutex_data_s *ptr_mtx)
+static void handle_mutex_on_tick(void *data_in)
 {
-    assert(NULL != ptr_mtx);
-    free(ptr_mtx);
+    struct mutex_on_tick_data_s *data;
+    struct mutex_wait_task_s *typed;
+
+    data = (struct mutex_on_tick_data_s *)data_in;
+    typed = data->args;
+
+    SS_ASSERT(NULL != typed);
+
+    if(NULL != typed->waiting_task)
+    {
+        if(SIMPLY_THREAD_TASK_BLOCKED == tcb_get_task_state_from_tcb_context(typed->waiting_task))
+        {
+            PRINT_MSG("\tMutex Timed out\r\n");
+            tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_READY, typed->waiting_task);
+            simply_thead_system_clock_deregister_on_tick_from_tcb_context(data->handle);
+            typed->waiting_task = NULL;
+        }
+    }
 }
 
 /**
- * @brief Function that clears out the mutex list
+ * @brief sent the mutex on tick message
+ * @param handle
+ * @param tickval
+ * @param args
  */
-static inline void clear_mutex_list(void)
+static void mutexlock_on_tick(sys_clock_on_tick_handle_t handle, uint64_t tickval, void *args)
 {
-    PRINT_MSG("%s\r\n", __FUNCTION__);
-    struct mutex_wrapper_s *wrap_pointer;
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    for(unsigned int i = 0; i < simply_thread_ll_count(m_mutex_module_data.mutex_list); i++)
+    struct mutex_wait_task_s *typed;
+    typed = args;
+    if(NULL != typed->waiting_task)
     {
-        wrap_pointer = simply_thread_ll_get(m_mutex_module_data.mutex_list, i);
-        destroy_mutex(wrap_pointer->ptr_mtx);
+        if(typed->count < typed->max_count)
+        {
+            typed->count++;
+            if(typed->count == typed->max_count)
+            {
+                struct mutex_on_tick_data_s worker;
+                worker.args = args;
+                worker.handle = handle;
+                worker.tickval = tickval;
+                run_in_tcb_context(handle_mutex_on_tick, &worker);
+            }
+        }
     }
-    simply_thread_ll_destroy(m_mutex_module_data.mutex_list);
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_mutex_module_data.block_list); i++)
+}
+
+
+/**
+ * @brief Function that handles the mutex lock function
+ * @param data
+ */
+static void handle_mutex_lock(void *data)
+{
+    struct single_mutex_data_s *mux;
+    struct mutex_lock_data_s *typed;
+
+    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != data);
+    typed = (struct mutex_lock_data_s *) data;
+
+    mux = typed->mutex;
+    if(NULL == mux)
     {
-        m_mutex_module_data.block_list[i].in_use = false;
+        PRINT_MSG("\tMutex is NULL\r\n");
+        typed->result[0] = false;
+        return;
+    }
+    if(typed->wait_time > 0 && NULL == typed->task)
+    {
+        typed->wait_time = 0;
     }
 
+    if(mux->available == true)
+    {
+        PRINT_MSG("\t\tMutex obtained\r\n");
+        mux->available =  false;
+        PRINT_MSG("\t\tSetting result\r\n");
+        typed->result[0] = true;
+        PRINT_MSG("\t\tResult set\r\n");
+    }
+    else if(typed->wait_time == 0)
+    {
+        PRINT_MSG("\t\tMutex not available and not blocking\r\n");
+        typed->result[0] = false;
+    }
+    else
+    {
+        PRINT_MSG("\t\tBlock and wait for mutex\r\n");
+        bool wait_started  = false;
+        SS_ASSERT(NULL != typed->task);
+        //Add the blocked task to the waiting task list
+        for(int i = 0; i < ARRAY_MAX_COUNT(mux->wait_tasks) && false == wait_started; i++)
+        {
+            if(NULL == mux->wait_tasks[i].waiting_task)
+            {
+                //block the task
+                PRINT_MSG("\t\tSetting task %s to blocked %i %i\r\n", typed->task->name, i, SIMPLY_THREAD_TASK_BLOCKED);
+                tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_BLOCKED, typed->task);
+                mux->wait_tasks[i].count = 0;
+                mux->wait_tasks[i].max_count = typed->wait_time;
+                mux->wait_tasks[i].waiting_task = typed->task;
+                mux->wait_tasks[i].result = typed->result;
+                mux->wait_tasks[i].result[0] = false;
+                mux->wait_tasks[i].tick_handle = simply_thead_system_clock_register_on_tick_from_tcb_context(mutexlock_on_tick, &mux->wait_tasks[i]);
+                PRINT_MSG("\t\tWait Started\r\n");
+                wait_started = true;
+            }
+        }
+    }
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
 }
 
 /**
- * @brief Function that initializes the simply thread mutex module
+ * Function that fetches the next task to start;
+ * @param mux
+ * @return
  */
-void simply_thread_mutex_init(void)
+static inline tcb_task_t *fetch_start_task(struct single_mutex_data_s *mux)
 {
-    PRINT_MSG("%s\r\n", __FUNCTION__);
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    if(NULL == m_mutex_module_data.lib_data)
+    tcb_task_t *rv;
+    int used_index = 0xFFFFFFFF;
+    rv = NULL;
+    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
+    for(int i = 0; i < ARRAY_MAX_COUNT(mux->wait_tasks); i++)
     {
-        m_mutex_module_data.lib_data = simply_thread_lib_data();
+        if(NULL != mux->wait_tasks[i].waiting_task)
+        {
+            if(SIMPLY_THREAD_TASK_BLOCKED != mux->wait_tasks[i].waiting_task->state)
+            {
+                PRINT_MSG("\t\tTask %s State is %i\r\n", mux->wait_tasks[i].waiting_task->name, mux->wait_tasks[i].waiting_task->state);
+            }
+            SS_ASSERT(SIMPLY_THREAD_TASK_BLOCKED == mux->wait_tasks[i].waiting_task->state);
+            if(NULL == rv)
+            {
+                rv = mux->wait_tasks[i].waiting_task;
+                used_index = i;
+            }
+            else
+            {
+                if(mux->wait_tasks[i].waiting_task->priority > rv->priority)
+                {
+                    rv = mux->wait_tasks[i].waiting_task;
+                    used_index = i;
+                }
+            }
+        }
     }
-    assert(NULL != m_mutex_module_data.lib_data);
-    m_mutex_module_data.mutex_list = simply_thread_new_ll(sizeof(struct mutex_wrapper_s));
-    assert(NULL != m_mutex_module_data.mutex_list);
-
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_mutex_module_data.block_list); i++)
+    if(NULL != rv)
     {
-        m_mutex_module_data.block_list[i].in_use = false;
+        simply_thead_system_clock_deregister_on_tick_from_tcb_context(mux->wait_tasks[used_index].tick_handle);
+        mux->wait_tasks[used_index].waiting_task = NULL;
+        mux->wait_tasks[used_index].result[0] = true;
+    }
+    PRINT_MSG("\t%s Finishing with %p\r\n", __FUNCTION__, rv);
+    return rv;
+}
+
+/**
+ * Unlock a mutex from the tcb context
+ * @param data
+ */
+static void handle_mutex_unlock(void *data)
+{
+    struct mutex_unlock_data_s *typed;
+    struct single_mutex_data_s *mux;
+
+    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != data);
+    typed = (struct mutex_unlock_data_s *)data;
+    mux = typed->mutex;
+    PRINT_MSG("\t\tWorking with mutex at %p\r\n", mux);
+    mux->available = false;
+    typed->result = false;
+    typed->start_task = NULL;
+    if(NULL != mux)
+    {
+        SS_ASSERT(false == mux->available);
+        typed->start_task = fetch_start_task(mux);
+        PRINT_MSG("\t\tStart Task Now %p\r\n", typed->start_task);
+        mux->available = true;
+        if(NULL != typed->start_task)
+        {
+            PRINT_MSG("\t\tSetting task %s to ready\r\n", typed->start_task->name);
+            tcb_set_task_state_from_tcb_context(SIMPLY_THREAD_TASK_READY, typed->start_task);
+        }
+        else
+        {
+            PRINT_MSG("\t\tMutex is now available\r\n");
+            mux->available = true; //The mutex is available
+        }
+    }
+    typed->result = true;
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+}
+
+/**
+ * Create a mutex from the task control block context
+ * @param data
+ */
+static void handle_mutex_create(void *data)
+{
+    struct mutex_create_data_s *typed;
+    PRINT_MSG("\t%s Running\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != data);
+    typed = (struct mutex_create_data_s *)data;
+    for(int i = 0; i < ARRAY_MAX_COUNT(mutex_mod_data.all_mutexs) && NULL == typed->result; i++)
+    {
+        if(true == mutex_mod_data.all_mutexs[i].available)
+        {
+            mutex_mod_data.all_mutexs[i].mutex.name = typed->name;
+            typed->result = &mutex_mod_data.all_mutexs[i].mutex;
+            mutex_mod_data.all_mutexs[i].mutex.available = true;
+            for(int j = 0; j < ARRAY_MAX_COUNT(mutex_mod_data.all_mutexs[i].mutex.wait_tasks); j++)
+            {
+                mutex_mod_data.all_mutexs[i].mutex.wait_tasks[j].waiting_task = NULL;
+            }
+            mutex_mod_data.all_mutexs[i].available = false;
+            PRINT_MSG("\tCreated Mutex %s\r\n",  mutex_mod_data.all_mutexs[i].mutex.name);
+        }
+    }
+    PRINT_MSG("\t%s Finishing\r\n", __FUNCTION__);
+}
+
+/**
+ * Function that initializes the module from the TCB context
+ * @param data
+ */
+static void tcb_mutex_init(void *data)
+{
+    if(false == mutex_mod_data.initialized)
+    {
+        PRINT_MSG("%s Running\r\n", __FUNCTION__);
+        for(int i = 0; i < ARRAY_MAX_COUNT(mutex_mod_data.all_mutexs); i++)
+        {
+            mutex_mod_data.all_mutexs[i].available = true;
+        }
+        mutex_mod_data.initialized = true;
+        PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    }
+}
+
+/**
+ * @brief Function that initializes the module if required
+ */
+static void simply_thread_mutex_init(void)
+{
+    if(false == mutex_mod_data.initialized)
+    {
+        run_in_tcb_context(tcb_mutex_init, NULL);
     }
 }
 
@@ -193,13 +394,10 @@ void simply_thread_mutex_init(void)
  */
 void simply_thread_mutex_cleanup(void)
 {
-    PRINT_MSG("%s\r\n", __FUNCTION__);
-    if(NULL != m_mutex_module_data.mutex_list)
-    {
-        clear_mutex_list();
-        m_mutex_module_data.mutex_list = NULL;
-    }
+    mutex_mod_data.initialized = false;
 }
+
+
 
 /**
  * @brief Function that creates a mutex
@@ -208,59 +406,26 @@ void simply_thread_mutex_cleanup(void)
  */
 simply_thread_mutex_t simply_thread_mutex_create(const char *name)
 {
-    struct mutex_wrapper_s wrapper;
-    PRINT_MSG("%s\r\n", __FUNCTION__);
+    struct mutex_create_data_s worker;
+
+    PRINT_MSG("%s Running %s\r\n", __FUNCTION__, name);
+
+    simply_thread_mutex_init();
+
     if(NULL == name)
     {
+        PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
         return NULL;
     }
 
-    wrapper.ptr_mtx = malloc(sizeof(struct mutex_data_s));
-    assert(NULL != wrapper.ptr_mtx);
-    wrapper.ptr_mtx->available = true;
-    wrapper.ptr_mtx->name = name;
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(wrapper.ptr_mtx->block_list); i++)
-    {
-        wrapper.ptr_mtx->block_list[i].task = NULL;
-    }
-    MUTEX_GET();
-    assert(true == simply_thread_ll_append(m_mutex_module_data.mutex_list, &wrapper));
-    MUTEX_RELEASE();
-    return wrapper.ptr_mtx;
+    worker.name = name;
+    worker.result = NULL;
+    run_in_tcb_context(handle_mutex_create, &worker);
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    return worker.result;
 }
 
 
-/**
- * @brief function that tells the highest priority blocked task that it can run
- * @param mux pointer to the blocking mutex
- */
-static void simply_thread_mutex_unblock_next_task(struct mutex_data_s *mux)
-{
-    struct simply_thread_task_s *run_task = NULL;
-    PRINT_MSG("%s\r\n", __FUNCTION__);
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    unsigned int waiting_tasks;
-    simply_thread_check_mutex_block_list(mux);
-    waiting_tasks = mutex_get_wait_task_count(mux);
-    run_task = mux->block_list[0].task;
-    if(NULL != run_task)
-    {
-        simply_thread_remove_task_blocked(mux, run_task);
-        assert(mutex_get_wait_task_count(mux) == (waiting_tasks - 1));
-        if(SIMPLY_THREAD_TASK_BLOCKED == run_task->state)
-        {
-            PRINT_MSG("\tSet task %s to ready\r\n", run_task->name);
-            simply_thread_set_task_state_from_locked(run_task, SIMPLY_THREAD_TASK_READY);
-            assert(true == simply_thread_master_mutex_locked()); //We must be locked
-        }
-    }
-    else
-    {
-        //There are no tasks waiting on the mutex.
-        HANDLE_DATA(mux)->available = true;
-        simply_ex_sched_from_locked();
-    }
-}
 
 /**
  * @brief Function that unlocks a mutex
@@ -269,280 +434,22 @@ static void simply_thread_mutex_unblock_next_task(struct mutex_data_s *mux)
  */
 bool simply_thread_mutex_unlock(simply_thread_mutex_t mux)
 {
-    struct simply_thread_task_s *c_task;
-    PRINT_MSG("%s\r\n", __FUNCTION__);
+    struct mutex_unlock_data_s worker;
+
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
+
+    simply_thread_mutex_init();
+
     if(NULL == mux)
     {
+        PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
         return false;
     }
-    MUTEX_GET();
-    c_task = simply_thread_get_ex_task();
-    if(false == HANDLE_DATA(mux)->available)
-    {
-        simply_thread_mutex_unblock_next_task(HANDLE_DATA(mux));
-    }
-    if(NULL == c_task)
-    {
-        PRINT_MSG("\t%s Mutex Unlocked\r\n", HANDLE_DATA(mux)->name);
-    }
-    else
-    {
-        PRINT_MSG("\t%s Mutex Unlocked: %s\r\n", HANDLE_DATA(mux)->name, c_task->name);
-    }
-    MUTEX_RELEASE();
-    return true;
-}
 
-/**
- * @brief Function that makes sure a mutexes block list is sound
- * @param mux pointer to the mutex in question
- */
-static void simply_thread_check_mutex_block_list(struct mutex_data_s *mux)
-{
-    assert(NULL != mux);
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    unsigned int i = 0;
-    unsigned int last_priority = 0xFFFFFFFF;
-    bool null_hit = false;
-    do
-    {
-        if(true == null_hit)
-        {
-            assert(NULL == mux->block_list[i].task);
-        }
-        else
-        {
-            if(NULL == mux->block_list[i].task)
-            {
-                null_hit = true;
-            }
-            else
-            {
-                assert(last_priority >= mux->block_list[i].task->priority);
-                last_priority = mux->block_list[i].task->priority;
-            }
-        }
-        i++;
-    }
-    while(i < ARRAY_MAX_COUNT(mux->block_list));
-}
-
-/**
- * @brief Swap two list values
- * @param one pointer to the first swap element.
- * @param two pointer to the second swap element.
- */
-static void simply_thread_element_swap(struct mutex_local_block_data_element_s *one, struct mutex_local_block_data_element_s *two)
-{
-    struct mutex_local_block_data_element_s worker;
-    worker.task = one->task;
-    one->task = two->task;
-    two->task = worker.task;
-}
-
-/**
- * @brief cleanup and sort the block list for a mutex
- * @param mux pointer to the mutex data
- */
-static void simply_thread_mutex_list_cleanup(struct mutex_data_s *mux)
-{
-    bool shifted;
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    //send NULLS to the Back
-    do
-    {
-        shifted = false;
-        for(unsigned int i = 0; i < (ARRAY_MAX_COUNT(mux->block_list) - 1); i++)
-        {
-            if(NULL == mux->block_list[i].task && NULL != mux->block_list[i + 1].task)
-            {
-                simply_thread_element_swap(&mux->block_list[i], &mux->block_list[i + 1]);
-                shifted = true;
-            }
-        }
-    }
-    while(true == shifted);
-    //Send the Highest priority task to the front
-    do
-    {
-        shifted = false;
-        for(unsigned int i = 0; i < (ARRAY_MAX_COUNT(mux->block_list) - 1); i++)
-        {
-            if(NULL != mux->block_list[i].task && NULL != mux->block_list[i + 1].task)
-            {
-                if(mux->block_list[i].task->priority < mux->block_list[i + 1].task->priority)
-                {
-                    simply_thread_element_swap(&mux->block_list[i], &mux->block_list[i + 1]);
-                    shifted = true;
-                }
-            }
-        }
-    }
-    while(true == shifted);
-    simply_thread_check_mutex_block_list(mux);
-}
-
-/**
- * @brief get the number of tasks currently waiting on the mutex
- * @param mux
- * @return
- */
-static unsigned int mutex_get_wait_task_count(struct mutex_data_s *mux)
-{
-    unsigned int rv = 0;
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(mux->block_list); i++)
-    {
-        if(NULL != mux->block_list[i].task)
-        {
-            rv++;
-        }
-    }
-    return rv;
-}
-
-/**
- * @brief Function that removes a task from the task blocked list.
- * @param mux
- * @param task
- */
-static void simply_thread_remove_task_blocked(struct mutex_data_s *mux, struct simply_thread_task_s *task)
-{
-    bool task_found = false;
-    assert(NULL != mux && NULL != task);
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(mux->block_list) && false == task_found; i++)
-    {
-        if(task == mux->block_list[i].task)
-        {
-            task_found = true;
-            mux->block_list[i].task = NULL;
-        }
-    }
-    assert(true == task_found);
-    simply_thread_mutex_list_cleanup(mux);
-}
-
-/**
- * Function that adds a task to the task blocked list
- * @param mux
- * @param task
- */
-static void simply_thread_add_task_blocked(struct mutex_data_s *mux, struct simply_thread_task_s *task)
-{
-    bool added;
-    unsigned int task_count;
-    struct simply_thread_task_s *c_task;
-    assert(NULL != task);
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    task_count = mutex_get_wait_task_count(mux);
-    c_task = simply_thread_get_ex_task();
-    assert(c_task == task);
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(mux->block_list); i++)
-    {
-        assert(mux->block_list[i].task != task);
-    }
-    added = false;
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(mux->block_list) && false == added; i++)
-    {
-        if(NULL == mux->block_list[i].task)
-        {
-            mux->block_list[i].task = task;
-            added = true;
-        }
-    }
-    assert((task_count + 1) == mutex_get_wait_task_count(mux));
-    simply_thread_mutex_list_cleanup(mux);
-    assert((task_count + 1) == mutex_get_wait_task_count(mux));
-}
-
-/**
- * @brief the worker function that causes mutexes to time out
- * @param arg
- */
-static void *simply_thread_mutex_timeout_worker(void *arg)
-{
-    struct mutex_block_list_service_element_s *typed;
-    typed = arg;
-    assert(NULL != typed);
-    assert(true == typed->in_use);
-
-    //Wait till our state is set to blocked
-    PRINT_MSG("Started %s for %s\r\n", __FUNCTION__, typed->task_data.mutex->name);
-    while(SIMPLY_THREAD_TASK_BLOCKED != typed->task_data.task->state)
-    {}
-
-    while(SIMPLY_THREAD_TASK_BLOCKED == typed->task_data.task->state)
-    {
-        simply_thread_sleep_ns(ST_NS_PER_MS);
-        if(SIMPLY_THREAD_TASK_BLOCKED != typed->task_data.task->state)
-        {
-            PRINT_MSG("****%s Returning for %s %u\r\n", __FUNCTION__, typed->task_data.mutex->name, __LINE__);
-            return NULL;
-        }
-        typed->task_data.current_count++;
-        if(typed->task_data.current_count >= typed->task_data.max_count)
-        {
-            //Timeout occured we need to start the task again
-            MUTEX_GET();
-            if(SIMPLY_THREAD_TASK_BLOCKED == typed->task_data.task->state)
-            {
-                assert(true == typed->in_use);
-                typed->task_data.result = false;
-                simply_thread_remove_task_blocked(typed->task_data.mutex, typed->task_data.task);
-                PRINT_MSG("\t%s: Set task %s to ready\r\n", __FUNCTION__, typed->task_data.task->name);
-                simply_thread_set_task_state_from_locked(typed->task_data.task, SIMPLY_THREAD_TASK_READY);
-            }
-            MUTEX_RELEASE();
-            PRINT_MSG("****%s Returning for %s %u\r\n", __FUNCTION__, typed->task_data.mutex->name, __LINE__);
-            return NULL;
-        }
-    }
-    PRINT_MSG("****%s Returning for %s %u\r\n", __FUNCTION__, typed->task_data.mutex->name, __LINE__);
-    return NULL;
-}
-
-/**
- * @brief Wait for a mutex to be available
- * @param mux
- * @param wait_time
- * @param task
- * @return
- */
-static bool simply_thread_mutex_lockdown(struct mutex_data_s *mux, unsigned int wait_time, struct simply_thread_task_s *task)
-{
-    assert(true == simply_thread_master_mutex_locked()); //We must be locked
-    assert(NULL != task);
-    bool value_found = false;
-    bool rv = false;
-    pthread_t worker;
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_mutex_module_data.block_list) && false == value_found; i++)
-    {
-        if(false == m_mutex_module_data.block_list[i].in_use)
-        {
-            value_found = true;
-            m_mutex_module_data.block_list[i].task_data.current_count = 0;
-            m_mutex_module_data.block_list[i].task_data.mutex = HANDLE_DATA(mux);
-            m_mutex_module_data.block_list[i].task_data.result = true;
-            m_mutex_module_data.block_list[i].task_data.task = task;
-            m_mutex_module_data.block_list[i].task_data.max_count = wait_time;
-            m_mutex_module_data.block_list[i].in_use = true;
-            assert(NULL != m_mutex_module_data.block_list[i].task_data.task);
-            simply_thread_add_task_blocked(mux, task);
-            //Launch the worker task
-            assert(0 == pthread_create(&worker, NULL, simply_thread_mutex_timeout_worker, &m_mutex_module_data.block_list[i]));
-            PRINT_MSG("Task %s waiting on mutex %s\r\n", task->name, mux->name);
-            simply_thread_set_task_state_from_locked(task, SIMPLY_THREAD_TASK_BLOCKED);
-            assert(true == simply_thread_master_mutex_locked()); //We must be locked
-            MUTEX_RELEASE();
-            pthread_join(worker, NULL);
-            MUTEX_GET();
-            rv = m_mutex_module_data.block_list[i].task_data.result;
-            m_mutex_module_data.block_list[i].in_use = false;
-        }
-    }
-    return rv;
+    worker.mutex = mux;
+    worker.result = false;
+    run_in_tcb_context(handle_mutex_unlock, &worker);
+    return worker.result;
 }
 
 /**
@@ -553,48 +460,21 @@ static bool simply_thread_mutex_lockdown(struct mutex_data_s *mux, unsigned int 
  */
 bool simply_thread_mutex_lock(simply_thread_mutex_t mux, unsigned int wait_time)
 {
-    struct simply_thread_task_s *c_task;
-    bool rv;
+    struct mutex_lock_data_s worker;
+    bool result;
 
-    PRINT_MSG("%s\r\n", __FUNCTION__);
+    PRINT_MSG("%s Running\r\n", __FUNCTION__);
 
-    if(NULL == mux)
-    {
-        return false;
-    }
-    rv = true;
-    MUTEX_GET();
-    c_task = simply_thread_get_ex_task();
-    if(false == HANDLE_DATA(mux)->available)
-    {
-        //The mutex is not available
-        if(NULL == c_task)
-        {
-            //We cannot wait in the interrupt context
-            rv = false;
-        }
-        else
-        {
-            rv = simply_thread_mutex_lockdown(HANDLE_DATA(mux), wait_time, c_task);
-        }
-    }
-    else
-    {
-        //Calling mutex gets the mutex
-        HANDLE_DATA(mux)->available = false;
-    }
-    if(true == rv)
-    {
-        if(NULL == c_task)
-        {
-            PRINT_MSG("\t%s Mutex Locked\r\n", HANDLE_DATA(mux)->name);
-        }
-        else
-        {
-            PRINT_MSG("\t%s Mutex Locked: %s\r\n", HANDLE_DATA(mux)->name, c_task->name);
-        }
-    }
-    MUTEX_RELEASE();
-    return rv;
+    simply_thread_mutex_init();
+
+    result = false;
+    worker.result = &result;
+    worker.mutex = mux;
+    worker.task = tcb_task_self();
+    worker.wait_time = wait_time;
+    PRINT_MSG("\tRunning in TCB\r\n");
+    run_in_tcb_context(handle_mutex_lock, &worker);
+    PRINT_MSG("\tFinished Running in TCB\r\n");
+    PRINT_MSG("%s Finishing\r\n", __FUNCTION__);
+    return worker.result[0];
 }
-

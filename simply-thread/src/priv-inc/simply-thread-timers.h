@@ -11,14 +11,10 @@
 #ifndef SIMPLY_THREAD_TIMERS_H_
 #define SIMPLY_THREAD_TIMERS_H_
 
-/**
- * @brief Set up the simply thread timers
- */
-void simply_thread_timers_init(void);
 
 /**
  * @brief Destroy all simply thread timers
  */
-void simply_thread_timers_destroy(void);
+void simply_thread_timers_cleanup(void);
 
 #endif /* SIMPLY_THREAD_TIMERS_H_ */

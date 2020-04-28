@@ -9,8 +9,9 @@
 #include <simply-thread-timers.h>
 #include <simply-thread-log.h>
 #include <priv-simply-thread.h>
-#include <simply-thread-linked-list.h>
 #include <simply_thread_system_clock.h>
+#include <Sem-Helper.h>
+#include <TCB.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <assert.h>
@@ -21,7 +22,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <sys/time.h>
-#include "priv-inc/master-mutex.h"
 
 /***********************************************************************************/
 /***************************** Defines and Macros **********************************/
@@ -33,8 +33,10 @@
 //Macro that casts the handle data
 #define TIMER_DATA(x) ((struct single_timer_data_s *)x)
 
+//#define DEBUG_SIMPLY_THREAD
+
 #ifdef DEBUG_SIMPLY_THREAD
-#define PRINT_MSG(...) simply_thread_log(COLOR_EARTH_GREEN, __VA_ARGS__)
+#define PRINT_MSG(...) simply_thread_log(COLOR_SKY_BLUE, __VA_ARGS__)
 #else
 #define PRINT_MSG(...)
 #endif //DEBUG_SIMPLY_THREAD
@@ -65,6 +67,16 @@ struct simply_thread_timer_module_data_s
     struct simply_thread_timer_entry_s timer_registry[SIMPLE_THREAD_MAX_TIMERS];
 };//!< Structure that holds the data for this module
 
+struct st_timer_create_data_s
+{
+    simply_thread_timer_cb cb;
+    const char *name;
+    unsigned int period_ms;
+    simply_thread_timer_type_e mode;
+    bool run_now;
+    struct simply_thread_timer_entry_s *result;
+};//!< data for the timer create
+
 /***********************************************************************************/
 /***************************** Function Declarations *******************************/
 /***********************************************************************************/
@@ -93,9 +105,9 @@ static void simply_thread_timers_worker(sys_clock_on_tick_handle_t handle, uint6
     struct simply_thread_timer_entry_s *typed;
     struct simply_thread_timer_entry_s worker;
     typed = args;
-    assert(NULL != typed);
+    SS_ASSERT(NULL != typed);
     memcpy(&worker, typed, sizeof(worker));
-    assert(NULL != worker.cb);
+    SS_ASSERT(NULL != worker.cb);
     if(true == worker.running && NULL != worker.tick_handle)
     {
         worker.count++;
@@ -116,46 +128,77 @@ static void simply_thread_timers_worker(sys_clock_on_tick_handle_t handle, uint6
 
 }
 
+
 /**
- * @brief Set up the simply thread timers
+ * @brief Function that initializes this module from the TCB context
+ * @param data
  */
-void simply_thread_timers_init(void)
+static void st_timers_init(void *data)
 {
-    PRINT_MSG("Running %s\r\n", __FUNCTION__);
-    assert(true == master_mutex_locked());
-    assert(false == m_timer_data.initialized);
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry); i++)
+    if(false == m_timer_data.initialized)
     {
-        m_timer_data.timer_registry[i].tick_handle = NULL;
-        m_timer_data.timer_registry[i].running = false;
-        m_timer_data.timer_registry[i].name = NULL;
-        m_timer_data.timer_registry[i].count = 0;
-        m_timer_data.timer_registry[i].max_count = 0;
-        m_timer_data.timer_registry[i].cb = NULL;
-        m_timer_data.timer_registry[i].mode = SIMPLY_THREAD_TIMER_ONE_SHOT;
+        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry); i++)
+        {
+            m_timer_data.timer_registry[i].cb = NULL;
+            m_timer_data.timer_registry[i].count = 0;
+            m_timer_data.timer_registry[i].max_count = 0;
+            m_timer_data.timer_registry[i].name = NULL;
+            m_timer_data.timer_registry[i].running = false;
+            m_timer_data.timer_registry[i].tick_handle = NULL;
+        }
+        m_timer_data.initialized = true;
     }
-    m_timer_data.initialized = true;
 }
+
+/**
+ * Initialize this module if required
+ */
+static void st_timers_init_if_needed(void)
+{
+    if(false == m_timer_data.initialized)
+    {
+        run_in_tcb_context(st_timers_init, NULL);
+    }
+}
+
 
 /**
  * @brief Destroy all simply thread timers
  */
-void simply_thread_timers_destroy(void)
+void simply_thread_timers_cleanup(void)
 {
-    PRINT_MSG("Running %s\r\n", __FUNCTION__);
-    if(true == m_timer_data.initialized)
-    {
-        MUTEX_GET();
-        for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry); i++)
-        {
-            if(NULL != m_timer_data.timer_registry[i].tick_handle)
-            {
-                m_timer_data.timer_registry[i].tick_handle = NULL;
-            }
-        }
-        MUTEX_RELEASE();
-    }
     m_timer_data.initialized = false;
+}
+
+/**
+ * Create a new timer from the TCB context
+ * @param data
+ */
+static void st_timer_create_tcb(void *data)
+{
+    struct st_timer_create_data_s *typed;
+    typed = data;
+    PRINT_MSG("Running %s\r\n", __FUNCTION__);
+    SS_ASSERT(NULL != typed);
+    typed->result = NULL;
+
+
+    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry) && NULL == typed->result; i++)
+    {
+        PRINT_MSG("\tindex %u\r\n", i);
+        if(m_timer_data.timer_registry[i].name == NULL)
+        {
+            typed->result = &m_timer_data.timer_registry[i];
+            m_timer_data.timer_registry[i].cb = typed->cb;
+            m_timer_data.timer_registry[i].name = typed->name;
+            m_timer_data.timer_registry[i].max_count = typed->period_ms;
+            m_timer_data.timer_registry[i].count = 0;
+            m_timer_data.timer_registry[i].running = false;
+            m_timer_data.timer_registry[i].tick_handle = NULL;
+            m_timer_data.timer_registry[i].mode = typed->mode;
+            PRINT_MSG("\tCreated timer at index %u\r\n", i);
+        }
+    }
 }
 
 /**
@@ -170,43 +213,29 @@ void simply_thread_timers_destroy(void)
 simply_thread_timer_t simply_thread_create_timer(simply_thread_timer_cb cb, const char *name, unsigned int period_ms, simply_thread_timer_type_e mode,
         bool run_now)
 {
-    PRINT_MSG("Running %s\r\n", __FUNCTION__);
-    simply_thread_timer_t rv;
-    rv = NULL;
+    struct st_timer_create_data_s run_data;
+    run_data.cb = cb;
+    run_data.name = name;
+    run_data.mode = mode;
+    run_data.period_ms = period_ms;
+    run_data.run_now = run_now;
+    run_data.result = NULL;
+    st_timers_init_if_needed();
     if(NULL == cb || NULL == name || 0 >= period_ms)
     {
         return NULL;
     }
-    assert(SIMPLY_THREAD_TIMER_ONE_SHOT == mode || SIMPLY_THREAD_TIMER_REPEAT == mode);
-    PRINT_MSG("\tFetching Mutex\r\n");
-    MUTEX_GET();
-    for(unsigned int i = 0; i < ARRAY_MAX_COUNT(m_timer_data.timer_registry) && NULL == rv; i++)
+    SS_ASSERT(SIMPLY_THREAD_TIMER_ONE_SHOT == mode || SIMPLY_THREAD_TIMER_REPEAT == mode);
+    run_in_tcb_context(st_timer_create_tcb, &run_data);
+    if(NULL != run_data.result)
     {
-        PRINT_MSG("\tindex %u\r\n", i);
-        if(m_timer_data.timer_registry[i].tick_handle == NULL)
+        run_data.result->tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_timers_worker, run_data.result);
+        if(true == run_data.run_now)
         {
-            rv = &m_timer_data.timer_registry[i];
-            m_timer_data.timer_registry[i].cb = cb;
-            m_timer_data.timer_registry[i].name = name;
-            m_timer_data.timer_registry[i].max_count = period_ms;
-            m_timer_data.timer_registry[i].count = 0;
-            m_timer_data.timer_registry[i].running = false;
-            m_timer_data.timer_registry[i].tick_handle = NULL;
-            m_timer_data.timer_registry[i].mode = mode;
-            MUTEX_RELEASE();
-            PRINT_MSG("\tCreated timer at index %u\r\n", i);
-            m_timer_data.timer_registry[i].tick_handle = simply_thead_system_clock_register_on_tick(simply_thread_timers_worker, rv);
+            simply_thread_timer_start(run_data.result);
         }
     }
-    if(NULL == rv)
-    {
-        MUTEX_RELEASE();
-    }
-    if(true == run_now && NULL != rv)
-    {
-        simply_thread_timer_start(rv);
-    }
-    return rv;
+    return run_data.result;
 }
 
 /**
@@ -223,7 +252,7 @@ bool simply_thread_timer_start(simply_thread_timer_t timer)
         return false;
     }
     memcpy(&worker, timer, sizeof(worker));
-    assert(NULL != worker.cb && NULL != worker.name);
+    SS_ASSERT(NULL != worker.cb && NULL != worker.name);
     worker.count = 0;
     worker.running = true;
     memcpy(timer, &worker, sizeof(worker));

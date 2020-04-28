@@ -72,24 +72,25 @@ find_package (Python3 3 REQUIRED)
 set( ENV{CTEST_OUTPUT_ON_FAILURE} TRUE)
 
 LIST(APPEND simply-thread-sources 
-	src/simply-thread-sem-helper.c
 	src/simply-thread.c 
     src/simply-thread-log.c 
-    src/simply-thread-linked-list.c
-    src/simply-thread-scheduler.c
     src/simply-thread-timers.c
 	src/simply-thread-mutex.c
 	src/simply-thread-queue.c
 	src/simply_thread_system_clock.c
-	src/master-mutex.c)
+	src/Task-Helper/Thread-Helper.c
+	src/Task-Helper/TCB.c
+	src/Task-Helper/Sem-Helper.c
+	src/Task-Helper/que-creator.c
+	)
 
 #project for the simply thread tests
 project(simply-thread-tests)
 	set(ENV{CMOCKA_TEST_ABORT} 1)
-	add_executable(simply-thread-test-ex tests/main_test.c ${simply-thread-sources})
+	add_executable(simply-thread-test-ex tests/main_test.c tests/Task-Helper-Tests.c ${simply-thread-sources})
 	simply_thred_test_prep()
 	set_test_cmake_flags(simply-thread-test-ex)
-	target_include_directories(simply-thread-test-ex PRIVATE ${MOCKA_PATH} inc src/priv-inc)
+	target_include_directories(simply-thread-test-ex PRIVATE ${MOCKA_PATH} inc src/priv-inc src/Task-Helper tests)
 	target_link_libraries(simply-thread-test-ex ${MOCKA_LIB} ${CMAKE_THREAD_LIBS_INIT} -fprofile-arcs -ftest-coverage)
 	add_test(NAME simply-thread-test 
 		COMMAND simply-thread-test-ex
@@ -118,20 +119,13 @@ project(simply-thread)
    	set_lib_cmake_flags(simply-thread)
 	#SET_TARGET_PROPERTIES(simply-thread PROPERTIES COMPILE_FLAGS ${MAIN_CFLAGS})
 	target_include_directories(simply-thread PUBLIC inc)
-	target_include_directories(simply-thread PRIVATE src/priv-inc)
+	target_include_directories(simply-thread PRIVATE src/priv-inc src/Task-Helper)
 
 
 project(sem-clean-tool)
-	#executable that cleans up the semaphores
-	add_executable(semaphore-cleaner tools/unlink.c)
-	set_lib_cmake_flags(semaphore-cleaner)
-	target_link_libraries(semaphore-cleaner ${CMAKE_THREAD_LIBS_INIT} -fprofile-arcs -ftest-coverage)
-
 	add_custom_target(
 		semaphore-clean
-		COMMAND semaphore-cleaner
-		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-		DEPENDS semaphore-cleaner
+		COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/src/ipcs-cleanup.py
 	)
 
 		

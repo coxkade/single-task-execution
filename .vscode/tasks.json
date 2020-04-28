@@ -4,7 +4,8 @@
             "type": "shell",
             "label": "build all",
             "group": "build",
-            "command": "make clean && make -j$(nproc) all && make semaphore-clean",
+            // "command": "make clean && make -j$(nproc) all && make semaphore-clean",
+            "command": "make semaphore-clean",
             "options": {
                 "cwd": "${workspaceFolder}"
             },
