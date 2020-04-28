@@ -141,9 +141,21 @@ static void _int_sem_lock(sem_helper_sem_t *sem)
  */
 static void tcb_mutex_obtain(void)
 {
+    bool got_it;
     init_tcm_mux_if_needed();
     PRINT_MSG("%s Running\r\n", __FUNCTION__);
-    _int_sem_lock(&tcb_module_data.mutex.tcb_mutex);
+    got_it = false;
+    while(false == got_it)
+    {
+        while(true == tcb_module_data.Sched_Waiting) {}
+        _int_sem_lock(&tcb_module_data.mutex.tcb_mutex);
+        got_it = true;
+        if(true == tcb_module_data.Sched_Waiting)
+        {
+            got_it = false;
+            SS_ASSERT(0 == Sem_Helper_sem_post(&tcb_module_data.mutex.tcb_mutex));
+        }
+    }
 }
 
 /**
@@ -260,7 +272,7 @@ static void tcb_clear(void)
 static void *tcb_sched_exe(void *unused)
 {
     tcb_task_t *starttask;
-    tcb_mutex_obtain();
+    _int_sem_lock(&tcb_module_data.mutex.tcb_mutex);
     PRINT_MSG("%s Starting\r\n", __FUNCTION__);
     //First lets pause all running threads
     for(unsigned int i = 0; i < ARRAY_MAX_COUNT(tcb_module_data.tasks); i++)

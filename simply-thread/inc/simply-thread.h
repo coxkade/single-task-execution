@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <simply-thread-log.h>
+#include <Sem-Helper.h>
 
 #ifndef SIMPLY_THREAD_H_
 #define SIMPLY_THREAD_H_

@@ -102,13 +102,7 @@ static void m_catch_pause(int signo)
     PRINT_MSG("%s Started %p\r\n", __FUNCTION__, pthread_self());
     int result = -1;
     helper_thread_t *worker;
-    sigset_t waiting_mask;
     SS_ASSERT(PAUSE_SIGNAL == signo);
-    SS_ASSERT(0 == sigpending(&waiting_mask));
-    if(sigismember(&waiting_mask, PAUSE_SIGNAL))
-    {
-        PRINT_MSG("\t%s PAUSE_SIGNAL is pending\r\n", __FUNCTION__);
-    }
     PRINT_MSG("\t%s Fetching the worker\r\n", __FUNCTION__);
     worker = thread_helper_self();
 
